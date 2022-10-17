@@ -30,7 +30,8 @@ class Completion(Event):
 
 INIT_TIME_DURATION = 0.75
 CLOUD_INIT_TIME_DURATION = 0.7
-cloud_rtt = 0.06
+cloud_rtt = 0.080
+OFFLOADING_OVERHEAD = 0.005
 EXPIRATION_TIMEOUT = 600
 
 @dataclass
@@ -171,7 +172,7 @@ class Simulation:
             assert(self.cloud.curr_memory >= 0)
             self.cold_starts += 1
             init_time = CLOUD_INIT_TIME_DURATION
-        self.schedule(self.t + cloud_rtt + init_time + duration, Completion(self.t, f,c, self.cloud, init_time > 0))
+        self.schedule(self.t + cloud_rtt + OFFLOADING_OVERHEAD + init_time + duration, Completion(self.t, f,c, self.cloud, init_time > 0))
 
     def handle_arrival (self, event):
         f = event.function
