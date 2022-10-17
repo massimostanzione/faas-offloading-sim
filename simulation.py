@@ -15,8 +15,12 @@ class Completion:
     arrival: float
     function: Function
     qos_class: QoSClass
+    node: Node
+
 
 INIT_TIME_DURATION = 0.75
+CLOUD_INIT_TIME_DURATION = 0.7
+cloud_rtt = 0.06
 
 @dataclass
 class Simulation:
@@ -51,10 +55,11 @@ class Simulation:
         #self.init_rng = np.random.default_rng(service_seed+1)
 
         # Stats
-        self.arrivals = 0
-        self.dropped_reqs = 0
-        self.completions = 0
-        self.rt_area = 0
+        self.arrivals = {c: 0 for c in self.classes}
+        self.offloaded = {c: 0 for c in self.classes}
+        self.dropped_reqs = {c: 0 for c in self.classes}
+        self.completions = {c: 0 for c in self.classes}
+        self.rt_area = {c: 0.0 for c in self.classes}
         self.cold_starts = 0
 
         self.schedule_first_arrival()
@@ -63,11 +68,17 @@ class Simulation:
             t,e = heappop(self.events)
             self.handle(t, e)
 
+        print(f"Arrivals: {sum(self.arrivals.values())}")
         print(f"Arrivals: {self.arrivals}")
+        print(f"Offloaded: {self.offloaded}")
         print(f"Dropped: {self.dropped_reqs}")
         print(f"Completed: {self.completions}")
-        print(f"Avg RT: {self.rt_area/self.completions}")
         print(f"Cold starts: {self.cold_starts}")
+        for c in self.classes:
+            try:
+                print(f"Avg RT-{c}: {self.rt_area[c]/self.completions[c]}")
+            except:
+                pass
 
     def schedule_first_arrival (self):
         # Compute arrival probabilities
@@ -94,33 +105,56 @@ class Simulation:
         else:
             raise RuntimeError("")
 
-
     def handle_completion (self, event):
         rt = self.t - event.arrival
         f = event.function
         c = event.qos_class
+        n = event.node
         print(f"Completed {f}-{c}: {rt}")
 
-        self.completions += 1
-        self.rt_area += rt
+        self.rt_area[c] += rt
+        self.completions[c] += 1
+        n.warm_pool.append(f)
 
-        self.edge.warm_pool.append(f)
+
+    def handle_offload (self, f, c):
+        if not f in self.cloud.warm_pool and self.edge.curr_memory < f.memory:
+            # TODO: try to reclaim memory
+            self.dropped_reqs[c] += 1
+            return
+
+        speedup = self.cloud.speedup
+        duration = self.service_rng.gamma(1.0/f.serviceSCV, f.serviceMean*f.serviceSCV*speedup) # TODO: check
+        # check warm or cold
+        if f in self.cloud.warm_pool:
+            self.cloud.warm_pool.remove(f)
+            init_time = 0
+        else:
+            self.cloud.curr_memory -= f.memory
+            assert(self.cloud.curr_memory >= 0)
+            self.cold_starts += 1
+            init_time = CLOUD_INIT_TIME_DURATION
+        self.schedule(self.t + cloud_rtt + init_time + duration, Completion(self.t, f,c, self.cloud))
 
     def handle_arrival (self, event):
-        self.arrivals += 1
         f = event.function
         c = event.qos_class
+        self.arrivals[c] += 1
         print(f"Arrived {f}-{c} @ {self.t}")
 
         # Schedule
         # TODO
-        if not f in self.edge.warm_pool and self.edge.curr_memory < f.memory:
+        if c.name == "default":
+            sched_decision = SchedulerDecision.OFFLOAD
+        elif not f in self.edge.warm_pool and self.edge.curr_memory < f.memory:
+            # TODO: try to reclaim memory
             sched_decision = SchedulerDecision.DROP
         else:
             sched_decision = SchedulerDecision.EXEC
 
         if sched_decision == SchedulerDecision.EXEC:
-            duration = self.service_rng.gamma(1.0/f.serviceSCV, f.serviceMean*f.serviceSCV) # TODO: check
+            speedup = self.edge.speedup
+            duration = self.service_rng.gamma(1.0/f.serviceSCV, f.serviceMean*f.serviceSCV*speedup) # TODO: check
             # check warm or cold
             if f in self.edge.warm_pool:
                 self.edge.warm_pool.remove(f)
@@ -130,11 +164,12 @@ class Simulation:
                 assert(self.edge.curr_memory >= 0)
                 self.cold_starts += 1
                 init_time = INIT_TIME_DURATION
-            self.schedule(self.t + init_time + duration, Completion(self.t, f,c))
+            self.schedule(self.t + init_time + duration, Completion(self.t, f,c, self.edge))
         elif sched_decision == SchedulerDecision.DROP:
-            self.dropped_reqs += 1
+            self.dropped_reqs[c] += 1
         elif sched_decision == SchedulerDecision.OFFLOAD:
-            pass # TODO
+            self.offloaded[c] += 1
+            self.handle_offload(f,c)
 
         # Schedule next
         iat = self.arrival_rng2.exponential(1.0/self.total_arrival_rate)

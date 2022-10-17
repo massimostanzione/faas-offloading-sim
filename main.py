@@ -15,15 +15,18 @@ def main():
     config = parse_config()
     
     # Nodes
-    cloud = faas.Node(30000, faas.Region.CLOUD)
-    edge = faas.Node(3000, faas.Region.EDGE)
+    cloud = faas.Node(30000, 1.3, faas.Region.CLOUD)
+    edge = faas.Node(3000, 1.0, faas.Region.EDGE)
 
     # Define functions
-    f1 = faas.Function("f1", 128, 1.0, 1.0, serviceSCV=0.5)
-    functions = [f1]
+    functions = []
+    functions.append(faas.Function("f1", 512, 1.0, 1.0, serviceSCV=0.5))
+    functions.append(faas.Function("f2", 128, 2.0, 1.0, serviceSCV=0.5))
 
     # Define classes
-    classes = [faas.QoSClass("default", 1, 1)]
+    classes = []
+    classes.append(faas.QoSClass("default", 1, 1))
+    classes.append(faas.QoSClass("premium", 1, 0.2, utility=2.0))
 
     sim = Simulation(config, edge, cloud, functions, classes)
     sim.run()

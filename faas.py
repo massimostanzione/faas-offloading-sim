@@ -12,9 +12,10 @@ class SchedulerDecision(Enum):
 
 class Node:
 
-    def __init__ (self, memory, region):
+    def __init__ (self, memory, speedup, region):
         self.total_memory = memory
         self.curr_memory = memory
+        self.speedup = speedup
         self.region = region
 
         self.warm_pool = []
@@ -41,3 +42,6 @@ class QoSClass:
 
     def __repr__ (self):
         return self.name
+
+    def __hash__ (self):
+        return hash(self.name)
