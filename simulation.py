@@ -70,8 +70,11 @@ class Simulation:
         self.offloaded = {c: 0 for c in self.classes}
         self.dropped_reqs = {c: 0 for c in self.classes}
         self.completions = {c: 0 for c in self.classes}
+        self.violations = {c: 0 for c in self.classes}
         self.rt_area = {c: 0.0 for c in self.classes}
         self.cold_starts = 0
+        self.utility = 0.0
+        self.utility_with_constraints = 0.0
 
         self.schedule_first_arrival()
 
@@ -79,17 +82,25 @@ class Simulation:
             t,e = heappop(self.events)
             self.handle(t, e)
 
-        print(f"Arrivals: {sum(self.arrivals.values())}")
+        completed_perc = {}
+        for c in self.completions:
+            completed_perc[c] = self.completions[c]/self.arrivals[c]*100.0
+
+        print(f"TotArrivals: {sum(self.arrivals.values())}")
         print(f"Arrivals: {self.arrivals}")
         print(f"Offloaded: {self.offloaded}")
         print(f"Dropped: {self.dropped_reqs}")
+        print(f"RT Violations: {self.violations}")
         print(f"Completed: {self.completions}")
+        print(f"CompletedP: {completed_perc}")
         print(f"Cold starts: {self.cold_starts}")
         for c in self.classes:
             try:
                 print(f"Avg RT-{c}: {self.rt_area[c]/self.completions[c]}")
             except:
                 pass
+        print(f"Utility: {self.utility}")
+        print(f"UtilityWC: {self.utility_with_constraints}")
 
     def schedule_first_arrival (self):
         # Compute arrival probabilities
@@ -120,7 +131,6 @@ class Simulation:
                 return
             f,timeout = event.node.warm_pool.front()
             if timeout < t:
-                print("Expired!")
                 event.node.warm_pool.pool = event.node.warm_pool.pool[1:]
         else:
             raise RuntimeError("")
@@ -130,12 +140,17 @@ class Simulation:
         f = event.function
         c = event.qos_class
         n = event.node
-        print(f"Completed {f}-{c}: {rt}")
+        #print(f"Completed {f}-{c}: {rt}")
 
         self.rt_area[c] += rt
         self.completions[c] += 1
-        n.warm_pool.append((f, self.t + EXPIRATION_TIMEOUT))
+        self.utility += c.utility
+        if rt <= c.max_rt:
+            self.utility_with_constraints += c.utility
+        else:
+            self.violations[c] += 1
 
+        n.warm_pool.append((f, self.t + EXPIRATION_TIMEOUT))
         self.schedule(self.t + EXPIRATION_TIMEOUT, CheckExpiredContainers(n)) 
 
 
@@ -146,7 +161,7 @@ class Simulation:
             return
 
         speedup = self.cloud.speedup
-        duration = self.service_rng.gamma(1.0/f.serviceSCV, f.serviceMean*f.serviceSCV*speedup) # TODO: check
+        duration = self.service_rng.gamma(1.0/f.serviceSCV, f.serviceMean*f.serviceSCV/speedup) # TODO: check
         # check warm or cold
         if f in self.cloud.warm_pool:
             self.cloud.warm_pool.remove(f)
@@ -162,7 +177,7 @@ class Simulation:
         f = event.function
         c = event.qos_class
         self.arrivals[c] += 1
-        print(f"Arrived {f}-{c} @ {self.t}")
+        #print(f"Arrived {f}-{c} @ {self.t}")
 
         # Schedule
         # TODO
@@ -176,7 +191,7 @@ class Simulation:
 
         if sched_decision == SchedulerDecision.EXEC:
             speedup = self.edge.speedup
-            duration = self.service_rng.gamma(1.0/f.serviceSCV, f.serviceMean*f.serviceSCV*speedup) # TODO: check
+            duration = self.service_rng.gamma(1.0/f.serviceSCV, f.serviceMean*f.serviceSCV/speedup) # TODO: check
             # check warm or cold
             if f in self.edge.warm_pool:
                 self.edge.warm_pool.remove(f)

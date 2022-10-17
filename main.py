@@ -20,7 +20,7 @@ def main():
 
     # Define functions
     functions = []
-    functions.append(faas.Function("f1", 512, 1/100, 1.0, serviceSCV=0.5))
+    functions.append(faas.Function("f1", 512, 1, 1.0, serviceSCV=0.5))
 
     # Define classes
     classes = []
