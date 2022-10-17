@@ -19,7 +19,7 @@ def main():
     edge = faas.Node(3000, faas.Region.EDGE)
 
     # Define functions
-    f1 = faas.Function("f1", 128, 1.0, 1.0)
+    f1 = faas.Function("f1", 128, 1.0, 1.0, serviceSCV=0.5)
     functions = [f1]
 
     # Define classes

@@ -5,14 +5,19 @@ class Region(Enum):
     EDGE = 1
     CLOUD = 2
 
+class SchedulerDecision(Enum):
+    EXEC = 1
+    OFFLOAD = 2
+    DROP = 3
+
 class Node:
 
     def __init__ (self, memory, region):
-        self.memory = memory
+        self.total_memory = memory
+        self.curr_memory = memory
         self.region = region
 
         self.warm_pool = []
-        self.busy_pool = []
 
 
 @dataclass
