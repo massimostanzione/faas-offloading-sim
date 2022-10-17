@@ -1,26 +1,37 @@
 import configparser
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from heapq import heappop, heappush
 import numpy as np
 
 from faas import *
 
 @dataclass
-class Arrival:
+class Event:
+    canceled: bool = field(default=False, init=False)
+
+
+@dataclass
+class Arrival(Event):
     function: Function
     qos_class: QoSClass
 
 @dataclass
-class Completion:
+class CheckExpiredContainers(Event):
+    node: Node
+
+@dataclass
+class Completion(Event):
     arrival: float
     function: Function
     qos_class: QoSClass
     node: Node
+    cold: bool
 
 
 INIT_TIME_DURATION = 0.75
 CLOUD_INIT_TIME_DURATION = 0.7
 cloud_rtt = 0.06
+EXPIRATION_TIMEOUT = 600
 
 @dataclass
 class Simulation:
@@ -97,11 +108,20 @@ class Simulation:
         heappush(self.events, (t, event))
 
     def handle (self, t, event):
+        if event.canceled:
+            return
         self.t = t
         if isinstance(event, Arrival):
             self.handle_arrival(event)
         elif isinstance(event, Completion):
             self.handle_completion(event)
+        elif isinstance(event, CheckExpiredContainers):
+            if len(event.node.warm_pool) == 0:
+                return
+            f,timeout = event.node.warm_pool.front()
+            if timeout < t:
+                print("Expired!")
+                event.node.warm_pool.pool = event.node.warm_pool.pool[1:]
         else:
             raise RuntimeError("")
 
@@ -114,7 +134,9 @@ class Simulation:
 
         self.rt_area[c] += rt
         self.completions[c] += 1
-        n.warm_pool.append(f)
+        n.warm_pool.append((f, self.t + EXPIRATION_TIMEOUT))
+
+        self.schedule(self.t + EXPIRATION_TIMEOUT, CheckExpiredContainers(n)) 
 
 
     def handle_offload (self, f, c):
@@ -134,7 +156,7 @@ class Simulation:
             assert(self.cloud.curr_memory >= 0)
             self.cold_starts += 1
             init_time = CLOUD_INIT_TIME_DURATION
-        self.schedule(self.t + cloud_rtt + init_time + duration, Completion(self.t, f,c, self.cloud))
+        self.schedule(self.t + cloud_rtt + init_time + duration, Completion(self.t, f,c, self.cloud, init_time > 0))
 
     def handle_arrival (self, event):
         f = event.function
@@ -164,7 +186,7 @@ class Simulation:
                 assert(self.edge.curr_memory >= 0)
                 self.cold_starts += 1
                 init_time = INIT_TIME_DURATION
-            self.schedule(self.t + init_time + duration, Completion(self.t, f,c, self.edge))
+            self.schedule(self.t + init_time + duration, Completion(self.t, f,c, self.edge, init_time > 0))
         elif sched_decision == SchedulerDecision.DROP:
             self.dropped_reqs[c] += 1
         elif sched_decision == SchedulerDecision.OFFLOAD:
@@ -176,3 +198,9 @@ class Simulation:
         if self.t + iat < self.close_the_door_time:
             f,c = self.arrival_rng.choice(self.arrival_entries, p=self.arrival_probs)
             self.schedule(self.t + iat, Arrival(f,c))
+        else:
+            # Little hack: remove all expiration from the event list (we do not
+            # need to wait for them)
+            for item in self.events:
+                if isinstance(item[1], CheckExpiredContainers):
+                    item[1].canceled = True

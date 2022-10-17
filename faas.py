@@ -10,6 +10,34 @@ class SchedulerDecision(Enum):
     OFFLOAD = 2
     DROP = 3
 
+class ContainerPool:
+
+    def __init__ (self):
+        self.pool = []
+
+    def append (self, e):
+        self.pool.append(e)
+
+    def remove (self, f):
+        for entry in self.pool:
+            if f.name == entry[0].name:
+                self.pool.remove(entry)
+                return
+
+    def __len__ (self):
+        return len(self.pool)
+
+    def front (self):
+        return self.pool[0]
+
+    def __contains__ (self, f):
+        if not isinstance(f, Function):
+            return False
+        for entry in self.pool:
+            if f.name == entry[0].name:
+                return True
+        return False
+
 class Node:
 
     def __init__ (self, memory, speedup, region):
@@ -18,7 +46,7 @@ class Node:
         self.speedup = speedup
         self.region = region
 
-        self.warm_pool = []
+        self.warm_pool = ContainerPool()
 
 
 @dataclass
@@ -31,6 +59,20 @@ class Function:
 
     def __repr__ (self):
         return self.name
+
+@dataclass
+class Container:
+    function: Function
+    expiration_time: float
+
+    def __eq__ (self, other):
+        if not isinstance(other, Container) and not isinstance(other, Function):
+            return False
+        elif isinstance(other, Function):
+            return self.function == other.name
+        else:
+            return self.function == other.function
+
 
 
 @dataclass
