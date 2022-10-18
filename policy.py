@@ -34,3 +34,26 @@ class BasicPolicy(Policy):
 
         return sched_decision
 
+
+class ProbabilisticPolicy (Policy):
+
+    # Probability vector: p_e, p_o, p_d
+
+    def __init__ (self, simulation):
+        super().__init__(simulation)
+        probs = {(f,c): [0.33,0.33,0.33] for f in simulation.functions for c in simulation.classes}
+        probs_nolocal = {(f,c): [0.5,0.5] for f in simulation.functions for c in simulation.classes}
+        seed = self.simulation.config.getint(conf.SEC_POLICY,"seed", fallback=13)
+        self.rng = np.random.default_rng(seed)
+
+    def schedule (self, f, c):
+        decision = self.rng.choice(list(SchedulerDecision), p=probs) 
+        print(decision)
+        if self.can_execute_locally(self.simulation.edge, f):
+            sched_decision = SchedulerDecision.OFFLOAD
+        elif not self.can_execute_locally(self.simulation.edge, f):
+            sched_decision = SchedulerDecision.DROP
+        else:
+            sched_decision = SchedulerDecision.EXEC
+
+        return sched_decision

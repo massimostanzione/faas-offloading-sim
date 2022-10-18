@@ -61,6 +61,8 @@ class Simulation:
         policy_name = self.config.get(conf.SEC_POLICY, conf.POLICY_NAME, fallback="basic")
         if policy_name == "basic":
             self.policy = policy.BasicPolicy(self)
+        elif policy_name == "probabilistic":
+            self.policy = policy.ProbabilisticPolicy(self)
         else:
             raise RuntimeError(f"Unknown policy: {policy_name}")
 
