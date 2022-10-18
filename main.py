@@ -15,9 +15,14 @@ def main():
     config = parse_config()
     
     # Nodes
-    cloud = faas.Node(30000, 1.3, faas.Region.CLOUD)
-    edge = faas.Node(3000, 1.0, faas.Region.EDGE)
-    latencies = {(edge.region,cloud.region): 0.040}
+    cloud_memory = config.getint("cloud", "memory", fallback=30000)
+    cloud_speedup = config.getfloat("cloud", "speedup", fallback=1.3)
+    edge_memory = config.getint("edge", "memory", fallback=4096)
+    edge_speedup = config.getfloat("edge", "speedup", fallback=1.0)
+    edge_cloud_latency = config.getfloat("edge", "cloud-latency", fallback=0.040)
+    cloud = faas.Node(cloud_memory, edge_speedup, faas.Region.CLOUD)
+    edge = faas.Node(edge_memory, edge_speedup, faas.Region.EDGE)
+    latencies = {(edge.region,cloud.region): edge_cloud_latency}
 
     # Read functions from config
     functions = []
