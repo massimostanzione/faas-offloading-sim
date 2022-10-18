@@ -38,6 +38,48 @@ class Completion(Event):
 
 OFFLOADING_OVERHEAD = 0.005
 
+class Stats:
+
+    def __init__ (self, functions, classes, nodes):
+        self.functions = functions
+        self.classes = classes
+        self.nodes = nodes
+
+        self.arrivals = {c: 0 for c in classes}
+        self.offloaded = {c: 0 for c in classes}
+        self.dropped_reqs = {c: 0 for c in classes}
+        self.completions = {c: 0 for c in classes}
+        self.violations = {c: 0 for c in classes}
+        self.rt_area = {c: 0.0 for c in classes}
+        self.cold_starts = 0
+        self.node2cold_starts = {n: 0 for n in nodes}
+        self.node2completions = {n: 0 for n in nodes}
+        self.utility = 0.0
+        self.utility_with_constraints = 0.0
+
+    def print (self):
+        completed_perc = {}
+        for c in self.completions:
+            completed_perc[c] = self.completions[c]/self.arrivals[c]*100.0
+        cold_start_prob = {n: self.node2cold_starts[n]/self.node2completions[n] for n in self.nodes}
+
+        print(f"TotArrivals: {sum(self.arrivals.values())}")
+        print(f"Arrivals: {self.arrivals}")
+        print(f"Offloaded: {self.offloaded}")
+        print(f"Dropped: {self.dropped_reqs}")
+        print(f"RT Violations: {self.violations}")
+        print(f"Completed: {self.completions}")
+        print(f"CompletedP: {completed_perc}")
+        print(f"Cold starts: {self.cold_starts}")
+        print(f"Cold start prob: {cold_start_prob}")
+        for c in self.classes:
+            try:
+                print(f"Avg RT-{c}: {self.rt_area[c]/self.completions[c]}")
+            except:
+                pass
+        print(f"Utility: {self.utility}")
+        print(f"UtilityWC: {self.utility_with_constraints}")
+
 
 @dataclass
 class Simulation:
@@ -53,6 +95,7 @@ class Simulation:
         assert(len(self.functions) > 0)
         assert(len(self.classes) > 0)
         assert((self.edge.region,self.cloud.region) in self.latencies)
+        self.stats = Stats(self.functions, self.classes, [self.edge,self.cloud])
 
 
     def run (self):
@@ -91,19 +134,6 @@ class Simulation:
         self.expiration_timeout = self.config.getfloat(conf.SEC_CONTAINER, conf.EXPIRATION_TIMEOUT, fallback=600)
 
 
-        # Stats
-        self.arrivals = {c: 0 for c in self.classes}
-        self.offloaded = {c: 0 for c in self.classes}
-        self.dropped_reqs = {c: 0 for c in self.classes}
-        self.completions = {c: 0 for c in self.classes}
-        self.violations = {c: 0 for c in self.classes}
-        self.rt_area = {c: 0.0 for c in self.classes}
-        self.cold_starts = 0
-        self.node2cold_starts = {n: 0 for n in [self.edge,self.cloud]}
-        self.node2completions = {n: 0 for n in [self.edge,self.cloud]}
-        self.utility = 0.0
-        self.utility_with_constraints = 0.0
-
         if not self.config.getboolean(conf.SEC_SIM, conf.PLOT_RESP_TIMES, fallback=False):
             self.resp_time_samples = {}
         else:
@@ -115,33 +145,11 @@ class Simulation:
             t,e = heappop(self.events)
             self.handle(t, e)
 
-        self.print_statistics()
+        self.stats.print()
 
         if len(self.resp_time_samples) > 0:
             plot.plot_rt_cdf(self.resp_time_samples)
 
-    def print_statistics (self):
-        completed_perc = {}
-        for c in self.completions:
-            completed_perc[c] = self.completions[c]/self.arrivals[c]*100.0
-        cold_start_prob = {n: self.node2cold_starts[n]/self.node2completions[n] for n in [self.edge,self.cloud]}
-
-        print(f"TotArrivals: {sum(self.arrivals.values())}")
-        print(f"Arrivals: {self.arrivals}")
-        print(f"Offloaded: {self.offloaded}")
-        print(f"Dropped: {self.dropped_reqs}")
-        print(f"RT Violations: {self.violations}")
-        print(f"Completed: {self.completions}")
-        print(f"CompletedP: {completed_perc}")
-        print(f"Cold starts: {self.cold_starts}")
-        print(f"Cold start prob: {cold_start_prob}")
-        for c in self.classes:
-            try:
-                print(f"Avg RT-{c}: {self.rt_area[c]/self.completions[c]}")
-            except:
-                pass
-        print(f"Utility: {self.utility}")
-        print(f"UtilityWC: {self.utility_with_constraints}")
 
     def schedule_first_arrival (self):
         # Compute arrival probabilities
@@ -186,16 +194,16 @@ class Simulation:
         n = event.node
         #print(f"Completed {f}-{c}: {rt}")
 
-        self.rt_area[c] += rt
+        self.stats.rt_area[c] += rt
         if (f,c) in self.resp_time_samples:
             self.resp_time_samples[(f,c)].append(rt)
-        self.completions[c] += 1
-        self.node2completions[n] += 1
-        self.utility += c.utility
+        self.stats.completions[c] += 1
+        self.stats.node2completions[n] += 1
+        self.stats.utility += c.utility
         if rt <= c.max_rt:
-            self.utility_with_constraints += c.utility
+            self.stats.utility_with_constraints += c.utility
         else:
-            self.violations[c] += 1
+            self.stats.violations[c] += 1
 
         n.warm_pool.append((f, self.t + self.expiration_timeout))
         self.schedule(self.t + self.expiration_timeout, CheckExpiredContainers(n)) 
@@ -216,8 +224,8 @@ class Simulation:
         else:
             self.cloud.curr_memory -= f.memory
             assert(self.cloud.curr_memory >= 0)
-            self.cold_starts += 1
-            self.node2cold_starts[self.cloud] += 1
+            self.stats.cold_starts += 1
+            self.stats.node2cold_starts[self.cloud] += 1
             init_time = self.init_time[self.cloud]
         rtt = self.latencies[(self.edge.region,self.cloud.region)]*2
         self.schedule(self.t + rtt + OFFLOADING_OVERHEAD + init_time + duration, Completion(self.t, f,c, self.cloud, init_time > 0))
@@ -225,7 +233,7 @@ class Simulation:
     def handle_arrival (self, event):
         f = event.function
         c = event.qos_class
-        self.arrivals[c] += 1
+        self.stats.arrivals[c] += 1
         #print(f"Arrived {f}-{c} @ {self.t}")
 
         # Policy
@@ -241,14 +249,14 @@ class Simulation:
             else:
                 self.edge.curr_memory -= f.memory
                 assert(self.edge.curr_memory >= 0)
-                self.cold_starts += 1
-                self.node2cold_starts[self.edge] += 1
+                self.stats.cold_starts += 1
+                self.stats.node2cold_starts[self.edge] += 1
                 init_time = self.init_time[self.edge]
             self.schedule(self.t + init_time + duration, Completion(self.t, f,c, self.edge, init_time > 0))
         elif sched_decision == SchedulerDecision.DROP:
-            self.dropped_reqs[c] += 1
+            self.stats.dropped_reqs[c] += 1
         elif sched_decision == SchedulerDecision.OFFLOAD:
-            self.offloaded[c] += 1
+            self.stats.offloaded[c] += 1
             self.handle_offload(f,c)
 
         # Schedule next
@@ -260,5 +268,5 @@ class Simulation:
             # Little hack: remove all expiration from the event list (we do not
             # need to wait for them)
             for item in self.events:
-                if isinstance(item[1], CheckExpiredContainers):
+                if isinstance(item[1], CheckExpiredContainers) or isinstance(item[1], PolicyUpdate):
                     item[1].canceled = True

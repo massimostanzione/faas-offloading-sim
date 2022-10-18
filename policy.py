@@ -16,7 +16,7 @@ class Policy:
     def schedule (self, function, qos_class):
         pass
 
-    def update ():
+    def update (self):
         pass
 
     def can_execute_locally (self, node, f, reclaim_memory=True):
@@ -59,5 +59,5 @@ class ProbabilisticPolicy (Policy):
 
         return decision
 
-    def update():
+    def update(self):
         pass
