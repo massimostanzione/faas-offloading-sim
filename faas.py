@@ -40,13 +40,17 @@ class ContainerPool:
 
 class Node:
 
-    def __init__ (self, memory, speedup, region):
+    def __init__ (self, name, memory, speedup, region):
+        self.name = name
         self.total_memory = memory
         self.curr_memory = memory
         self.speedup = speedup
         self.region = region
 
         self.warm_pool = ContainerPool()
+
+    def __repr__ (self):
+        return self.name
 
 
 @dataclass
@@ -59,6 +63,9 @@ class Function:
 
     def __repr__ (self):
         return self.name
+
+    def __hash__ (self):
+        return hash(self.name)
 
 @dataclass
 class Container:

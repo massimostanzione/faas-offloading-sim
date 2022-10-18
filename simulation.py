@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from heapq import heappop, heappush
 import numpy as np
 import conf
+import plot
 
 from faas import *
 
@@ -79,8 +80,15 @@ class Simulation:
         self.violations = {c: 0 for c in self.classes}
         self.rt_area = {c: 0.0 for c in self.classes}
         self.cold_starts = 0
+        self.node2cold_starts = {n: 0 for n in [self.edge,self.cloud]}
+        self.node2completions = {n: 0 for n in [self.edge,self.cloud]}
         self.utility = 0.0
         self.utility_with_constraints = 0.0
+
+        if not self.config.getboolean(conf.SEC_SIM, conf.PLOT_RESP_TIMES, fallback=False):
+            self.resp_time_samples = {}
+        else:
+            self.resp_time_samples = {(f,c): [] for f in self.functions for c in self.classes}
 
         self.schedule_first_arrival()
 
@@ -88,9 +96,16 @@ class Simulation:
             t,e = heappop(self.events)
             self.handle(t, e)
 
+        self.print_statistics()
+
+        if len(self.resp_time_samples) > 0:
+            plot.plot_rt_cdf(self.resp_time_samples)
+
+    def print_statistics (self):
         completed_perc = {}
         for c in self.completions:
             completed_perc[c] = self.completions[c]/self.arrivals[c]*100.0
+        cold_start_prob = {n: self.node2cold_starts[n]/self.node2completions[n] for n in [self.edge,self.cloud]}
 
         print(f"TotArrivals: {sum(self.arrivals.values())}")
         print(f"Arrivals: {self.arrivals}")
@@ -100,6 +115,7 @@ class Simulation:
         print(f"Completed: {self.completions}")
         print(f"CompletedP: {completed_perc}")
         print(f"Cold starts: {self.cold_starts}")
+        print(f"Cold start prob: {cold_start_prob}")
         for c in self.classes:
             try:
                 print(f"Avg RT-{c}: {self.rt_area[c]/self.completions[c]}")
@@ -149,7 +165,10 @@ class Simulation:
         #print(f"Completed {f}-{c}: {rt}")
 
         self.rt_area[c] += rt
+        if (f,c) in self.resp_time_samples:
+            self.resp_time_samples[(f,c)].append(rt)
         self.completions[c] += 1
+        self.node2completions[n] += 1
         self.utility += c.utility
         if rt <= c.max_rt:
             self.utility_with_constraints += c.utility
@@ -176,6 +195,7 @@ class Simulation:
             self.cloud.curr_memory -= f.memory
             assert(self.cloud.curr_memory >= 0)
             self.cold_starts += 1
+            self.node2cold_starts[self.cloud] += 1
             init_time = self.init_time[self.cloud]
         rtt = self.latencies[(self.edge.region,self.cloud.region)]*2
         self.schedule(self.t + rtt + OFFLOADING_OVERHEAD + init_time + duration, Completion(self.t, f,c, self.cloud, init_time > 0))
@@ -207,6 +227,7 @@ class Simulation:
                 self.edge.curr_memory -= f.memory
                 assert(self.edge.curr_memory >= 0)
                 self.cold_starts += 1
+                self.node2cold_starts[self.edge] += 1
                 init_time = self.init_time[self.edge]
             self.schedule(self.t + init_time + duration, Completion(self.t, f,c, self.edge, init_time > 0))
         elif sched_decision == SchedulerDecision.DROP:

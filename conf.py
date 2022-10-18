@@ -8,3 +8,4 @@ BASE_INIT_TIME = "init-time"
 
 SEC_SIM = "simulation"
 CLOSE_DOOR_TIME = "close-door-time"
+PLOT_RESP_TIMES = "plot-rt"
