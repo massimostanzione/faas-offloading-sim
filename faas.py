@@ -95,6 +95,7 @@ class QoSClass:
     max_rt: float
     arrival_weight: float = 1.0
     utility: float = 1.0
+    min_completion_percentage: float = 0.0
 
     def __repr__ (self):
         return self.name

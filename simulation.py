@@ -13,6 +13,14 @@ from faas import *
 class Event:
     canceled: bool = field(default=False, init=False)
 
+    # XXX: ugly workaround to avoid issues with the heapq (in case of events
+    # scheduled at the same time)
+    def __lt__(self, other):
+        return True
+
+    def __le__(self,other):
+        return True
+
 
 @dataclass
 class Arrival(Event):
@@ -25,6 +33,10 @@ class CheckExpiredContainers(Event):
 
 @dataclass
 class PolicyUpdate(Event):
+    pass
+
+@dataclass
+class StatPrinter(Event):
     pass
 
 @dataclass
@@ -78,10 +90,7 @@ class Stats:
         print(f"Cold starts: {self.cold_starts}")
         print(f"Cold start prob: {cold_start_prob}")
         for c in self.classes:
-            try:
-                print(f"Avg RT-{c}: {self.rt_area[c]/self.class_completions[c]}")
-            except:
-                pass
+            print(f"Avg RT-{c}: {self.rt_area[c]/class_completions[c]}")
         print(f"Utility: {self.utility}")
         print(f"UtilityWC: {self.utility_with_constraints}")
 
@@ -120,6 +129,9 @@ class Simulation:
         self.policy_update_interval = self.config.getfloat(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, fallback=-1)
         if self.policy_update_interval > 0.0:
             self.schedule(self.policy_update_interval, PolicyUpdate())
+        self.stats_print_interval = self.config.getfloat(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, fallback=120)
+        if self.stats_print_interval > 0.0:
+            self.schedule(self.stats_print_interval, StatPrinter())
 
 
         # Seeds
@@ -183,6 +195,9 @@ class Simulation:
         elif isinstance(event, PolicyUpdate):
             self.policy.update()
             self.schedule(t + self.policy_update_interval, event)
+        elif isinstance(event, StatPrinter):
+            self.stats.print()
+            self.schedule(t + self.stats_print_interval, event)
         elif isinstance(event, CheckExpiredContainers):
             if len(event.node.warm_pool) == 0:
                 return
@@ -273,5 +288,7 @@ class Simulation:
             # Little hack: remove all expiration from the event list (we do not
             # need to wait for them)
             for item in self.events:
-                if isinstance(item[1], CheckExpiredContainers) or isinstance(item[1], PolicyUpdate):
+                if isinstance(item[1], CheckExpiredContainers) \
+                   or isinstance(item[1], PolicyUpdate) \
+                   or isinstance(item[1], StatPrinter):
                     item[1].canceled = True

@@ -20,7 +20,7 @@ def main():
     edge_memory = config.getint("edge", "memory", fallback=4096)
     edge_speedup = config.getfloat("edge", "speedup", fallback=1.0)
     edge_cloud_latency = config.getfloat("edge", "cloud-latency", fallback=0.040)
-    cloud = faas.Node("cloud", cloud_memory, edge_speedup, faas.Region.CLOUD)
+    cloud = faas.Node("cloud", cloud_memory, cloud_speedup, faas.Region.CLOUD)
     edge = faas.Node("edge", edge_memory, edge_speedup, faas.Region.EDGE)
     latencies = {(edge.region,cloud.region): edge_cloud_latency}
 

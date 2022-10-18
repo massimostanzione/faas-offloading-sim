@@ -1,3 +1,4 @@
 *.pyc
 *__py
 config.ini
+env/
