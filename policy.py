@@ -1,6 +1,8 @@
 from enum import Enum
-import conf
+import copy
 import numpy as np
+
+import conf
 
 
 class SchedulerDecision(Enum):
@@ -51,6 +53,7 @@ class ProbabilisticPolicy (Policy):
         self.probs_nolocal = {(f,c): [0.5,0.5] for f in simulation.functions for c in simulation.classes}
         seed = self.simulation.config.getint(conf.SEC_POLICY,"seed", fallback=13)
         self.rng = np.random.default_rng(seed)
+        self.stats_snapshot = None
 
     def schedule (self, f, c):
         decision = self.rng.choice(list(SchedulerDecision), p=self.probs[(f,c)]) 
@@ -59,5 +62,19 @@ class ProbabilisticPolicy (Policy):
 
         return decision
 
-    def update(self):
+    def update_probabilities (self, arrival_rates):
         pass
+
+    def update(self):
+        if self.stats_snapshot is not None:
+            stats = self.simulation.stats
+            #window_arrivals = {}
+            #for f,c in stats.arrivals:
+            #    window_arrivals[(f,c)] = stats.arrivals[(f,c)] - self.stats_snapshot.arrivals[(f,c)]
+            # TODO: compute arrival rates
+            arrival_rates = {}
+            for f,c in stats.arrivals:
+                arrival_rates[(f,c)] = stats.arrivals[(f,c)]/self.simulation.t
+
+            self.update_probabilities(arrival_rates)
+        self.stats_snapshot = copy.deepcopy(self.simulation.stats)

@@ -44,14 +44,15 @@ class Stats:
         self.functions = functions
         self.classes = classes
         self.nodes = nodes
+        fun_classes = [(f,c) for f in functions for c in classes]
 
-        self.arrivals = {c: 0 for c in classes}
+        self.arrivals = {x: 0 for x in fun_classes}
         self.offloaded = {c: 0 for c in classes}
         self.dropped_reqs = {c: 0 for c in classes}
-        self.completions = {c: 0 for c in classes}
+        self.completions = {x: 0 for x in fun_classes}
         self.violations = {c: 0 for c in classes}
         self.rt_area = {c: 0.0 for c in classes}
-        self.cold_starts = 0
+        self.cold_starts = {x: 0 for x in fun_classes}
         self.node2cold_starts = {n: 0 for n in nodes}
         self.node2completions = {n: 0 for n in nodes}
         self.utility = 0.0
@@ -62,6 +63,10 @@ class Stats:
         for c in self.completions:
             completed_perc[c] = self.completions[c]/self.arrivals[c]*100.0
         cold_start_prob = {n: self.node2cold_starts[n]/self.node2completions[n] for n in self.nodes}
+
+        class_completions = {}
+        for c in self.classes:
+            class_completions[c] = sum([self.completions[(f,c)] for f in self.functions])
 
         print(f"TotArrivals: {sum(self.arrivals.values())}")
         print(f"Arrivals: {self.arrivals}")
@@ -74,7 +79,7 @@ class Stats:
         print(f"Cold start prob: {cold_start_prob}")
         for c in self.classes:
             try:
-                print(f"Avg RT-{c}: {self.rt_area[c]/self.completions[c]}")
+                print(f"Avg RT-{c}: {self.rt_area[c]/self.class_completions[c]}")
             except:
                 pass
         print(f"Utility: {self.utility}")
@@ -197,7 +202,7 @@ class Simulation:
         self.stats.rt_area[c] += rt
         if (f,c) in self.resp_time_samples:
             self.resp_time_samples[(f,c)].append(rt)
-        self.stats.completions[c] += 1
+        self.stats.completions[(f,c)] += 1
         self.stats.node2completions[n] += 1
         self.stats.utility += c.utility
         if rt <= c.max_rt:
@@ -224,7 +229,7 @@ class Simulation:
         else:
             self.cloud.curr_memory -= f.memory
             assert(self.cloud.curr_memory >= 0)
-            self.stats.cold_starts += 1
+            self.stats.cold_starts[(f,c)] += 1
             self.stats.node2cold_starts[self.cloud] += 1
             init_time = self.init_time[self.cloud]
         rtt = self.latencies[(self.edge.region,self.cloud.region)]*2
@@ -233,7 +238,7 @@ class Simulation:
     def handle_arrival (self, event):
         f = event.function
         c = event.qos_class
-        self.stats.arrivals[c] += 1
+        self.stats.arrivals[(f,c)] += 1
         #print(f"Arrived {f}-{c} @ {self.t}")
 
         # Policy
@@ -249,7 +254,7 @@ class Simulation:
             else:
                 self.edge.curr_memory -= f.memory
                 assert(self.edge.curr_memory >= 0)
-                self.stats.cold_starts += 1
+                self.stats.cold_starts[(f,c)] += 1
                 self.stats.node2cold_starts[self.edge] += 1
                 init_time = self.init_time[self.edge]
             self.schedule(self.t + init_time + duration, Completion(self.t, f,c, self.edge, init_time > 0))
