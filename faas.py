@@ -5,11 +5,6 @@ class Region(Enum):
     EDGE = 1
     CLOUD = 2
 
-class SchedulerDecision(Enum):
-    EXEC = 1
-    OFFLOAD = 2
-    DROP = 3
-
 class ContainerPool:
 
     def __init__ (self):
@@ -29,6 +24,18 @@ class ContainerPool:
 
     def front (self):
         return self.pool[0]
+
+    def reclaim_memory (self, required_mem):
+        mem = [entry[0].memory for entry in self.pool]
+        if sum(mem) < required_mem:
+            return
+        s = sorted([e[0] for e in self.pool], reverse=True, key = lambda x: x.memory)
+        reclaimed = 0
+        while reclaimed < required_mem:
+            f = s[0]
+            s = s[1:]
+            self.remove(f)
+            reclaimed += f.memory
 
     def __contains__ (self, f):
         if not isinstance(f, Function):
@@ -94,3 +101,16 @@ class QoSClass:
 
     def __hash__ (self):
         return hash(self.name)
+
+
+if __name__ == "__main__":
+    pool = ContainerPool()
+    f = Function("a", 200, 1, 1, 1)
+    f2 = Function("b", 100, 1, 1, 1)
+    pool.append((f,1))
+    pool.append((f2,1))
+    print(pool.pool)
+    pool.reclaim_memory(500)
+    print(pool.pool)
+    pool.reclaim_memory(10)
+    print(pool.pool)

@@ -2,9 +2,11 @@ import configparser
 from dataclasses import dataclass, field
 from heapq import heappop, heappush
 import numpy as np
+
 import conf
 import plot
-
+from policy import SchedulerDecision
+import policy
 from faas import *
 
 @dataclass
@@ -54,6 +56,13 @@ class Simulation:
         self.close_the_door_time = self.config.getfloat(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, fallback=100)
         self.events = []
         self.t = 0.0
+
+        # Policy
+        policy_name = self.config.get(conf.SEC_POLICY, conf.POLICY_NAME, fallback="basic")
+        if policy_name == "basic":
+            self.policy = policy.BasicPolicy(self)
+        else:
+            raise RuntimeError(f"Unknown policy: {policy_name}")
 
         # Seeds
         arrival_seed = self.config.getint(conf.SEC_SEED,conf.SEED_ARRIVAL, fallback=1)
@@ -206,15 +215,8 @@ class Simulation:
         self.arrivals[c] += 1
         #print(f"Arrived {f}-{c} @ {self.t}")
 
-        # Schedule
-        # TODO
-        if c.name == "default":
-            sched_decision = SchedulerDecision.OFFLOAD
-        elif not f in self.edge.warm_pool and self.edge.curr_memory < f.memory:
-            # TODO: try to reclaim memory
-            sched_decision = SchedulerDecision.DROP
-        else:
-            sched_decision = SchedulerDecision.EXEC
+        # Policy
+        sched_decision = self.policy.schedule(f,c)
 
         if sched_decision == SchedulerDecision.EXEC:
             speedup = self.edge.speedup
