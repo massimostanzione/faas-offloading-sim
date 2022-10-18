@@ -27,7 +27,10 @@ def main():
     classes.append(faas.QoSClass("default", 1, 1))
     classes.append(faas.QoSClass("premium", 1, 0.2, utility=2.0))
 
-    sim = Simulation(config, edge, cloud, functions, classes)
+    latencies = {}
+    latencies[(edge.region,cloud.region)] = 0.040
+
+    sim = Simulation(config, edge, cloud, latencies, functions, classes)
     sim.run()
 
 

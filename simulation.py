@@ -2,6 +2,7 @@ import configparser
 from dataclasses import dataclass, field
 from heapq import heappop, heappush
 import numpy as np
+import conf
 
 from faas import *
 
@@ -28,11 +29,8 @@ class Completion(Event):
     cold: bool
 
 
-INIT_TIME_DURATION = 0.75
-CLOUD_INIT_TIME_DURATION = 0.7
-cloud_rtt = 0.080
 OFFLOADING_OVERHEAD = 0.005
-EXPIRATION_TIMEOUT = 600
+
 
 @dataclass
 class Simulation:
@@ -40,31 +38,38 @@ class Simulation:
     config: configparser.ConfigParser
     edge: Node
     cloud: Node
+    latencies: dict
     functions: [Function]
     classes: [QoSClass]
 
-    def run (self, close_the_door_time=500.0):
+    def __post_init__ (self):
         assert(len(self.functions) > 0)
         assert(len(self.classes) > 0)
+        assert((self.edge.region,self.cloud.region) in self.latencies)
 
+
+    def run (self):
         # Simulate
-        self.close_the_door_time = close_the_door_time
+        self.close_the_door_time = self.config.getfloat(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, fallback=100)
         self.events = []
         self.t = 0.0
 
         # Seeds
-        arrival_seed = 1
-        if self.config is not None and "seed.arrival" in self.config:
-            arrival_seed = self.config.getint("seed.arrival")
+        arrival_seed = self.config.getint(conf.SEC_SEED,conf.SEED_ARRIVAL, fallback=1)
         self.arrival_rng = np.random.default_rng(arrival_seed)
         self.arrival_rng2 = np.random.default_rng(arrival_seed+1)
         # ---
-        service_seed = 10
-        if self.config is not None and "seed.service" in self.config:
-            service_seed = self.config.getint("seed.service")
+        service_seed = self.config.getint(conf.SEC_SEED, conf.SEED_SERVICE, fallback=10)
         self.service_rng = np.random.default_rng(service_seed)
 
         #self.init_rng = np.random.default_rng(service_seed+1)
+
+        # Other params
+        self.init_time = {}
+        for node in [self.edge, self.cloud]:
+            self.init_time[node] = self.config.getfloat(conf.SEC_CONTAINER, conf.BASE_INIT_TIME, fallback=0.7)/node.speedup
+        self.expiration_timeout = self.config.getfloat(conf.SEC_CONTAINER, conf.EXPIRATION_TIMEOUT, fallback=600)
+
 
         # Stats
         self.arrivals = {c: 0 for c in self.classes}
@@ -151,8 +156,8 @@ class Simulation:
         else:
             self.violations[c] += 1
 
-        n.warm_pool.append((f, self.t + EXPIRATION_TIMEOUT))
-        self.schedule(self.t + EXPIRATION_TIMEOUT, CheckExpiredContainers(n)) 
+        n.warm_pool.append((f, self.t + self.expiration_timeout))
+        self.schedule(self.t + self.expiration_timeout, CheckExpiredContainers(n)) 
 
 
     def handle_offload (self, f, c):
@@ -171,8 +176,9 @@ class Simulation:
             self.cloud.curr_memory -= f.memory
             assert(self.cloud.curr_memory >= 0)
             self.cold_starts += 1
-            init_time = CLOUD_INIT_TIME_DURATION
-        self.schedule(self.t + cloud_rtt + OFFLOADING_OVERHEAD + init_time + duration, Completion(self.t, f,c, self.cloud, init_time > 0))
+            init_time = self.init_time[self.cloud]
+        rtt = self.latencies[(self.edge.region,self.cloud.region)]*2
+        self.schedule(self.t + rtt + OFFLOADING_OVERHEAD + init_time + duration, Completion(self.t, f,c, self.cloud, init_time > 0))
 
     def handle_arrival (self, event):
         f = event.function
@@ -201,7 +207,7 @@ class Simulation:
                 self.edge.curr_memory -= f.memory
                 assert(self.edge.curr_memory >= 0)
                 self.cold_starts += 1
-                init_time = INIT_TIME_DURATION
+                init_time = self.init_time[self.edge]
             self.schedule(self.t + init_time + duration, Completion(self.t, f,c, self.edge, init_time > 0))
         elif sched_decision == SchedulerDecision.DROP:
             self.dropped_reqs[c] += 1
