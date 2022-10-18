@@ -19,6 +19,7 @@ def plot_rt_cdf (samples):
         f,c=fc
         x,y = create_cdf(samples[(f,c)])
 
+        axis.axvline(x=c.max_rt, color="red", linestyle="--")
         axis.set_title(f"{f} - {c}")
         axis.plot(x, y)
     plt.show()
