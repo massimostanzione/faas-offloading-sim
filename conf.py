@@ -12,3 +12,4 @@ PLOT_RESP_TIMES = "plot-rt"
 
 SEC_POLICY = "policy"
 POLICY_NAME = "name"
+POLICY_UPDATE_INTERVAL = "update-interval"

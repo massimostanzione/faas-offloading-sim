@@ -16,6 +16,9 @@ class Policy:
     def schedule (self, function, qos_class):
         pass
 
+    def update ():
+        pass
+
     def can_execute_locally (self, node, f, reclaim_memory=True):
         if f in node.warm_pool or node.curr_memory >= f.memory:
             return True
@@ -55,3 +58,6 @@ class ProbabilisticPolicy (Policy):
             decision = self.rng.choice(list(SchedulerDecision)[1:], p=self.probs_nolocal[(f,c)]) 
 
         return decision
+
+    def update():
+        pass

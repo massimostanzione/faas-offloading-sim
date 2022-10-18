@@ -24,6 +24,10 @@ class CheckExpiredContainers(Event):
     node: Node
 
 @dataclass
+class PolicyUpdate(Event):
+    pass
+
+@dataclass
 class Completion(Event):
     arrival: float
     function: Function
@@ -65,6 +69,10 @@ class Simulation:
             self.policy = policy.ProbabilisticPolicy(self)
         else:
             raise RuntimeError(f"Unknown policy: {policy_name}")
+        self.policy_update_interval = self.config.getfloat(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, fallback=-1)
+        if self.policy_update_interval > 0.0:
+            self.schedule(self.policy_update_interval, PolicyUpdate())
+
 
         # Seeds
         arrival_seed = self.config.getint(conf.SEC_SEED,conf.SEED_ARRIVAL, fallback=1)
@@ -159,6 +167,9 @@ class Simulation:
             self.handle_arrival(event)
         elif isinstance(event, Completion):
             self.handle_completion(event)
+        elif isinstance(event, PolicyUpdate):
+            self.policy.update()
+            self.schedule(t + self.policy_update_interval, event)
         elif isinstance(event, CheckExpiredContainers):
             if len(event.node.warm_pool) == 0:
                 return
