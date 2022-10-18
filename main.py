@@ -17,18 +17,29 @@ def main():
     # Nodes
     cloud = faas.Node(30000, 1.3, faas.Region.CLOUD)
     edge = faas.Node(3000, 1.0, faas.Region.EDGE)
+    latencies = {(edge.region,cloud.region): 0.040}
 
-    # Define functions
+    # Read functions from config
     functions = []
-    functions.append(faas.Function("f1", 512, 1, 1.0, serviceSCV=0.5))
+    for section in config.sections():
+        if section.startswith("fun_"):
+            fun = section[4:]
+            memory = config.getint(section, "memory", fallback=256)
+            arrival = config.getfloat(section, "arrival-rate", fallback=1.0)
+            service_mean = config.getfloat(section, "service-time-mean", fallback=1.0)
+            service_scv = config.getfloat(section, "service-time-scv", fallback=1.0)
+            functions.append(faas.Function(fun, memory, arrival, service_mean, serviceSCV=service_scv))
 
-    # Define classes
+    # Read classes from config
     classes = []
-    classes.append(faas.QoSClass("default", 1, 1))
-    classes.append(faas.QoSClass("premium", 1, 0.2, utility=2.0))
+    for section in config.sections():
+        if section.startswith("class_"):
+            classname = section[6:]
+            arrival_weight = config.getfloat(section, "arrival-weight", fallback=1.0)
+            utility = config.getfloat(section, "utility", fallback=1.0)
+            deadline = config.getfloat(section, "deadline", fallback=1.0)
+            classes.append(faas.QoSClass(classname, deadline, arrival_weight, utility=utility))
 
-    latencies = {}
-    latencies[(edge.region,cloud.region)] = 0.040
 
     sim = Simulation(config, edge, cloud, latencies, functions, classes)
     sim.run()
