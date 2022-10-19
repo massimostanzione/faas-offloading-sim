@@ -48,13 +48,14 @@ def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud, init_t
                      <= 1 - c.min_completion_percentage)
 
 
-    solve(prob)
-    status = pl.LpStatus[prob.status]
-
+    status = solve(prob)
     assert(status == "Optimal") # TODO
+
     print("Obj = ", pl.value(prob.objective))
     for f in F:
         print(f"Pcold[{f}]={pl.value(pCold[f])}")
+    shares = {(f,c): pl.value(x[f][c]) for f in F for c in C}
+    print(f"Shares: {shares}")
 
     probs = {(f,c): [pl.value(pE[f][c]),pl.value(pO[f][c]),1.0-pl.value(pE[f][c])-pl.value(pO[f][c])] for f in F for c in C}
     print(probs)
@@ -76,11 +77,7 @@ def solve (problem):
     else:
         solver = pl.getSolver(solver_name, warmStart=warm_start)
 
-    f = sys.stdout
-    with open("/dev/null", "w") as of:
-        sys.stdout = of
-        problem.solve(solver)
-    sys.stdout = f
+    problem.solve(solver)
     return pl.LpStatus[problem.status]
 
 
