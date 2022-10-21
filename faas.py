@@ -28,7 +28,7 @@ class ContainerPool:
     def reclaim_memory (self, required_mem):
         mem = [entry[0].memory for entry in self.pool]
         if sum(mem) < required_mem:
-            return
+            return 0.0
         s = sorted([e[0] for e in self.pool], reverse=True, key = lambda x: x.memory)
         reclaimed = 0
         while reclaimed < required_mem:
@@ -70,6 +70,7 @@ class QoSClass:
     utility: float = 1.0
     min_completion_percentage: float = 0.0
 
+    
     def __repr__ (self):
         return self.name
 
@@ -84,17 +85,14 @@ class Function:
     serviceMean: float
     serviceSCV: float = 1.0
     __invoking_classes: [QoSClass] = field(default=None, init=False)
-    __invoking_classes_prob: [float] = field(default=None, init=False)
 
     def add_invoking_class (self, c: QoSClass):
         if self.__invoking_classes is None:
-            self.__invoking_classes = []
-        self.__invoking_classes.append(c)
-        total = sum(map(lambda c: c.arrival_weight, self.__invoking_classes))
-        p = list(map(lambda c: c.arrival_weight/total, self.__invoking_classes))
-        self.__invoking_classes_prob = p
-        print(self.__invoking_classes)
-        print(p)
+            self.__invoking_classes = set()
+        self.__invoking_classes.add(c)
+
+    def get_invoking_classes (self):
+        return self.__invoking_classes
 
     def __repr__ (self):
         return self.name

@@ -56,7 +56,7 @@ class Stats:
         self.functions = functions
         self.classes = classes
         self.nodes = nodes
-        fun_classes = [(f,c) for f in functions for c in classes]
+        fun_classes = [(f,c) for f in functions for c in f.get_invoking_classes()]
 
         self.arrivals = {x: 0 for x in fun_classes}
         self.offloaded = {c: 0 for c in classes}
@@ -73,12 +73,13 @@ class Stats:
     def print (self):
         completed_perc = {}
         for c in self.completions:
-            completed_perc[c] = self.completions[c]/self.arrivals[c]*100.0
+            if self.arrivals[c] > 0:
+                completed_perc[c] = self.completions[c]/self.arrivals[c]*100.0
         cold_start_prob = {n: self.node2cold_starts[n]/self.node2completions[n] for n in self.nodes}
 
         class_completions = {}
         for c in self.classes:
-            class_completions[c] = sum([self.completions[(f,c)] for f in self.functions])
+            class_completions[c] = sum([self.completions[(f,c)] for f in self.functions if c in f.get_invoking_classes()])
 
         print(f"TotArrivals: {sum(self.arrivals.values())}")
         print(f"Arrivals: {self.arrivals}")
@@ -170,12 +171,12 @@ class Simulation:
 
     def schedule_first_arrival (self):
         # Compute arrival probabilities
-        self.arrival_entries = [(f,c) for f in self.functions for c in self.classes]
-        total_rate = sum([f.arrivalRate*c.arrival_weight for f,c in self.arrival_entries])
-        self.arrival_probs = [f.arrivalRate*c.arrival_weight/total_rate for f,c in self.arrival_entries]
+        self.function_classes = [(f,c) for f in self.functions for c in f.get_invoking_classes()]
+        total_rate = sum([f.arrivalRate*c.arrival_weight for f,c in self.function_classes])
+        self.arrival_probs = [f.arrivalRate*c.arrival_weight/total_rate for f,c in self.function_classes]
         self.total_arrival_rate = sum([f.arrivalRate for f in self.functions])
 
-        f,c = self.arrival_rng.choice(self.arrival_entries, p=self.arrival_probs)
+        f,c = self.arrival_rng.choice(self.function_classes, p=self.arrival_probs)
         t = self.arrival_rng2.exponential(1.0/self.total_arrival_rate)
         self.schedule(t, Arrival(f,c))
 
@@ -285,7 +286,7 @@ class Simulation:
         # Schedule next
         iat = self.arrival_rng2.exponential(1.0/self.total_arrival_rate)
         if self.t + iat < self.close_the_door_time:
-            f,c = self.arrival_rng.choice(self.arrival_entries, p=self.arrival_probs)
+            f,c = self.arrival_rng.choice(self.function_classes, p=self.arrival_probs)
             self.schedule(self.t + iat, Arrival(f,c))
         else:
             # Little hack: remove all expiration from the event list (we do not
