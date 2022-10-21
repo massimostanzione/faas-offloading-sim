@@ -59,10 +59,12 @@ class ProbabilisticPolicy (Policy):
         probabilities = self.probs[(f,c)]
         decision = self.rng.choice(list(SchedulerDecision), p=probabilities) 
         if decision == SchedulerDecision.EXEC and not self.can_execute_locally(self.simulation.edge, f):
-            if probabilities[1] >= probabilities[2]:
-                decision = SchedulerDecision.OFFLOAD
+            nolocal_prob = sum(probabilities[1:])
+            if nolocal_prob > 0.0:
+                decision = self.rng.choice([SchedulerDecision.OFFLOAD,SchedulerDecision.DROP],
+                                           p=[probabilities[1]/nolocal_prob,probabilities[2]/nolocal_prob]) 
             else:
-                decision = SchedulerDecision.DROP
+                decision = SchedulerDecision.OFFLOAD
 
         return decision
 
