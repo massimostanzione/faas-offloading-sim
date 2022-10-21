@@ -74,28 +74,30 @@ class Stats:
     def to_dict (self):
         stats = {}
         raw = vars(self)
-        for field in raw:
-            t = type(raw[field])
-            if t is dict:
-                for k in raw[field]:
-                    stats[f"{field}_{k}"] = raw[field][k]
+        for metric in raw:
+            t = type(raw[metric])
             if t is float or t is int:
-                stats[field] = raw[field]
+                # no change required
+                stats[metric] = raw[metric]
+            if t is dict:
+                # replace with a new dict, w reformatted keys
+                new_metric = {repr(x): raw[metric][x] for x in raw[metric]}
+                stats[metric] = new_metric
 
-        avg_rt = {x: self.resp_time_sum[x]/self.completions[x] for x in self.completions if self.completions[x] > 0}
-        for x in avg_rt:
-            stats[f"AvgRT_{x}"] = avg_rt[x]
+        avg_rt = {repr(x): self.resp_time_sum[x]/self.completions[x] for x in self.completions if self.completions[x] > 0}
+        stats["AvgRT"] = avg_rt
 
-        completed_perc = {x: self.completions[x]/self.arrivals[x] for x in self.completions if self.arrivals[x] > 0}
-        for x in completed_perc:
-            stats[f"CompletedPercentage_{x}"] = completed_perc[x]
+        completed_perc = {repr(x): self.completions[x]/self.arrivals[x] for x in self.completions if self.arrivals[x] > 0}
+        stats["CompletedPercentage"] = completed_perc
 
+        class_completions = {}
+        class_rt = {}
         for c in self.classes:
-            class_completions = sum([self.completions[(f,c)] for f in self.functions if c in f.get_invoking_classes()])
-            stats[f"PerClassCompleted_{c}"] = class_completions
+            class_completions[repr(c)] = sum([self.completions[(f,c)] for f in self.functions if c in f.get_invoking_classes()])
             rt_sum = sum([self.resp_time_sum[(f,c)] for f in self.functions if c in f.get_invoking_classes()])
-            class_rt = rt_sum/class_completions
-            stats[f"PerClassAvgRT_{c}"] = class_rt
+            class_rt[repr(c)] = rt_sum/class_completions[repr(c)]
+        stats["PerClassCompleted"] = class_completions
+        stats["PerClassAvgRT"] = class_rt
 
         return stats
     
