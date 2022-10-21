@@ -133,6 +133,8 @@ class Simulation:
             self.policy = policy.BasicPolicy(self)
         elif policy_name == "probabilistic":
             self.policy = policy.ProbabilisticPolicy(self)
+        elif policy_name == "random":
+            self.policy = policy.RandomPolicy(self)
         else:
             raise RuntimeError(f"Unknown policy: {policy_name}")
         self.policy_update_interval = self.config.getfloat(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, fallback=-1)

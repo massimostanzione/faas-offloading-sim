@@ -1,5 +1,4 @@
 from enum import Enum
-import copy
 import numpy as np
 
 import conf
@@ -29,8 +28,6 @@ class Policy:
             reclaimed = node.warm_pool.reclaim_memory(f.memory - node.curr_memory)
             node.curr_memory += reclaimed
         return node.curr_memory >= f.memory
-
-
 
 class BasicPolicy(Policy):
 
@@ -91,3 +88,15 @@ class ProbabilisticPolicy (Policy):
                                 self.simulation.init_time[self.simulation.edge],
                                 2*self.simulation.latencies[(self.simulation.edge.region,self.simulation.cloud.region)])
         self.stats_snapshot = self.simulation.stats.to_dict()
+
+class RandomPolicy (ProbabilisticPolicy):
+
+    def __init__ (self, simulation):
+        super().__init__(simulation)
+        self.probs = {(f,c): [0.33,0.33,1-0.66] for f in simulation.functions for c in simulation.classes}
+
+    def schedule (self, f, c):
+        return super().schedule(f,c)
+
+    def update(self):
+        pass
