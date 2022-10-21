@@ -167,7 +167,7 @@ class Simulation:
         if not self.config.getboolean(conf.SEC_SIM, conf.PLOT_RESP_TIMES, fallback=False):
             self.resp_time_samples = {}
         else:
-            self.resp_time_samples = {(f,c): [] for f in self.functions for c in self.classes}
+            self.resp_time_samples = {(f,c): [] for f in self.functions for c in f.get_invoking_classes()}
 
         self.schedule_first_arrival()
 

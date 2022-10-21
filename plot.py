@@ -14,10 +14,14 @@ def plot_rt_cdf (samples):
     rows = int(math.ceil(len(samples) / columns))
     fig, axs = plt.subplots(rows, columns, sharex=True)
 
-
-    for fc,axis in zip(samples, axs):
+    all_axes = axs.flatten()
+    i=0
+    for fc in samples:
         f,c=fc
         x,y = create_cdf(samples[(f,c)])
+
+        axis = all_axes[i]
+        i += 1
 
         axis.axvline(x=c.max_rt, color="red", linestyle="--")
         axis.set_title(f"{f} - {c}")
