@@ -36,6 +36,7 @@ class ContainerPool:
             s = s[1:]
             self.remove(f)
             reclaimed += f.memory
+        return reclaimed
 
     def __contains__ (self, f):
         if not isinstance(f, Function):
@@ -60,6 +61,21 @@ class Node:
         return self.name
 
 
+
+@dataclass
+class QoSClass:
+    name: str
+    max_rt: float
+    arrival_weight: float = 1.0
+    utility: float = 1.0
+    min_completion_percentage: float = 0.0
+
+    def __repr__ (self):
+        return self.name
+
+    def __hash__ (self):
+        return hash(self.name)
+
 @dataclass
 class Function:
     name: str
@@ -67,6 +83,18 @@ class Function:
     arrivalRate: float
     serviceMean: float
     serviceSCV: float = 1.0
+    __invoking_classes: [QoSClass] = field(default=None, init=False)
+    __invoking_classes_prob: [float] = field(default=None, init=False)
+
+    def add_invoking_class (self, c: QoSClass):
+        if self.__invoking_classes is None:
+            self.__invoking_classes = []
+        self.__invoking_classes.append(c)
+        total = sum(map(lambda c: c.arrival_weight, self.__invoking_classes))
+        p = list(map(lambda c: c.arrival_weight/total, self.__invoking_classes))
+        self.__invoking_classes_prob = p
+        print(self.__invoking_classes)
+        print(p)
 
     def __repr__ (self):
         return self.name
@@ -87,21 +115,6 @@ class Container:
         else:
             return self.function == other.function
 
-
-
-@dataclass
-class QoSClass:
-    name: str
-    max_rt: float
-    arrival_weight: float = 1.0
-    utility: float = 1.0
-    min_completion_percentage: float = 0.0
-
-    def __repr__ (self):
-        return self.name
-
-    def __hash__ (self):
-        return hash(self.name)
 
 
 if __name__ == "__main__":

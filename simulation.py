@@ -203,6 +203,7 @@ class Simulation:
                 return
             f,timeout = event.node.warm_pool.front()
             if timeout < t:
+                event.node.curr_memory += f.memory
                 event.node.warm_pool.pool = event.node.warm_pool.pool[1:]
         else:
             raise RuntimeError("")
@@ -230,10 +231,12 @@ class Simulation:
 
 
     def handle_offload (self, f, c):
-        if not f in self.cloud.warm_pool and self.edge.curr_memory < f.memory:
-            # TODO: try to reclaim memory
-            self.dropped_reqs[c] += 1
-            return
+        if not f in self.cloud.warm_pool and self.cloud.curr_memory < f.memory:
+            reclaimed = self.cloud.warm_pool.reclaim_memory(f.memory - self.cloud.curr_memory)
+            self.cloud.curr_memory += reclaimed
+            if self.cloud.curr_memory < f.memory:
+                self.stats.dropped_reqs[c] += 1
+                return
 
         speedup = self.cloud.speedup
         duration = self.service_rng.gamma(1.0/f.serviceSCV, f.serviceMean*f.serviceSCV/speedup) # TODO: check

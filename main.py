@@ -25,6 +25,7 @@ def main():
     latencies = {(edge.region,cloud.region): edge_cloud_latency}
 
     # Read functions from config
+    name2function = {}
     functions = []
     for section in config.sections():
         if section.startswith("fun_"):
@@ -33,7 +34,9 @@ def main():
             arrival = config.getfloat(section, "arrival-rate", fallback=1.0)
             service_mean = config.getfloat(section, "service-time-mean", fallback=1.0)
             service_scv = config.getfloat(section, "service-time-scv", fallback=1.0)
-            functions.append(faas.Function(fun, memory, arrival, service_mean, serviceSCV=service_scv))
+            f = faas.Function(fun, memory, arrival, service_mean, serviceSCV=service_scv)
+            functions.append(f)
+            name2function[fun] = f
 
     # Read classes from config
     classes = []
@@ -43,8 +46,20 @@ def main():
             arrival_weight = config.getfloat(section, "arrival-weight", fallback=1.0)
             utility = config.getfloat(section, "utility", fallback=1.0)
             deadline = config.getfloat(section, "deadline", fallback=1.0)
-            classes.append(faas.QoSClass(classname, deadline, arrival_weight, utility=utility))
+            c = faas.QoSClass(classname, deadline, arrival_weight, utility=utility)
+            classes.append(c)
+            # Parse invoked functions 
+            invoked_functions_str = config.get(section, "functions", fallback="")
+            invoked_functions = list(filter(lambda x: len(x) > 0, [x.strip() for x in invoked_functions_str.split(",")]))
+            if len(invoked_functions) < 1:
+                invoked_functions = functions
+            else:
+                invoked_functions = [name2function[s] for s in invoked_functions]
+            for f in invoked_functions:
+                f.add_invoking_class(c)
 
+
+    # Create a mapping from functions to classes
 
     sim = Simulation(config, edge, cloud, latencies, functions, classes)
     sim.run()
