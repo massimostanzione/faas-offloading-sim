@@ -72,9 +72,6 @@ class ProbabilisticPolicy (Policy):
     def update(self):
         if self.stats_snapshot is not None:
             stats = self.simulation.stats
-            #window_arrivals = {}
-            #for f,c in stats.arrivals:
-            #    window_arrivals[(f,c)] = stats.arrivals[(f,c)] - self.stats_snapshot.arrivals[(f,c)]
 
             arrival_rates = {}
             for f,c in stats.arrivals:
@@ -93,4 +90,4 @@ class ProbabilisticPolicy (Policy):
                                 estimated_service_time_cloud,
                                 self.simulation.init_time[self.simulation.edge],
                                 2*self.simulation.latencies[(self.simulation.edge.region,self.simulation.cloud.region)])
-        self.stats_snapshot = copy.deepcopy(self.simulation.stats)
+        self.stats_snapshot = self.simulation.stats.to_dict()

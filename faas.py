@@ -77,6 +77,12 @@ class QoSClass:
     def __hash__ (self):
         return hash(self.name)
 
+    def __lt__(self, other):
+        return self.name <  other.name
+
+    def __le__(self,other):
+        return self.name <= other.name
+
 @dataclass
 class Function:
     name: str
@@ -99,6 +105,12 @@ class Function:
 
     def __hash__ (self):
         return hash(self.name)
+
+    def __lt__(self, other):
+        return self.name <  other.name
+
+    def __le__(self,other):
+        return self.name <= other.name
 
 @dataclass
 class Container:

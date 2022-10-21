@@ -2,6 +2,7 @@ import configparser
 from dataclasses import dataclass, field
 from heapq import heappop, heappush
 import numpy as np
+import json
 
 import conf
 import plot
@@ -59,41 +60,48 @@ class Stats:
         fun_classes = [(f,c) for f in functions for c in f.get_invoking_classes()]
 
         self.arrivals = {x: 0 for x in fun_classes}
-        self.offloaded = {c: 0 for c in classes}
-        self.dropped_reqs = {c: 0 for c in classes}
+        self.offloaded = {x: 0 for x in fun_classes}
+        self.dropped_reqs = {c: 0 for c in fun_classes}
         self.completions = {x: 0 for x in fun_classes}
-        self.violations = {c: 0 for c in classes}
-        self.rt_area = {c: 0.0 for c in classes}
+        self.violations = {c: 0 for c in fun_classes}
+        self.resp_time_sum = {c: 0.0 for c in fun_classes}
         self.cold_starts = {x: 0 for x in fun_classes}
         self.node2cold_starts = {n: 0 for n in nodes}
         self.node2completions = {n: 0 for n in nodes}
         self.utility = 0.0
         self.utility_with_constraints = 0.0
 
+    def to_dict (self):
+        stats = {}
+        raw = vars(self)
+        for field in raw:
+            t = type(raw[field])
+            if t is dict:
+                for k in raw[field]:
+                    stats[f"{field}_{k}"] = raw[field][k]
+            if t is float or t is int:
+                stats[field] = raw[field]
+
+        avg_rt = {x: self.resp_time_sum[x]/self.completions[x] for x in self.completions if self.completions[x] > 0}
+        for x in avg_rt:
+            stats[f"AvgRT_{x}"] = avg_rt[x]
+
+        completed_perc = {x: self.completions[x]/self.arrivals[x] for x in self.completions if self.arrivals[x] > 0}
+        for x in completed_perc:
+            stats[f"CompletedPercentage_{x}"] = completed_perc[x]
+
+        for c in self.classes:
+            class_completions = sum([self.completions[(f,c)] for f in self.functions if c in f.get_invoking_classes()])
+            stats[f"PerClassCompleted_{c}"] = class_completions
+            rt_sum = sum([self.resp_time_sum[(f,c)] for f in self.functions if c in f.get_invoking_classes()])
+            class_rt = rt_sum/class_completions
+            stats[f"PerClassAvgRT_{c}"] = class_rt
+
+        return stats
+    
+
     def print (self):
-        completed_perc = {}
-        for c in self.completions:
-            if self.arrivals[c] > 0:
-                completed_perc[c] = self.completions[c]/self.arrivals[c]*100.0
-        cold_start_prob = {n: self.node2cold_starts[n]/self.node2completions[n] for n in self.nodes}
-
-        class_completions = {}
-        for c in self.classes:
-            class_completions[c] = sum([self.completions[(f,c)] for f in self.functions if c in f.get_invoking_classes()])
-
-        print(f"TotArrivals: {sum(self.arrivals.values())}")
-        print(f"Arrivals: {self.arrivals}")
-        print(f"Offloaded: {self.offloaded}")
-        print(f"Dropped: {self.dropped_reqs}")
-        print(f"RT Violations: {self.violations}")
-        print(f"Completed: {self.completions}")
-        print(f"CompletedP: {completed_perc}")
-        print(f"Cold starts: {self.cold_starts}")
-        print(f"Cold start prob: {cold_start_prob}")
-        for c in self.classes:
-            print(f"Avg RT-{c}: {self.rt_area[c]/class_completions[c]}")
-        print(f"Utility: {self.utility}")
-        print(f"UtilityWC: {self.utility_with_constraints}")
+        print(json.dumps(self.to_dict(), indent=4, sort_keys=True))
 
 
 @dataclass
@@ -130,7 +138,7 @@ class Simulation:
         self.policy_update_interval = self.config.getfloat(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, fallback=-1)
         if self.policy_update_interval > 0.0:
             self.schedule(self.policy_update_interval, PolicyUpdate())
-        self.stats_print_interval = self.config.getfloat(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, fallback=120)
+        self.stats_print_interval = self.config.getfloat(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, fallback=-1)
         if self.stats_print_interval > 0.0:
             self.schedule(self.stats_print_interval, StatPrinter())
 
@@ -216,7 +224,7 @@ class Simulation:
         n = event.node
         #print(f"Completed {f}-{c}: {rt}")
 
-        self.stats.rt_area[c] += rt
+        self.stats.resp_time_sum[(f,c)] += rt
         if (f,c) in self.resp_time_samples:
             self.resp_time_samples[(f,c)].append(rt)
         self.stats.completions[(f,c)] += 1
@@ -225,7 +233,7 @@ class Simulation:
         if rt <= c.max_rt:
             self.stats.utility_with_constraints += c.utility
         else:
-            self.stats.violations[c] += 1
+            self.stats.violations[(f,c)] += 1
 
         n.warm_pool.append((f, self.t + self.expiration_timeout))
         self.schedule(self.t + self.expiration_timeout, CheckExpiredContainers(n)) 
@@ -236,7 +244,7 @@ class Simulation:
             reclaimed = self.cloud.warm_pool.reclaim_memory(f.memory - self.cloud.curr_memory)
             self.cloud.curr_memory += reclaimed
             if self.cloud.curr_memory < f.memory:
-                self.stats.dropped_reqs[c] += 1
+                self.stats.dropped_reqs[(f,c)] += 1
                 return
 
         speedup = self.cloud.speedup
@@ -278,9 +286,9 @@ class Simulation:
                 init_time = self.init_time[self.edge]
             self.schedule(self.t + init_time + duration, Completion(self.t, f,c, self.edge, init_time > 0))
         elif sched_decision == SchedulerDecision.DROP:
-            self.stats.dropped_reqs[c] += 1
+            self.stats.dropped_reqs[(f,c)] += 1
         elif sched_decision == SchedulerDecision.OFFLOAD:
-            self.stats.offloaded[c] += 1
+            self.stats.offloaded[(f,c)] += 1
             self.handle_offload(f,c)
 
         # Schedule next
