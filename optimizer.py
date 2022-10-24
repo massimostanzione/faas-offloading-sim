@@ -60,7 +60,9 @@ def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud, init_t
     shares = {(f,c): pl.value(x[f][c]) for f,c in F_C}
     print(f"Shares: {shares}")
 
-    probs = {(f,c): [pl.value(pE[f][c]),pl.value(pO[f][c]),1.0-pl.value(pE[f][c])-pl.value(pO[f][c])] for f,c in F_C}
+    probs = {(f,c): [pl.value(pE[f][c]),
+                     pl.value(pO[f][c]),
+                     max(0.0,1.0-pl.value(pE[f][c])-pl.value(pO[f][c]))] for f,c in F_C}
     print(probs)
     return probs
 
