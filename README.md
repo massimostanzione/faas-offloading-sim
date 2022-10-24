@@ -1,3 +1,11 @@
+## Requirements
+
+(Optional) Prepare a virtual environment:
+
+	python -m venv env
+	source env/bin/activate
+	pip install -r requirements.txt 
+
 ## Usage
 
 	python main.py [<config file>]
