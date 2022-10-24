@@ -51,6 +51,7 @@ class Completion(Event):
     qos_class: QoSClass
     node: Node
     cold: bool
+    exec_time: float
 
 
 OFFLOADING_OVERHEAD = 0.005
@@ -208,13 +209,15 @@ class Simulation:
         f = event.function
         c = event.qos_class
         n = event.node
+        duration = event.exec_time
         #print(f"Completed {f}-{c}: {rt}")
 
         self.stats.resp_time_sum[(f,c)] += rt
         if (f,c) in self.resp_time_samples:
             self.resp_time_samples[(f,c)].append(rt)
         self.stats.completions[(f,c)] += 1
-        self.stats.node2completions[n] += 1
+        self.stats.node2completions[(f,n)] += 1
+        self.stats.execution_time_sum[(f,n)] += duration
         self.stats.utility += c.utility
         if rt <= c.max_rt:
             self.stats.utility_with_constraints += c.utility
@@ -246,7 +249,7 @@ class Simulation:
             self.stats.node2cold_starts[self.cloud] += 1
             init_time = self.init_time[self.cloud]
         rtt = self.latencies[(self.edge.region,self.cloud.region)]*2
-        self.schedule(self.t + rtt + OFFLOADING_OVERHEAD + init_time + duration, Completion(self.t, f,c, self.cloud, init_time > 0))
+        self.schedule(self.t + rtt + OFFLOADING_OVERHEAD + init_time + duration, Completion(self.t, f,c, self.cloud, init_time > 0, duration))
 
     def handle_arrival (self, event):
         f = event.function
@@ -270,7 +273,7 @@ class Simulation:
                 self.stats.cold_starts[(f,c)] += 1
                 self.stats.node2cold_starts[self.edge] += 1
                 init_time = self.init_time[self.edge]
-            self.schedule(self.t + init_time + duration, Completion(self.t, f,c, self.edge, init_time > 0))
+            self.schedule(self.t + init_time + duration, Completion(self.t, f,c, self.edge, init_time > 0, duration))
         elif sched_decision == SchedulerDecision.DROP:
             self.stats.dropped_reqs[(f,c)] += 1
         elif sched_decision == SchedulerDecision.OFFLOAD:

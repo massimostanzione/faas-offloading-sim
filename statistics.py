@@ -15,8 +15,9 @@ class Stats:
         self.violations = {c: 0 for c in fun_classes}
         self.resp_time_sum = {c: 0.0 for c in fun_classes}
         self.cold_starts = {x: 0 for x in fun_classes}
+        self.execution_time_sum = {(f,n): 0 for f in functions for n in nodes}
         self.node2cold_starts = {n: 0 for n in nodes}
-        self.node2completions = {n: 0 for n in nodes}
+        self.node2completions = {(f,n): 0 for n in nodes for f in functions}
         self.utility = 0.0
         self.utility_with_constraints = 0.0
 

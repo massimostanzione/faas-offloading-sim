@@ -71,14 +71,14 @@ class ProbabilisticPolicy (Policy):
         return decision
 
     def update(self):
+        stats = self.simulation.stats
+
         estimated_service_time = {}
         estimated_service_time_cloud = {}
         for f in self.simulation.functions:
-            # TODO: use an estimate instead of the true value
-            estimated_service_time[f] = f.serviceMean/self.simulation.edge.speedup
-            estimated_service_time_cloud[f] = f.serviceMean/self.simulation.cloud.speedup
+            estimated_service_time[f] = stats.execution_time_sum[(f,self.simulation.edge)]/stats.node2completions[(f,self.simulation.edge)]
+            estimated_service_time_cloud[f] = stats.execution_time_sum[(f,self.simulation.cloud)]/stats.node2completions[(f,self.simulation.cloud)]
 
-        stats = self.simulation.stats
         if self.stats_snapshot is not None:
             arrival_rates = {}
             for f,c in stats.arrivals:
