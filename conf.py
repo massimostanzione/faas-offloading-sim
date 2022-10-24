@@ -10,6 +10,7 @@ SEC_SIM = "simulation"
 CLOSE_DOOR_TIME = "close-door-time"
 PLOT_RESP_TIMES = "plot-rt"
 STAT_PRINT_INTERVAL = "stats-print-interval"
+STAT_PRINT_FILE = "stats-print-file"
 
 SEC_POLICY = "policy"
 POLICY_NAME = "name"

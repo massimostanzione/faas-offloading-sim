@@ -2,7 +2,8 @@ import json
 
 class Stats:
 
-    def __init__ (self, functions, classes, nodes):
+    def __init__ (self, sim, functions, classes, nodes):
+        self.sim = sim
         self.functions = functions
         self.classes = classes
         self.nodes = nodes
@@ -49,8 +50,10 @@ class Stats:
         stats["PerClassCompleted"] = class_completions
         stats["PerClassAvgRT"] = class_rt
 
+        stats["Time"] = self.sim.t
+
         return stats
     
 
-    def print (self):
-        print(json.dumps(self.to_dict(), indent=4, sort_keys=True))
+    def print (self, out_file):
+        print(json.dumps(self.to_dict(), indent=4, sort_keys=True), file=out_file)

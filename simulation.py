@@ -2,6 +2,7 @@ import configparser
 from dataclasses import dataclass, field
 from heapq import heappop, heappush
 import numpy as np
+import sys
 
 import conf
 import plot
@@ -73,7 +74,7 @@ class Simulation:
         assert(len(self.functions) > 0)
         assert(len(self.classes) > 0)
         assert((self.edge.region,self.cloud.region) in self.latencies)
-        self.stats = Stats(self.functions, self.classes, [self.edge,self.cloud])
+        self.stats = Stats(self, self.functions, self.classes, [self.edge,self.cloud])
         self.function_classes = [(f,c) for f in self.functions for c in f.get_invoking_classes()]
 
 
@@ -97,8 +98,12 @@ class Simulation:
         if self.policy_update_interval > 0.0:
             self.schedule(self.policy_update_interval, PolicyUpdate())
         self.stats_print_interval = self.config.getfloat(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, fallback=-1)
+        self.stats_file = sys.stdout
         if self.stats_print_interval > 0.0:
             self.schedule(self.stats_print_interval, StatPrinter())
+            stats_print_filename = self.config.get(conf.SEC_SIM, conf.STAT_PRINT_FILE, fallback="")
+            if len(stats_print_filename) > 0:
+                self.stats_file = open(stats_print_filename, "w")
 
 
         # Seeds
@@ -129,7 +134,10 @@ class Simulation:
             t,e = heappop(self.events)
             self.handle(t, e)
 
-        self.stats.print()
+        self.stats.print(self.stats_file)
+        if self.stats_file != sys.stdout:
+            self.stats_file.close()
+            self.stats.print(sys.stdout)
 
         if len(self.resp_time_samples) > 0:
             plot.plot_rt_cdf(self.resp_time_samples)
@@ -189,7 +197,8 @@ class Simulation:
             self.policy.update()
             self.schedule(t + self.policy_update_interval, event)
         elif isinstance(event, StatPrinter):
-            self.stats.print()
+            of = self.stats_file if self.stats_file is not None else sys.stdout
+            self.stats.print(of)
             self.schedule(t + self.stats_print_interval, event)
         elif isinstance(event, UpdateArrivalRate):
             self.__read_arrival_rates()
