@@ -2,13 +2,13 @@ import configparser
 from dataclasses import dataclass, field
 from heapq import heappop, heappush
 import numpy as np
-import json
 
 import conf
 import plot
 from policy import SchedulerDecision
 import policy
 from faas import *
+from statistics import Stats
 
 @dataclass
 class Event:
@@ -51,59 +51,6 @@ class Completion(Event):
 
 OFFLOADING_OVERHEAD = 0.005
 
-class Stats:
-
-    def __init__ (self, functions, classes, nodes):
-        self.functions = functions
-        self.classes = classes
-        self.nodes = nodes
-        fun_classes = [(f,c) for f in functions for c in f.get_invoking_classes()]
-
-        self.arrivals = {x: 0 for x in fun_classes}
-        self.offloaded = {x: 0 for x in fun_classes}
-        self.dropped_reqs = {c: 0 for c in fun_classes}
-        self.completions = {x: 0 for x in fun_classes}
-        self.violations = {c: 0 for c in fun_classes}
-        self.resp_time_sum = {c: 0.0 for c in fun_classes}
-        self.cold_starts = {x: 0 for x in fun_classes}
-        self.node2cold_starts = {n: 0 for n in nodes}
-        self.node2completions = {n: 0 for n in nodes}
-        self.utility = 0.0
-        self.utility_with_constraints = 0.0
-
-    def to_dict (self):
-        stats = {}
-        raw = vars(self)
-        for metric in raw:
-            t = type(raw[metric])
-            if t is float or t is int:
-                # no change required
-                stats[metric] = raw[metric]
-            if t is dict:
-                # replace with a new dict, w reformatted keys
-                new_metric = {repr(x): raw[metric][x] for x in raw[metric]}
-                stats[metric] = new_metric
-
-        avg_rt = {repr(x): self.resp_time_sum[x]/self.completions[x] for x in self.completions if self.completions[x] > 0}
-        stats["AvgRT"] = avg_rt
-
-        completed_perc = {repr(x): self.completions[x]/self.arrivals[x] for x in self.completions if self.arrivals[x] > 0}
-        stats["CompletedPercentage"] = completed_perc
-
-        class_completions = {}
-        class_rt = {}
-        for c in self.classes:
-            class_completions[repr(c)] = sum([self.completions[(f,c)] for f in self.functions if c in f.get_invoking_classes()])
-            rt_sum = sum([self.resp_time_sum[(f,c)] for f in self.functions if c in f.get_invoking_classes()])
-            class_rt[repr(c)] = rt_sum/class_completions[repr(c)]
-        stats["PerClassCompleted"] = class_completions
-        stats["PerClassAvgRT"] = class_rt
-
-        return stats
-    
-
-    def print (self):
-        print(json.dumps(self.to_dict(), indent=4, sort_keys=True))
 
 
 @dataclass
@@ -121,6 +68,7 @@ class Simulation:
         assert(len(self.classes) > 0)
         assert((self.edge.region,self.cloud.region) in self.latencies)
         self.stats = Stats(self.functions, self.classes, [self.edge,self.cloud])
+        self.function_classes = [(f,c) for f in self.functions for c in f.get_invoking_classes()]
 
 
     def run (self):
@@ -180,13 +128,13 @@ class Simulation:
         if len(self.resp_time_samples) > 0:
             plot.plot_rt_cdf(self.resp_time_samples)
 
-
-    def schedule_first_arrival (self):
-        # Compute arrival probabilities
-        self.function_classes = [(f,c) for f in self.functions for c in f.get_invoking_classes()]
+    def __compute_arrival_rates (self):
         total_rate = sum([f.arrivalRate*c.arrival_weight for f,c in self.function_classes])
         self.arrival_probs = [f.arrivalRate*c.arrival_weight/total_rate for f,c in self.function_classes]
         self.total_arrival_rate = sum([f.arrivalRate for f in self.functions])
+
+    def schedule_first_arrival (self):
+        self.__compute_arrival_rates()
 
         f,c = self.arrival_rng.choice(self.function_classes, p=self.arrival_probs)
         t = self.arrival_rng2.exponential(1.0/self.total_arrival_rate)
