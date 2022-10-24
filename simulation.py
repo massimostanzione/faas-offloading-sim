@@ -37,6 +37,10 @@ class PolicyUpdate(Event):
     pass
 
 @dataclass
+class UpdateArrivalRate(Event):
+    pass
+
+@dataclass
 class StatPrinter(Event):
     pass
 
@@ -50,6 +54,7 @@ class Completion(Event):
 
 
 OFFLOADING_OVERHEAD = 0.005
+ARRIVAL_TRACE_PERIOD = 60.0
 
 
 
@@ -117,7 +122,7 @@ class Simulation:
         else:
             self.resp_time_samples = {(f,c): [] for f in self.functions for c in f.get_invoking_classes()}
 
-        self.schedule_first_arrival()
+        self.__schedule_first_arrival()
 
         while len(self.events) > 0:
             t,e = heappop(self.events)
@@ -128,12 +133,38 @@ class Simulation:
         if len(self.resp_time_samples) > 0:
             plot.plot_rt_cdf(self.resp_time_samples)
 
+        self.__close_trace_files()
+
     def __compute_arrival_rates (self):
         total_rate = sum([f.arrivalRate*c.arrival_weight for f,c in self.function_classes])
         self.arrival_probs = [f.arrivalRate*c.arrival_weight/total_rate for f,c in self.function_classes]
         self.total_arrival_rate = sum([f.arrivalRate for f in self.functions])
 
-    def schedule_first_arrival (self):
+    def __close_trace_files (self):
+        for f in self.fun2tracefile.values():
+            f.close()
+
+    def __read_arrival_rates (self):
+        for f in self.fun2tracefile:
+            trace = self.fun2tracefile[f]
+            line = trace.readline().strip()
+            if len(line) < 1:
+                # EOF
+                self.close_the_door_time = self.t
+                continue
+            rate = float(line)
+            f.arrivalRate = rate
+        self.__compute_arrival_rates()
+
+    def __schedule_first_arrival (self):
+        self.fun2tracefile = {}
+        for f in self.functions:
+            if f.arrival_trace is not None:
+                self.fun2tracefile[f] = open(f.arrival_trace, "r")
+
+        if len(self.fun2tracefile) > 0:
+            self.schedule(ARRIVAL_TRACE_PERIOD, UpdateArrivalRate())
+
         self.__compute_arrival_rates()
 
         f,c = self.arrival_rng.choice(self.function_classes, p=self.arrival_probs)
@@ -159,6 +190,9 @@ class Simulation:
         elif isinstance(event, StatPrinter):
             self.stats.print()
             self.schedule(t + self.stats_print_interval, event)
+        elif isinstance(event, UpdateArrivalRate):
+            self.__read_arrival_rates()
+            self.schedule(t + ARRIVAL_TRACE_PERIOD, event)
         elif isinstance(event, CheckExpiredContainers):
             if len(event.node.warm_pool) == 0:
                 return
@@ -254,5 +288,6 @@ class Simulation:
             for item in self.events:
                 if isinstance(item[1], CheckExpiredContainers) \
                    or isinstance(item[1], PolicyUpdate) \
+                   or isinstance(item[1], UpdateArrivalRate) \
                    or isinstance(item[1], StatPrinter):
                     item[1].canceled = True

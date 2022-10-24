@@ -90,6 +90,7 @@ class Function:
     arrivalRate: float
     serviceMean: float
     serviceSCV: float = 1.0
+    arrival_trace: str = field(default=None)
     __invoking_classes: [QoSClass] = field(default=None, init=False)
 
     def add_invoking_class (self, c: QoSClass):

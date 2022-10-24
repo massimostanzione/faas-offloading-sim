@@ -34,7 +34,8 @@ def main():
             arrival = config.getfloat(section, "arrival-rate", fallback=1.0)
             service_mean = config.getfloat(section, "service-time-mean", fallback=1.0)
             service_scv = config.getfloat(section, "service-time-scv", fallback=1.0)
-            f = faas.Function(fun, memory, arrival, service_mean, serviceSCV=service_scv)
+            arrival_trace = config.get(section, "arrival-trace", fallback=None)
+            f = faas.Function(fun, memory, arrival, service_mean, serviceSCV=service_scv, arrival_trace=arrival_trace)
             functions.append(f)
             name2function[fun] = f
 
