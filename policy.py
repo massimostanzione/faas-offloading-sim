@@ -32,12 +32,10 @@ class Policy:
 class BasicPolicy(Policy):
 
     def schedule (self, f, c):
-        if c.name == "default":
-            sched_decision = SchedulerDecision.OFFLOAD
-        elif not self.can_execute_locally(self.simulation.edge, f):
-            sched_decision = SchedulerDecision.DROP
-        else:
+        if self.can_execute_locally(self.simulation.edge, f):
             sched_decision = SchedulerDecision.EXEC
+        else:
+            sched_decision = SchedulerDecision.OFFLOAD
 
         return sched_decision
 

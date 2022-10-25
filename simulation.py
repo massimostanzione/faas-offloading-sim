@@ -144,6 +144,8 @@ class Simulation:
 
         self.__close_trace_files()
 
+        return self.stats
+
     def __compute_arrival_rates (self):
         total_rate = sum([f.arrivalRate*c.arrival_weight for f,c in self.function_classes])
         self.arrival_probs = [f.arrivalRate*c.arrival_weight/total_rate for f,c in self.function_classes]

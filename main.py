@@ -4,16 +4,14 @@ import sys
 import faas
 from simulation import Simulation
 
-def parse_config():
+def parse_config_file():
     DEFAULT_CONFIG_FILE = "config.ini"
     config_file = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_CONFIG_FILE
     config = configparser.ConfigParser()
     config.read(config_file)
     return config
 
-def main():
-    config = parse_config()
-    
+def init_simulation (config):
     # Nodes
     cloud_memory = config.getint("cloud", "memory", fallback=30000)
     cloud_speedup = config.getfloat("cloud", "speedup", fallback=1.3)
@@ -60,13 +58,13 @@ def main():
                 f.add_invoking_class(c)
 
 
-    # Create a mapping from functions to classes
-
     sim = Simulation(config, edge, cloud, latencies, functions, classes)
-    sim.run()
+    return sim
 
-
-
+def main():
+    config = parse_config_file()
+    simulation = init_simulation(config)
+    final_stats = simulation.run()
 
 
 
