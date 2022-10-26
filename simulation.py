@@ -240,7 +240,7 @@ class Simulation:
         self.stats.node2completions[(f,n)] += 1
         self.stats.execution_time_sum[(f,n)] += duration
         self.stats.utility += c.utility
-        if rt <= c.max_rt:
+        if c.max_rt <= 0.0 or rt <= c.max_rt:
             self.stats.utility_with_constraints += c.utility
         else:
             self.stats.violations[(f,c)] += 1

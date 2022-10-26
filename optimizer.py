@@ -27,11 +27,10 @@ def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud, init_t
 
     # Probability
     for f,c in F_C:
-        prob += (pE[f][c] + pO[f][c] + pD[f][c] >= 1)
-        prob += (pE[f][c] + pO[f][c] + pD[f][c] <= 1)
+        prob += (pE[f][c] + pO[f][c] + pD[f][c] == 1.0)
 
     # Memory
-    prob += (pl.lpSum([f.memory*x[f][c] for f in F for c in C]) <= sim.edge.total_memory)
+    prob += (pl.lpSum([f.memory*x[f][c] for f,c in F_C]) <= sim.edge.total_memory)
 
     # Share
     for f,c in F_C:
@@ -39,10 +38,11 @@ def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud, init_t
 
     # Resp Time
     for f,c in F_C:
-        prob += (pE[f][c]*serv_time[f] +  
-                 pO[f][c]*(serv_time_cloud[f] + offload_time) +
-                 pCold[f]*init_time
-                 <= c.max_rt)
+        if c.max_rt > 0.0:
+            prob += (pE[f][c]*serv_time[f] +  
+                     pO[f][c]*(serv_time_cloud[f] + offload_time) +
+                     pCold[f]*init_time
+                     <= c.max_rt)
 
     # Min completion
     for c in C:
@@ -62,8 +62,13 @@ def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud, init_t
 
     probs = {(f,c): [pl.value(pE[f][c]),
                      pl.value(pO[f][c]),
-                     max(0.0,1.0-pl.value(pE[f][c])-pl.value(pO[f][c]))] for f,c in F_C}
-    print(probs)
+                     pl.value(pD[f][c])] for f,c in F_C}
+
+    # Workaround to avoid numerical issues
+    for f,c in F_C:
+        print(f"{f}-{c}: {probs[(f,c)]}")
+        s = sum(probs[(f,c)])
+        probs[(f,c)] = [x/s for x in probs[(f,c)]]
     return probs
 
 def solve (problem):
