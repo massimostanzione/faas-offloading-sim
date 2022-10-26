@@ -170,7 +170,10 @@ class Simulation:
         c = self.arrival_rng.choice(f.get_invoking_classes(), p=self.class_probs[f])
         if not f in self.fun2tracefile:
             iat = self.arrival_rng2.exponential(1.0/f.arrivalRate)
-            self.schedule(iat, Arrival(f,c))
+            if self.t + iat < self.close_the_door_time:
+                self.schedule(self.t + iat, Arrival(f,c))
+            else:
+                self.arriving_functions.remove(f)
         else:
             trace = self.fun2tracefile[f]
             line = trace.readline().strip()
