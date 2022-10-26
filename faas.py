@@ -95,8 +95,9 @@ class Function:
 
     def add_invoking_class (self, c: QoSClass):
         if self.__invoking_classes is None:
-            self.__invoking_classes = set()
-        self.__invoking_classes.add(c)
+            self.__invoking_classes = []
+        if not c in self.__invoking_classes:
+            self.__invoking_classes.append(c)
 
     def get_invoking_classes (self):
         return self.__invoking_classes

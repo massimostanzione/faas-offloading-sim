@@ -45,6 +45,8 @@ class Stats:
         class_rt = {}
         for c in self.classes:
             class_completions[repr(c)] = sum([self.completions[(f,c)] for f in self.functions if c in f.get_invoking_classes()])
+            if class_completions[repr(c)] == 0:
+                continue
             rt_sum = sum([self.resp_time_sum[(f,c)] for f in self.functions if c in f.get_invoking_classes()])
             class_rt[repr(c)] = rt_sum/class_completions[repr(c)]
         stats["PerClassCompleted"] = class_completions

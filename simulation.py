@@ -38,10 +38,6 @@ class PolicyUpdate(Event):
     pass
 
 @dataclass
-class UpdateArrivalRate(Event):
-    pass
-
-@dataclass
 class StatPrinter(Event):
     pass
 
@@ -146,42 +142,56 @@ class Simulation:
 
         return self.stats
 
-    def __compute_arrival_rates (self):
-        total_rate = sum([f.arrivalRate*c.arrival_weight for f,c in self.function_classes])
-        self.arrival_probs = [f.arrivalRate*c.arrival_weight/total_rate for f,c in self.function_classes]
-        self.total_arrival_rate = sum([f.arrivalRate for f in self.functions])
+    def __compute_class_probs (self):
+        self.class_probs = {}
+        for f in self.functions:
+            total_weight = sum([c.arrival_weight for c in f.get_invoking_classes()])
+            self.class_probs[f] = [c.arrival_weight/total_weight for c in f.get_invoking_classes()]
 
     def __close_trace_files (self):
         for f in self.fun2tracefile.values():
             f.close()
 
-    def __read_arrival_rates (self):
-        for f in self.fun2tracefile:
-            trace = self.fun2tracefile[f]
-            line = trace.readline().strip()
-            if len(line) < 1:
-                # EOF
-                self.close_the_door_time = self.t
-                continue
-            rate = float(line)
-            f.arrivalRate = rate
-        self.__compute_arrival_rates()
-
     def __schedule_first_arrival (self):
+        self.arriving_functions = set(self.functions)
         self.fun2tracefile = {}
         for f in self.functions:
             if f.arrival_trace is not None:
                 self.fun2tracefile[f] = open(f.arrival_trace, "r")
 
-        if len(self.fun2tracefile) > 0:
-            self.schedule(ARRIVAL_TRACE_PERIOD, UpdateArrivalRate())
+        self.__compute_class_probs()
 
-        self.__compute_arrival_rates()
+        for f in self.functions:
+            self.__schedule_next_arrival(f)
 
-        f,c = self.arrival_rng.choice(self.function_classes, p=self.arrival_probs)
-        t = self.arrival_rng2.exponential(1.0/self.total_arrival_rate)
-        self.schedule(t, Arrival(f,c))
 
+    
+    def __schedule_next_arrival(self, f):
+        c = self.arrival_rng.choice(f.get_invoking_classes(), p=self.class_probs[f])
+        if not f in self.fun2tracefile:
+            iat = self.arrival_rng2.exponential(1.0/f.arrivalRate)
+            self.schedule(iat, Arrival(f,c))
+        else:
+            trace = self.fun2tracefile[f]
+            line = trace.readline().strip()
+            if len(line) < 1:
+                # EOF
+                self.arriving_functions.remove(f)
+                return
+            iat = float(line)
+            if self.t + iat < self.close_the_door_time:
+                self.schedule(self.t + iat, Arrival(f,c))
+            else:
+                self.arriving_functions.remove(f)
+
+        if len(self.arriving_functions) == 0:
+            # Little hack: remove all expiration from the event list (we do not
+            # need to wait for them)
+            for item in self.events:
+                if isinstance(item[1], CheckExpiredContainers) \
+                   or isinstance(item[1], PolicyUpdate) \
+                   or isinstance(item[1], StatPrinter):
+                    item[1].canceled = True
 
 
     def schedule (self, t, event):
@@ -202,9 +212,6 @@ class Simulation:
             of = self.stats_file if self.stats_file is not None else sys.stdout
             self.stats.print(of)
             self.schedule(t + self.stats_print_interval, event)
-        elif isinstance(event, UpdateArrivalRate):
-            self.__read_arrival_rates()
-            self.schedule(t + ARRIVAL_TRACE_PERIOD, event)
         elif isinstance(event, CheckExpiredContainers):
             if len(event.node.warm_pool) == 0:
                 return
@@ -292,16 +299,4 @@ class Simulation:
             self.handle_offload(f,c)
 
         # Schedule next
-        iat = self.arrival_rng2.exponential(1.0/self.total_arrival_rate)
-        if self.t + iat < self.close_the_door_time:
-            f,c = self.arrival_rng.choice(self.function_classes, p=self.arrival_probs)
-            self.schedule(self.t + iat, Arrival(f,c))
-        else:
-            # Little hack: remove all expiration from the event list (we do not
-            # need to wait for them)
-            for item in self.events:
-                if isinstance(item[1], CheckExpiredContainers) \
-                   or isinstance(item[1], PolicyUpdate) \
-                   or isinstance(item[1], UpdateArrivalRate) \
-                   or isinstance(item[1], StatPrinter):
-                    item[1].canceled = True
+        self.__schedule_next_arrival(f)

@@ -13,7 +13,7 @@ def parse_config_file():
 
 def init_simulation (config):
     # Nodes
-    cloud_memory = config.getint("cloud", "memory", fallback=30000)
+    cloud_memory = config.getint("cloud", "memory", fallback=300000)
     cloud_speedup = config.getfloat("cloud", "speedup", fallback=1.3)
     edge_memory = config.getint("edge", "memory", fallback=4096)
     edge_speedup = config.getfloat("edge", "speedup", fallback=1.0)

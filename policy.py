@@ -74,8 +74,14 @@ class ProbabilisticPolicy (Policy):
         estimated_service_time = {}
         estimated_service_time_cloud = {}
         for f in self.simulation.functions:
-            estimated_service_time[f] = stats.execution_time_sum[(f,self.simulation.edge)]/stats.node2completions[(f,self.simulation.edge)]
-            estimated_service_time_cloud[f] = stats.execution_time_sum[(f,self.simulation.cloud)]/stats.node2completions[(f,self.simulation.cloud)]
+            if stats.node2completions[(f,self.simulation.edge)] > 0:
+                estimated_service_time[f] = stats.execution_time_sum[(f,self.simulation.edge)]/stats.node2completions[(f,self.simulation.edge)]
+            else:
+                estimated_service_time[f] = 0.1
+            if stats.node2completions[(f,self.simulation.cloud)] > 0:
+                estimated_service_time_cloud[f] = stats.execution_time_sum[(f,self.simulation.cloud)]/stats.node2completions[(f,self.simulation.cloud)]
+            else:
+                estimated_service_time_cloud[f] = 0.1
 
         if self.stats_snapshot is not None:
             arrival_rates = {}
