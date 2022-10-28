@@ -15,9 +15,8 @@ class Stats:
         self.completions = {x: 0 for x in fun_classes}
         self.violations = {c: 0 for c in fun_classes}
         self.resp_time_sum = {c: 0.0 for c in fun_classes}
-        self.cold_starts = {x: 0 for x in fun_classes}
+        self.cold_starts = {(f,n): 0 for f in functions for n in nodes}
         self.execution_time_sum = {(f,n): 0 for f in functions for n in nodes}
-        self.node2cold_starts = {n: 0 for n in nodes}
         self.node2completions = {(f,n): 0 for n in nodes for f in functions}
         self.utility = 0.0
         self.utility_with_constraints = 0.0
@@ -36,10 +35,18 @@ class Stats:
                 stats[metric] = new_metric
 
         avg_rt = {repr(x): self.resp_time_sum[x]/self.completions[x] for x in self.completions if self.completions[x] > 0}
-        stats["AvgRT"] = avg_rt
+        stats["avgRT"] = avg_rt
+        del(stats["resp_time_sum"])
+
+        avg_exec = {repr(x): self.execution_time_sum[x]/self.node2completions[x] for x in self.node2completions if self.node2completions[x] > 0}
+        stats["avgExecTime"] = avg_exec
+        del(stats["execution_time_sum"])
 
         completed_perc = {repr(x): self.completions[x]/self.arrivals[x] for x in self.completions if self.arrivals[x] > 0}
-        stats["CompletedPercentage"] = completed_perc
+        stats["completedPercentage"] = completed_perc
+
+        cold_start_prob = {repr(x): self.cold_starts[x]/self.node2completions[x] for x in self.node2completions if self.node2completions[x] > 0}
+        stats["coldStartProb"] = cold_start_prob
 
         class_completions = {}
         class_rt = {}
@@ -49,10 +56,10 @@ class Stats:
                 continue
             rt_sum = sum([self.resp_time_sum[(f,c)] for f in self.functions if c in f.get_invoking_classes()])
             class_rt[repr(c)] = rt_sum/class_completions[repr(c)]
-        stats["PerClassCompleted"] = class_completions
-        stats["PerClassAvgRT"] = class_rt
+        stats["perClassCompleted"] = class_completions
+        stats["perClassAvgRT"] = class_rt
 
-        stats["Time"] = self.sim.t
+        stats["_Time"] = self.sim.t
 
         return stats
     

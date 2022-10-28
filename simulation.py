@@ -266,8 +266,7 @@ class Simulation:
         else:
             self.cloud.curr_memory -= f.memory
             assert(self.cloud.curr_memory >= 0)
-            self.stats.cold_starts[(f,c)] += 1
-            self.stats.node2cold_starts[self.cloud] += 1
+            self.stats.cold_starts[(f,self.cloud)] += 1
             init_time = self.init_time[self.cloud]
         rtt = self.latencies[(self.edge.region,self.cloud.region)]*2
         self.schedule(self.t + rtt + OFFLOADING_OVERHEAD + init_time + duration, Completion(self.t, f,c, self.cloud, init_time > 0, duration))
@@ -291,8 +290,7 @@ class Simulation:
             else:
                 self.edge.curr_memory -= f.memory
                 assert(self.edge.curr_memory >= 0)
-                self.stats.cold_starts[(f,c)] += 1
-                self.stats.node2cold_starts[self.edge] += 1
+                self.stats.cold_starts[(f,self.edge)] += 1
                 init_time = self.init_time[self.edge]
             self.schedule(self.t + init_time + duration, Completion(self.t, f,c, self.edge, init_time > 0, duration))
         elif sched_decision == SchedulerDecision.DROP:

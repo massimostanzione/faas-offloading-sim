@@ -51,6 +51,9 @@ def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud, init_t
                      <= 1 - c.min_completion_percentage)
 
 
+    # TODO
+    #prob.writeLP("/tmp/problem.lp")
+
     status = solve(prob)
     assert(status == "Optimal") # TODO
 
