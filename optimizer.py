@@ -1,10 +1,11 @@
 import os
+import math
 import sys
 import pulp as pl
 
 warm_start = False
 
-def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud, init_time, offload_time):
+def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud, init_time, offload_time, cold_start_p):
     F = sim.functions
     C = sim.classes
     F_C = [(f,c) for f in F for c in f.get_invoking_classes()]
@@ -19,11 +20,24 @@ def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud, init_t
     pE = pl.LpVariable.dicts("ProbExec", (F, C), 0, 1, pl.LpContinuous)
     pO = pl.LpVariable.dicts("ProbOffl", (F, C), 0, 1, pl.LpContinuous)
     pD = pl.LpVariable.dicts("ProbDrop", (F, C), 0, 1, pl.LpContinuous)
-    pCold = pl.LpVariable.dicts("ProbCold", F, 0, 1, pl.LpContinuous)
 
-    prob += (pl.lpSum([c.utility*arrival_rates[(f,c)]*(pE[f][c]+pO[f][c]) for f,c in F_C]) + 
-             pl.lpSum([pCold[f] for f in F])
-             , "objUtil")
+    deadline_satisfaction_prob_edge = {}
+    deadline_satisfaction_prob_cloud = {}
+    print(f"Offload time: {offload_time}")
+    print(f"Serv time: {serv_time}")
+    print(f"Serv time cloud: {serv_time_cloud}")
+    for f,c in F_C:
+        # TODO: we are assuming exponential distribution
+        p = 1.0 - math.exp(-1.0/serv_time[f]*(c.max_rt - init_time*cold_start_p[(f,sim.edge)]))
+        print(f"Edge: {f}-{c}: {p}")
+        deadline_satisfaction_prob_edge[(f,c)] = p
+        p = 1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt - init_time*cold_start_p[(f,sim.cloud)] - offload_time))
+        print(f"Cloud: {f}-{c}: {p}")
+        deadline_satisfaction_prob_cloud[(f,c)] = p
+
+    prob += (pl.lpSum([c.utility*arrival_rates[(f,c)]*\
+                       (pE[f][c]*deadline_satisfaction_prob_edge[(f,c)]+\
+                       pO[f][c]*deadline_satisfaction_prob_cloud[(f,c)]) for f,c in F_C]) , "objUtil")
 
     # Probability
     for f,c in F_C:
@@ -37,12 +51,12 @@ def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud, init_t
         prob += (pE[f][c]*arrival_rates[(f,c)]*serv_time[f] <= x[f][c])
 
     # Resp Time
-    for f,c in F_C:
-        if c.max_rt > 0.0:
-            prob += (pE[f][c]*serv_time[f] +  
-                     pO[f][c]*(serv_time_cloud[f] + offload_time) +
-                     pCold[f]*init_time
-                     <= c.max_rt)
+    #for f,c in F_C:
+    #    if c.max_rt > 0.0:
+    #        prob += (pE[f][c]*serv_time[f] +  
+    #                 pO[f][c]*(serv_time_cloud[f] + offload_time) +
+    #                 pCold[f]*init_time
+    #                 <= c.max_rt)
 
     # Min completion
     for c in C:
@@ -58,8 +72,6 @@ def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud, init_t
     assert(status == "Optimal") # TODO
 
     print("Obj = ", pl.value(prob.objective))
-    for f in F:
-        print(f"Pcold[{f}]={pl.value(pCold[f])}")
     shares = {(f,c): pl.value(x[f][c]) for f,c in F_C}
     print(f"Shares: {shares}")
 

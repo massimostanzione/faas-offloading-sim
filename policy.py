@@ -94,12 +94,18 @@ class ProbabilisticPolicy (Policy):
             for f,c in stats.arrivals:
                 self.arrival_rates[(f,c)] = stats.arrivals[(f,c)]/self.simulation.t
 
+        cold_start_prob = {x: stats.cold_starts[x]/stats.node2completions[x] for x in stats.node2completions if stats.node2completions[x] > 0}
+        for x in stats.node2completions:
+            if stats.node2completions[x] == 0:
+                cold_start_prob[x] = 0.1 # TODO
+
         self.probs = optimizer.update_probabilities(self.simulation,
                             self.arrival_rates,
                             estimated_service_time,
                             estimated_service_time_cloud,
                             self.simulation.init_time[self.simulation.edge],
-                            2*self.simulation.latencies[(self.simulation.edge.region,self.simulation.cloud.region)])
+                            2*self.simulation.latencies[(self.simulation.edge.region,self.simulation.cloud.region)],
+                            cold_start_prob)
         self.stats_snapshot = self.simulation.stats.to_dict()
         self.last_update_time = self.simulation.t
 
