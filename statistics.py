@@ -18,8 +18,8 @@ class Stats:
         self.cold_starts = {(f,n): 0 for f in functions for n in nodes}
         self.execution_time_sum = {(f,n): 0 for f in functions for n in nodes}
         self.node2completions = {(f,n): 0 for n in nodes for f in functions}
+        self.raw_utility = 0.0
         self.utility = 0.0
-        self.utility_with_constraints = 0.0
 
     def to_dict (self):
         stats = {}
@@ -44,6 +44,9 @@ class Stats:
 
         completed_perc = {repr(x): self.completions[x]/self.arrivals[x] for x in self.completions if self.arrivals[x] > 0}
         stats["completedPercentage"] = completed_perc
+
+        violations_perc = {repr(x): self.violations[x]/self.completions[x] for x in self.completions if self.completions[x] > 0}
+        stats["violationsPercentage"] = violations_perc
 
         cold_start_prob = {repr(x): self.cold_starts[x]/self.node2completions[x] for x in self.node2completions if self.node2completions[x] > 0}
         stats["coldStartProb"] = cold_start_prob
