@@ -188,6 +188,7 @@ class Simulation:
                 self.arriving_functions.remove(f)
 
         if len(self.arriving_functions) == 0:
+            print("HERE")
             # Little hack: remove all expiration from the event list (we do not
             # need to wait for them)
             for item in self.events:
@@ -246,7 +247,8 @@ class Simulation:
             self.stats.violations[(f,c)] += 1
 
         n.warm_pool.append((f, self.t + self.expiration_timeout))
-        self.schedule(self.t + self.expiration_timeout, CheckExpiredContainers(n)) 
+        if self.close_the_door_time < 0 or self.t < self.close_the_door_time:
+            self.schedule(self.t + self.expiration_timeout, CheckExpiredContainers(n)) 
 
 
     def handle_offload (self, f, c):
