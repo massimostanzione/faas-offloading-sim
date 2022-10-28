@@ -48,12 +48,13 @@ class ContainerPool:
 
 class Node:
 
-    def __init__ (self, name, memory, speedup, region):
+    def __init__ (self, name, memory, speedup, region, cost=0.0):
         self.name = name
         self.total_memory = memory
         self.curr_memory = memory
         self.speedup = speedup
         self.region = region
+        self.cost = cost
 
         self.warm_pool = ContainerPool()
 

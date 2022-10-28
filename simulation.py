@@ -244,6 +244,8 @@ class Simulation:
             self.stats.utility += c.utility
         else:
             self.stats.violations[(f,c)] += 1
+        if n.cost > 0.0:
+            self.stats.cost += duration * f.memory/1024 * n.cost
 
         n.warm_pool.append((f, self.t + self.expiration_timeout))
         if self.close_the_door_time < 0 or self.t < self.close_the_door_time:

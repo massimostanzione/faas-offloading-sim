@@ -18,6 +18,7 @@ class Stats:
         self.cold_starts = {(f,n): 0 for f in functions for n in nodes}
         self.execution_time_sum = {(f,n): 0 for f in functions for n in nodes}
         self.node2completions = {(f,n): 0 for n in nodes for f in functions}
+        self.cost = 0.0
         self.raw_utility = 0.0
         self.utility = 0.0
 

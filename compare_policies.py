@@ -13,4 +13,4 @@ for policy in POLICIES:
 
 for policy in POLICIES:
     s = stats[policy]
-    print(f"{policy}: {s.utility}")
+    print(f"{policy}: {s.utility}, {s.cost}")

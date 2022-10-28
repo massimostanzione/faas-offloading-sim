@@ -32,7 +32,9 @@ def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud, init_t
 
     prob += (pl.lpSum([c.utility*arrival_rates[(f,c)]*\
                        (pE[f][c]*deadline_satisfaction_prob_edge[(f,c)]+\
-                       pO[f][c]*deadline_satisfaction_prob_cloud[(f,c)]) for f,c in F_C]) , "objUtil")
+                       pO[f][c]*deadline_satisfaction_prob_cloud[(f,c)]) for f,c in F_C]) -\
+                pl.lpSum([sim.cloud.cost*arrival_rates[(f,c)]*\
+                       pO[f][c]*serv_time_cloud[f]*f.memory/1024 for f,c in F_C]) , "objUtilCost")
 
     # Probability
     for f,c in F_C:
