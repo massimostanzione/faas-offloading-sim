@@ -180,12 +180,12 @@ class Simulation:
             if len(line) < 1:
                 # EOF
                 self.arriving_functions.remove(f)
-                return
-            iat = float(line)
-            if self.t + iat < self.close_the_door_time:
-                self.schedule(self.t + iat, Arrival(f,c))
             else:
-                self.arriving_functions.remove(f)
+                iat = float(line)
+                if self.t + iat < self.close_the_door_time:
+                    self.schedule(self.t + iat, Arrival(f,c))
+                else:
+                    self.arriving_functions.remove(f)
 
         if len(self.arriving_functions) == 0:
             # Little hack: remove all expiration from the event list (we do not

@@ -5,7 +5,8 @@ import pulp as pl
 
 warm_start = False
 
-def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud, init_time, offload_time, cold_start_p):
+def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud,
+                          init_time, offload_time, cold_start_p, required_percentile=-1.0):
     F = sim.functions
     C = sim.classes
     F_C = [(f,c) for f in F for c in f.get_invoking_classes()]
@@ -54,19 +55,33 @@ def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud, init_t
     #                 pO[f][c]*(serv_time_cloud[f] + offload_time) +
     #                 pCold[f]*init_time
     #                 <= c.max_rt)
+    class_arrival_rates = {}
+    for c in C:
+        class_arrival_rates[c] = sum([arrival_rates[(f,c)] for f in F if c in f.get_invoking_classes()])
+
+    # RT percentile
+    # XXX: this does not work well in practice, as RT violations are mostly due
+    # to cold starts, which we do not control here
+    assert(required_percentile <= 1.0)
+    for c in C:
+        if c.max_rt > 0.0 and required_percentile > 0.0 and class_arrival_rates[c] > 0.0:
+            prob += (pl.lpSum([arrival_rates[(f,c)]*(pE[f][c]*deadline_satisfaction_prob_edge[(f,c)] +\
+                    pO[f][c]*deadline_satisfaction_prob_cloud[(f,c)]+pD[f][c])\
+                     for f in invoked_functions[c] if c in f.get_invoking_classes()])/class_arrival_rates[c]
+                     >= required_percentile)
 
     # Min completion
     for c in C:
-        if c.min_completion_percentage > 0.0:
-            prob += (pl.lpSum([pD[f][c]*arrival_rates[(f,c)] for f in invoked_functions[c] if c in f.get_invoking_classes()])/sum([arrival_rates[(f,c)] for f in F if c in f.get_invoking_classes()])
-                     <= 1 - c.min_completion_percentage)
+        if c.min_completion_percentage > 0.0 and class_arrival_rates[c] > 0.0:
+            prob += (pl.lpSum([pD[f][c]*arrival_rates[(f,c)] for f in invoked_functions[c] if c in f.get_invoking_classes()])/class_arrival_rates[c]                     <= 1 - c.min_completion_percentage)
 
 
-    # TODO
-    #prob.writeLP("/tmp/problem.lp")
+    prob.writeLP("/tmp/problem.lp")
 
     status = solve(prob)
-    assert(status == "Optimal") # TODO
+    if status != "Optimal":
+        print(f"WARNING: solution status: {status}")
+        return None
 
     print("Obj = ", pl.value(prob.objective))
     shares = {(f,c): pl.value(x[f][c]) for f,c in F_C}

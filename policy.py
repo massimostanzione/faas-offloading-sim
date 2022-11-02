@@ -52,6 +52,7 @@ class ProbabilisticPolicy (Policy):
         self.last_update_time = None
         self.arrival_rate_alpha = self.simulation.config.getfloat(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, fallback=1.0)
         self.arrival_rates = {}
+        self.rt_percentile = self.simulation.config.getfloat(conf.SEC_POLICY, "rt-percentile", fallback=-1.0)
 
         self.probs = {(f,c): [0.33,0.33,1-0.66] for f in simulation.functions for c in simulation.classes}
 
@@ -99,13 +100,16 @@ class ProbabilisticPolicy (Policy):
             if stats.node2completions[x] == 0:
                 cold_start_prob[x] = 0.1 # TODO
 
-        self.probs = optimizer.update_probabilities(self.simulation,
+        new_probs = optimizer.update_probabilities(self.simulation,
                             self.arrival_rates,
                             estimated_service_time,
                             estimated_service_time_cloud,
                             self.simulation.init_time[self.simulation.edge],
                             2*self.simulation.latencies[(self.simulation.edge.region,self.simulation.cloud.region)],
-                            cold_start_prob)
+                            cold_start_prob,
+                            self.rt_percentile)
+        if new_probs is not None:
+            self.probs = new_probs
         self.stats_snapshot = self.simulation.stats.to_dict()
         self.last_update_time = self.simulation.t
 
