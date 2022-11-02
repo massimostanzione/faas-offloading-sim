@@ -86,6 +86,8 @@ class Simulation:
             self.policy = policy.BasicPolicy(self)
         elif policy_name == "probabilistic":
             self.policy = policy.ProbabilisticPolicy(self)
+        elif policy_name == "probabilistic-legacy":
+            self.policy = policy.LegacyProbabilisticPolicy(self)
         elif policy_name == "random":
             self.policy = policy.RandomPolicy(self)
         else:
