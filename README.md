@@ -115,3 +115,14 @@ updated via optimization
 an Exponential Moving Average, whose 0 < `alpha` <= 1 parameter is set by this
 configuration option (e.g., a value closer to 1.0 means we weigh recent
 observations as more important).
+
+## Utilities
+
+To quickly compare different policies under the current configuration:
+
+	python compare_policies.py
+
+**Work in progress**: to process the JSON produced in `stats.txt` by a single
+run:
+
+	python utilities/process_stats_json.py

@@ -2,3 +2,6 @@
 *__py
 config.ini
 env/
+stats.txt
+results*txt
+traces/
