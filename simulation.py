@@ -73,6 +73,8 @@ class Simulation:
         self.stats = Stats(self, self.functions, self.classes, [self.edge,self.cloud])
         self.function_classes = [(f,c) for f in self.functions for c in f.get_invoking_classes()]
 
+        self.first_stat_print = True
+
 
     def run (self):
         # Simulate
@@ -132,7 +134,8 @@ class Simulation:
             t,e = heappop(self.events)
             self.handle(t, e)
 
-        self.stats.print(self.stats_file)
+        self.print_periodic_stats()
+        print("]", file=self.stats_file)
         if self.stats_file != sys.stdout:
             self.stats_file.close()
             self.stats.print(sys.stdout)
@@ -202,6 +205,15 @@ class Simulation:
     def schedule (self, t, event):
         heappush(self.events, (t, event))
 
+    def print_periodic_stats (self):
+        of = self.stats_file if self.stats_file is not None else sys.stdout
+        if not self.first_stat_print:
+            print(",", end='', file=of)
+        else:
+            print("[", file=of)
+        self.stats.print(of)
+        self.first_stat_print = False
+
     def handle (self, t, event):
         if event.canceled:
             return
@@ -214,8 +226,7 @@ class Simulation:
             self.policy.update()
             self.schedule(t + self.policy_update_interval, event)
         elif isinstance(event, StatPrinter):
-            of = self.stats_file if self.stats_file is not None else sys.stdout
-            self.stats.print(of)
+            self.print_periodic_stats()
             self.schedule(t + self.stats_print_interval, event)
         elif isinstance(event, CheckExpiredContainers):
             if len(event.node.warm_pool) == 0:
