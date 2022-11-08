@@ -134,10 +134,13 @@ class Simulation:
             t,e = heappop(self.events)
             self.handle(t, e)
 
-        self.print_periodic_stats()
-        print("]", file=self.stats_file)
-        if self.stats_file != sys.stdout:
-            self.stats_file.close()
+        if self.stats_print_interval > 0:
+            self.print_periodic_stats()
+            print("]", file=self.stats_file)
+            if self.stats_file != sys.stdout:
+                self.stats_file.close()
+                self.stats.print(sys.stdout)
+        else:
             self.stats.print(sys.stdout)
 
         if len(self.resp_time_samples) > 0:
