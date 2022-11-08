@@ -125,4 +125,4 @@ To quickly compare different policies under the current configuration:
 **Work in progress**: to process the JSON produced in `stats.txt` by a single
 run:
 
-	python utilities/process_stats_json.py
+	python utils/process_stats_json.py
