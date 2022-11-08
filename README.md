@@ -103,3 +103,15 @@ The following policies are currently implemented:
   updated solving a LP problem
 - `probabilistic-legacy`: legacy version of the aforementioned LP-based approach
 - `random`
+
+### Configuring the *Probabilistic* policy
+
+You may want to adjust the following parameters when using the 
+`probabilistic` policy:
+
+- `update-interval`: how often (in seconds) the probabilities should be 
+updated via optimization
+- `arrival-alpha`: the arrival rate of each function-class pair is tracked using
+an Exponential Moving Average, whose 0 < `alpha` <= 1 parameter is set by this
+configuration option (e.g., a value closer to 1.0 means we weigh recent
+observations as more important).
