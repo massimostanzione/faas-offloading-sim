@@ -118,9 +118,9 @@ observations as more important).
 
 ## Utilities
 
-To quickly compare different policies under the current configuration:
+Specific scripts can be used to run single experiments, e.g.:
 
-	python compare_policies.py
+	python experiment_policies.py
 
 **Work in progress**: to process the JSON produced in `stats.txt` by a single
 run:

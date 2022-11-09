@@ -20,6 +20,8 @@ def process_json (stats):
         _cum_cold_starts = cum_cold_starts
 
         utility = s["utility"]
+        cost = s["cost"]
+
 
         print(f"{t},{cold_starts},{utility}")
 
