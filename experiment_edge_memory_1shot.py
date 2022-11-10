@@ -49,8 +49,7 @@ std_df = df.groupby(["Policy", "Memory"]).std()
 merged = pd.merge(mean_df, std_df, on=["Policy", "Memory"], suffixes=["Mean","Std"])
 
 print(merged)
-with open(f"results/results_{EXP_TAG}.txt", "w") as of:
-    print(merged, file=of)
+merged.to_csv(f"results/results_{EXP_TAG}.csv")
 
 with open(f'results/conf_{EXP_TAG}.ini', 'w') as configfile:
     config.write(configfile)
