@@ -24,8 +24,8 @@ for i,policy in enumerate(policies):
 ax1.set_xticks(m, memory_confs)
 ax2.set_xticks(m, memory_confs)
 
-ax1.set_yscale("log")
-ax2.set_yscale("log")
+#ax1.set_yscale("log")
+#ax2.set_yscale("log")
 
 ax1.legend(loc="lower left")
 
