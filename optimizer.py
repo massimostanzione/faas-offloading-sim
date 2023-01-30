@@ -24,6 +24,7 @@ def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud,
 
     deadline_satisfaction_prob_edge = {}
     deadline_satisfaction_prob_cloud = {}
+
     for f,c in F_C:
         # TODO: we are assuming exponential distribution
         p = 0.0

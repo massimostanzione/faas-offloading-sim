@@ -57,6 +57,7 @@ def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud, init_t
     status = solve(prob)
     assert(status == "Optimal") # TODO
 
+
     print("Obj = ", pl.value(prob.objective))
     for f in F:
         print(f"Pcold[{f}]={pl.value(pCold[f])}")
@@ -68,10 +69,12 @@ def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud, init_t
                      pl.value(pD[f][c])] for f,c in F_C}
 
     # Workaround to avoid numerical issues
+
     for f,c in F_C:
         print(f"{f}-{c}: {probs[(f,c)]}")
         s = sum(probs[(f,c)])
         probs[(f,c)] = [x/s for x in probs[(f,c)]]
+
     return probs
 
 def solve (problem):

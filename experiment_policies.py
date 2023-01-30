@@ -7,8 +7,11 @@ import conf
 config = main.parse_config_file()
 config.set(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, "-1")
 
-POLICIES = ["probabilistic", "probabilistic-legacy", "basic", "random"]
+#POLICIES = ["probabilistic", "probabilistic-legacy", "greedy", "greedy-min-cost", "basic", "random"]
+POLICIES = ["probabilistic", "greedy", "greedy-min-cost", "basic", "random"]
+#POLICIES = ["greedy", "basic", "random"]
 SEEDS = [(1,56), (2,23), (53, 98), (12,90), (567, 4)]
+#SEEDS = [(1,56)]
 
 results = []
 COL_NAMES = ["Policy", "Seeds", "Utility", "Cost"]

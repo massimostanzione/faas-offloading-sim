@@ -90,6 +90,12 @@ class Simulation:
             self.policy = policy.ProbabilisticPolicy(self)
         elif policy_name == "probabilistic-legacy":
             self.policy = policy.LegacyProbabilisticPolicy(self)
+        elif policy_name == "greedy":
+            self.policy = policy.GreedyPolicy(self)
+        elif policy_name == "greedy-min-cost":
+            self.policy = policy.GreedyPolicyWithCostMinimization(self)
+        elif policy_name == "custom":
+            self.policy = policy.CustomProbabilisticPolicy(self)
         elif policy_name == "random":
             self.policy = policy.RandomPolicy(self)
         else:
@@ -113,6 +119,9 @@ class Simulation:
         # ---
         service_seed = self.config.getint(conf.SEC_SEED, conf.SEED_SERVICE, fallback=10)
         self.service_rng = np.random.default_rng(service_seed)
+
+        #TODO change seed
+        self.latency_rng = np.random.default_rng(service_seed)
 
         #self.init_rng = np.random.default_rng(service_seed+1)
 
@@ -260,6 +269,7 @@ class Simulation:
             self.stats.utility += c.utility
         else:
             self.stats.violations[(f,c)] += 1
+
         if n.cost > 0.0:
             self.stats.cost += duration * f.memory/1024 * n.cost
 
@@ -288,6 +298,7 @@ class Simulation:
             self.stats.cold_starts[(f,self.cloud)] += 1
             init_time = self.init_time[self.cloud]
         rtt = self.latencies[(self.edge.region,self.cloud.region)]*2
+
         self.schedule(self.t + rtt + OFFLOADING_OVERHEAD + init_time + duration, Completion(self.t, f,c, self.cloud, init_time > 0, duration))
 
     def handle_arrival (self, event):
