@@ -94,8 +94,6 @@ class Simulation:
             self.policy = policy.GreedyPolicy(self)
         elif policy_name == "greedy-min-cost":
             self.policy = policy.GreedyPolicyWithCostMinimization(self)
-        elif policy_name == "custom":
-            self.policy = policy.CustomProbabilisticPolicy(self)
         elif policy_name == "random":
             self.policy = policy.RandomPolicy(self)
         else:
