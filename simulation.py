@@ -5,9 +5,10 @@ import numpy as np
 import sys
 
 import conf
-import plot
+import utils.plot
 from policy import SchedulerDecision
 import policy
+import probabilistic
 from faas import *
 from statistics import Stats
 
@@ -87,15 +88,15 @@ class Simulation:
         if policy_name == "basic":
             self.policy = policy.BasicPolicy(self)
         elif policy_name == "probabilistic":
-            self.policy = policy.ProbabilisticPolicy(self)
+            self.policy = probabilistic.ProbabilisticPolicy(self)
         elif policy_name == "probabilistic-legacy":
-            self.policy = policy.LegacyProbabilisticPolicy(self)
+            self.policy = probabilistic.LegacyProbabilisticPolicy(self)
         elif policy_name == "greedy":
             self.policy = policy.GreedyPolicy(self)
         elif policy_name == "greedy-min-cost":
             self.policy = policy.GreedyPolicyWithCostMinimization(self)
         elif policy_name == "random":
-            self.policy = policy.RandomPolicy(self)
+            self.policy = probabilistic.RandomPolicy(self)
         else:
             raise RuntimeError(f"Unknown policy: {policy_name}")
         self.policy_update_interval = self.config.getfloat(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, fallback=-1)
