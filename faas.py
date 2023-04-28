@@ -1,9 +1,10 @@
 from dataclasses import dataclass,field
 from enum import Enum
 
-class Region(Enum):
-    EDGE = 1
-    CLOUD = 2
+class Region:
+
+    def __init__ (self, name):
+        self.name = name
 
 class ContainerPool:
 

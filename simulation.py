@@ -296,9 +296,16 @@ class Simulation:
             assert(self.cloud.curr_memory >= 0)
             self.stats.cold_starts[(f,self.cloud)] += 1
             init_time = self.init_time[self.cloud]
-        rtt = self.latencies[(self.edge.region,self.cloud.region)]*2
+        rtt = self.get_latency(self.edge.region,self.cloud.region) +\
+                self.get_latency(self.cloud.region, self.edge.region)
 
         self.schedule(self.t + rtt + OFFLOADING_OVERHEAD + init_time + duration, Completion(self.t, f,c, self.cloud, init_time > 0, duration))
+
+    def get_latency (self, reg1, reg2):
+        try:
+            return self.latencies[(reg1, reg2)]
+        except KeyError:
+            return self.latencies[(reg2, reg1)]
 
     def handle_arrival (self, event):
         f = event.function
