@@ -77,6 +77,22 @@ class Simulation:
 
         self.first_stat_print = True
 
+    def new_policy (self, configured_policy):
+        if configured_policy == "basic":
+            return policy.BasicPolicy(self)
+        elif configured_policy == "probabilistic":
+            return probabilistic.ProbabilisticPolicy(self)
+        elif configured_policy == "probabilistic-legacy":
+            return probabilistic.LegacyProbabilisticPolicy(self)
+        elif configured_policy == "greedy":
+            return policy.GreedyPolicy(self)
+        elif configured_policy == "greedy-min-cost":
+            return policy.GreedyPolicyWithCostMinimization(self)
+        elif configured_policy == "random":
+            return probabilistic.RandomPolicy(self)
+        else:
+            raise RuntimeError(f"Unknown policy: {configured_policy}")
+
 
     def run (self):
         # Simulate
@@ -86,20 +102,7 @@ class Simulation:
 
         # Policy
         policy_name = self.config.get(conf.SEC_POLICY, conf.POLICY_NAME, fallback="basic")
-        if policy_name == "basic":
-            self.policy = policy.BasicPolicy(self)
-        elif policy_name == "probabilistic":
-            self.policy = probabilistic.ProbabilisticPolicy(self)
-        elif policy_name == "probabilistic-legacy":
-            self.policy = probabilistic.LegacyProbabilisticPolicy(self)
-        elif policy_name == "greedy":
-            self.policy = policy.GreedyPolicy(self)
-        elif policy_name == "greedy-min-cost":
-            self.policy = policy.GreedyPolicyWithCostMinimization(self)
-        elif policy_name == "random":
-            self.policy = probabilistic.RandomPolicy(self)
-        else:
-            raise RuntimeError(f"Unknown policy: {policy_name}")
+        self.policy = self.new_policy(policy_name)
         self.policy_update_interval = self.config.getfloat(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, fallback=-1)
         if self.policy_update_interval > 0.0:
             self.schedule(self.policy_update_interval, PolicyUpdate())
