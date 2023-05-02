@@ -2,6 +2,7 @@ import configparser
 from dataclasses import dataclass, field
 from heapq import heappop, heappush
 import numpy as np
+from numpy.random import SeedSequence, default_rng
 import sys
 
 import conf
@@ -112,17 +113,14 @@ class Simulation:
 
 
         # Seeds
-        arrival_seed = self.config.getint(conf.SEC_SEED,conf.SEED_ARRIVAL, fallback=1)
-        self.arrival_rng = np.random.default_rng(arrival_seed)
-        self.arrival_rng2 = np.random.default_rng(arrival_seed+1)
-        # ---
-        service_seed = self.config.getint(conf.SEC_SEED, conf.SEED_SERVICE, fallback=10)
-        self.service_rng = np.random.default_rng(service_seed)
-
-        #TODO change seed
-        self.latency_rng = np.random.default_rng(service_seed)
-
-        #self.init_rng = np.random.default_rng(service_seed+1)
+        seed = self.config.getint(conf.SEC_SIM, conf.SEED, fallback=1)
+        ss = SeedSequence(seed)
+        # Spawn off child SeedSequences to pass to child processes.
+        child_seeds = ss.spawn(4)
+        self.arrival_rng = default_rng(child_seeds[0])
+        self.arrival_rng2 = default_rng(child_seeds[1])
+        self.service_rng = default_rng(child_seeds[2])
+        self.latency_rng = default_rng(child_seeds[3])
 
         # Other params
         self.init_time = {}

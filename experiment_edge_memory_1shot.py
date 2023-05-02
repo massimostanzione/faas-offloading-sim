@@ -16,7 +16,7 @@ config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "1.0")
 
 POLICIES = ["probabilistic", "probabilistic-legacy", "basic"]
 MEMORY = [512*i for i in [1,2,4,8,12,19,24,32]]
-SEEDS = [(1,56), (2,23), (53, 98), (12,90), (567, 4)]
+SEEDS = [1,2,53,12,567]
 
 results = []
 COL_NAMES = ["Policy", "Memory", "Seeds", "Utility", "Cost"]
@@ -27,9 +27,8 @@ for policy in POLICIES:
     config.set(conf.SEC_POLICY, conf.POLICY_NAME, policy)
     for mem in MEMORY:
         config.set("edge", "memory", str(mem))
-        for s1,s2 in SEEDS:
-            config.set(conf.SEC_SEED, conf.SEED_ARRIVAL, str(s1))
-            config.set(conf.SEC_SEED, conf.SEED_SERVICE, str(s2))
+        for s1 in SEEDS:
+            config.set(conf.SEC_SIM, conf.SEED, str(s1))
             simulation = main.init_simulation(config)
             simulation.run()
 
@@ -40,7 +39,7 @@ for policy in POLICIES:
                 assert(len(stats)==2)
                 utility = stats[1]["utility"]-stats[0]["utility"]
                 cost = stats[1]["cost"]-stats[0]["cost"]
-                results.append((policy,mem,(s1,s2),utility, cost))
+                results.append((policy,mem,s1,,utility, cost))
 
 
 df = pd.DataFrame(results, columns=COL_NAMES)
