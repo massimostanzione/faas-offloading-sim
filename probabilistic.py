@@ -76,8 +76,7 @@ class ProbabilisticPolicy(Policy):
                                                    estimated_service_time,
                                                    estimated_service_time_cloud,
                                                    self.simulation.init_time[self.simulation.edge],
-                                                   2 * self.simulation.latencies[
-                                                       (self.simulation.edge.region, self.simulation.cloud.region)],
+                                                   2 * self.simulation.infra.get_latency(self.simulation.edge.region, self.simulation.cloud.region),
                                                    cold_start_prob,
                                                    self.rt_percentile)
         if new_probs is not None:

@@ -11,6 +11,7 @@ from policy import SchedulerDecision
 import policy
 import probabilistic
 from faas import *
+from infrastructure import *
 from statistics import Stats
 
 @dataclass
@@ -62,18 +63,20 @@ ARRIVAL_TRACE_PERIOD = 60.0
 class Simulation:
 
     config: configparser.ConfigParser
-    edge: Node
-    cloud: Node
-    latencies: dict
+    infra: Infrastructure
     functions: [Function]
     classes: [QoSClass]
 
     def __post_init__ (self):
         assert(len(self.functions) > 0)
         assert(len(self.classes) > 0)
-        assert((self.edge.region,self.cloud.region) in self.latencies)
+        # TODO: legacy compatibility
+        self.edge = self.infra.get_edge_nodes()[0]
+        self.cloud = self.infra.get_cloud_nodes()[0]
+
         self.stats = Stats(self, self.functions, self.classes, [self.edge,self.cloud])
         self.function_classes = [(f,c) for f in self.functions for c in f.get_invoking_classes()]
+
 
         self.first_stat_print = True
 
@@ -297,16 +300,10 @@ class Simulation:
             assert(self.cloud.curr_memory >= 0)
             self.stats.cold_starts[(f,self.cloud)] += 1
             init_time = self.init_time[self.cloud]
-        rtt = self.get_latency(self.edge.region,self.cloud.region) +\
-                self.get_latency(self.cloud.region, self.edge.region)
+        rtt = self.infra.get_latency(self.edge.region,self.cloud.region) +\
+                self.infra.get_latency(self.cloud.region, self.edge.region)
 
         self.schedule(self.t + rtt + OFFLOADING_OVERHEAD + init_time + duration, Completion(self.t, f,c, self.cloud, init_time > 0, duration))
-
-    def get_latency (self, reg1, reg2):
-        try:
-            return self.latencies[(reg1, reg2)]
-        except KeyError:
-            return self.latencies[(reg2, reg1)]
 
     def handle_arrival (self, event):
         f = event.function

@@ -3,6 +3,7 @@ import sys
 
 import faas
 from simulation import Simulation
+from infrastructure import *
 
 def parse_config_file():
     DEFAULT_CONFIG_FILE = "config.ini"
@@ -13,11 +14,14 @@ def parse_config_file():
 
 def init_simulation (config):
     # Regions
-    reg_cloud = faas.Region("Cloud")
-    reg_edge = faas.Region("Edge")
+    reg_cloud = Region("Cloud", True)
+    reg_edge = Region("Edge")
+    regions = [reg_edge, reg_cloud]
     # Latency
     edge_cloud_latency = config.getfloat("edge", "cloud-latency", fallback=0.040)
     latencies = {(reg_edge,reg_cloud): edge_cloud_latency}
+    # Infrastructure
+    infra = Infrastructure(regions, latencies)
 
     # Nodes
     cloud_memory = config.getint("cloud", "memory", fallback=300000)
@@ -27,6 +31,9 @@ def init_simulation (config):
     edge_speedup = config.getfloat("edge", "speedup", fallback=1.0)
     cloud = faas.Node("cloud", cloud_memory, cloud_speedup, reg_cloud, cost=cloud_cost)
     edge = faas.Node("edge", edge_memory, edge_speedup, reg_edge)
+    infra.add_node(cloud, reg_cloud)
+    infra.add_node(edge, reg_edge)
+
 
 
     # Read functions from config
@@ -65,7 +72,7 @@ def init_simulation (config):
                 f.add_invoking_class(c)
 
 
-    sim = Simulation(config, edge, cloud, latencies, functions, classes)
+    sim = Simulation(config, infra, functions, classes)
     return sim
 
 def main():
