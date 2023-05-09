@@ -1,7 +1,10 @@
 import configparser
 import sys
+import yaml
 
 import faas
+import conf
+from arrivals import PoissonArrivalProcess
 from simulation import Simulation
 from infrastructure import *
 
@@ -12,44 +15,74 @@ def parse_config_file():
     config.read(config_file)
     return config
 
+def read_spec_file (spec_file_name, infra, classes):
+    classname2class = {}
+    for qc in classes:
+        classname2class[qc.name] = qc
+        
+    with open(spec_file_name, "r") as stream:
+        node_names = {}
+        spec = yaml.safe_load(stream)
+        nodes = spec["nodes"]
+        for n in nodes:
+            node_name = n["name"]
+            reg_name = n["region"]
+            reg = infra.get_region(reg_name)
+            memory = n["memory"] if "memory" in n else 1024
+            speedup = n["speedup"] if "speedup" in n else 1.0
+            cost = n["cost"] if "cost" in n else 0.0
+            node = faas.Node(node_name, memory, speedup, reg, cost=cost)
+            node_names[node_name] = node
+            infra.add_node(node, reg)
+
+        functions = []
+        function_names = {}
+        for f in spec["functions"]:
+            fname = f["name"]
+            memory = f["memory"] if "memory" in f else 128
+            duration_mean = f["duration_mean"] if "duration_mean" in f else 1.0
+            duration_scv = f["duration_scv"] if "duration_scv" in f else 1.0
+            fun = faas.Function(fname, memory, serviceMean=duration_mean, serviceSCV=duration_scv)
+            function_names[fname] = fun
+            functions.append(fun)
+
+        node2arrivals = {}
+        for f in spec["arrivals"]:
+            node_name = f["node"]
+            node = node_names[node_name]
+            if not "functions" in f:
+                arriving_functions = functions
+                invoking_classes = {f: classes for f in arriving_functions}
+            else:
+                arriving_functions = []
+                invoking_classes = {}
+                for fun_block in f["functions"]:
+                    fname = fun_block["name"]
+                arriving_functions.append(function_names[fname])
+                if not "classes" in fun_block:
+                    invoking_classes[function_names[fname]] = classes
+                else:
+                    invoking_classes[function_names[fname]] = [classname2class[qcname] for qcname in fun_block["classes"]]
+            if "trace" in f:
+                raise RuntimeError("Not implemented yet")
+            elif "rate" in f:
+                for fun in arriving_functions:
+                    arv = PoissonArrivalProcess(fun, invoking_classes[fun], float(f["rate"]))
+            node2arrivals.get(node, []).append(arv)
+
+    return functions, node2arrivals
+
+
 def init_simulation (config):
     # Regions
-    reg_cloud = Region("Cloud", True)
-    reg_edge = Region("Edge")
+    reg_cloud = Region("cloud", True)
+    reg_edge = Region("edge")
     regions = [reg_edge, reg_cloud]
     # Latency
     edge_cloud_latency = config.getfloat("edge", "cloud-latency", fallback=0.040)
     latencies = {(reg_edge,reg_cloud): edge_cloud_latency}
     # Infrastructure
     infra = Infrastructure(regions, latencies)
-
-    # Nodes
-    cloud_memory = config.getint("cloud", "memory", fallback=300000)
-    cloud_speedup = config.getfloat("cloud", "speedup", fallback=1.3)
-    cloud_cost = config.getfloat("cloud", "cost", fallback=0.0)
-    edge_memory = config.getint("edge", "memory", fallback=4096)
-    edge_speedup = config.getfloat("edge", "speedup", fallback=1.0)
-    cloud = faas.Node("cloud", cloud_memory, cloud_speedup, reg_cloud, cost=cloud_cost)
-    edge = faas.Node("edge", edge_memory, edge_speedup, reg_edge)
-    infra.add_node(cloud, reg_cloud)
-    infra.add_node(edge, reg_edge)
-
-
-
-    # Read functions from config
-    name2function = {}
-    functions = []
-    for section in config.sections():
-        if section.startswith("fun_"):
-            fun = section[4:]
-            memory = config.getint(section, "memory", fallback=256)
-            arrival = config.getfloat(section, "arrival-rate", fallback=1.0)
-            service_mean = config.getfloat(section, "service-time-mean", fallback=1.0)
-            service_scv = config.getfloat(section, "service-time-scv", fallback=1.0)
-            arrival_trace = config.get(section, "arrival-trace", fallback=None)
-            f = faas.Function(fun, memory, arrival, service_mean, serviceSCV=service_scv, arrival_trace=arrival_trace)
-            functions.append(f)
-            name2function[fun] = f
 
     # Read classes from config
     classes = []
@@ -61,18 +94,13 @@ def init_simulation (config):
             deadline = config.getfloat(section, "deadline", fallback=1.0)
             c = faas.QoSClass(classname, deadline, arrival_weight, utility=utility)
             classes.append(c)
-            # Parse invoked functions 
-            invoked_functions_str = config.get(section, "functions", fallback="")
-            invoked_functions = list(filter(lambda x: len(x) > 0, [x.strip() for x in invoked_functions_str.split(",")]))
-            if len(invoked_functions) < 1:
-                invoked_functions = functions
-            else:
-                invoked_functions = [name2function[s] for s in invoked_functions]
-            for f in invoked_functions:
-                f.add_invoking_class(c)
+    
+    # Read spec file
+    spec_file_name = config.get(conf.SEC_SIM, conf.SPEC_FILE, fallback=None)
+    functions, node2arrivals  = read_spec_file (spec_file_name, infra, classes)
 
 
-    sim = Simulation(config, infra, functions, classes)
+    sim = Simulation(config, infra, functions, classes, node2arrivals)
     return sim
 
 def main():

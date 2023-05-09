@@ -16,6 +16,7 @@ class Infrastructure:
         self.regions = regions
         self.latency = network_latency
         self.region_nodes = {r: []  for r in self.regions}
+        self.region_dict = {r.name: r for r in self.regions}
 
     def get_latency (self, reg1: Region, reg2: Region):
         if reg1 == reg2:
@@ -27,6 +28,9 @@ class Infrastructure:
             return self.latency[(reg1, reg2)]
         else:
             raise KeyError("no latency specified for this pair of regions")
+
+    def get_region (self, reg_name: str) -> Region:
+        return self.region_dict[reg_name]
 
     def add_node (self, node, region: Region):
         self.region_nodes[region].append(node)

@@ -66,6 +66,7 @@ class Simulation:
     infra: Infrastructure
     functions: [Function]
     classes: [QoSClass]
+    node2arrivals: dict
 
     def __post_init__ (self):
         assert(len(self.functions) > 0)
