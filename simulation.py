@@ -107,10 +107,13 @@ class Simulation:
         self.close_the_door_time = self.config.getfloat(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, fallback=100)
         self.events = []
         self.t = 0.0
+        self.node2policy = {}
 
         # Policy
         policy_name = self.config.get(conf.SEC_POLICY, conf.POLICY_NAME, fallback="basic")
-        self.policy = self.new_policy(policy_name)
+        for n in self.infra.get_edge_nodes():
+            self.node2policy[n] = self.new_policy(policy_name)
+
         self.policy_update_interval = self.config.getfloat(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, fallback=-1)
         self.stats_print_interval = self.config.getfloat(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, fallback=-1)
         self.stats_file = sys.stdout
@@ -255,17 +258,17 @@ class Simulation:
         duration = event.exec_time
         #print(f"Completed {f}-{c}: {rt}")
 
-        self.stats.resp_time_sum[(f,c)] += rt
-        if (f,c) in self.resp_time_samples:
-            self.resp_time_samples[(f,c)].append(rt)
-        self.stats.completions[(f,c)] += 1
+        self.stats.resp_time_sum[(f,c,n)] += rt
+        if (f,c,n) in self.resp_time_samples:
+            self.resp_time_samples[(f,c,n)].append(rt)
+        self.stats.completions[(f,c,n)] += 1
         self.stats.node2completions[(f,n)] += 1
         self.stats.execution_time_sum[(f,n)] += duration
         self.stats.raw_utility += c.utility
         if c.max_rt <= 0.0 or rt <= c.max_rt:
             self.stats.utility += c.utility
         else:
-            self.stats.violations[(f,c)] += 1
+            self.stats.violations[(f,c,n)] += 1
 
         if n.cost > 0.0:
             self.stats.cost += duration * f.memory/1024 * n.cost
@@ -300,34 +303,34 @@ class Simulation:
         self.schedule(self.t + rtt + OFFLOADING_OVERHEAD + init_time + duration, Completion(self.t, f,c, self.cloud, init_time > 0, duration))
 
     def handle_arrival (self, event):
-        n = event.node # TODO !!!
+        n = event.node 
         arv_proc = event.arrival_proc
         f = event.function
         c = event.qos_class
-        self.stats.arrivals[(f,c)] += 1
+        self.stats.arrivals[(f,c,n)] += 1
         #print(f"Arrived {f}-{c} @ {self.t}")
 
         # Policy
-        sched_decision = self.policy.schedule(f,c)
+        sched_decision = self.node2policy[n].schedule(f,c)
 
         if sched_decision == SchedulerDecision.EXEC:
-            speedup = self.edge.speedup
+            speedup = n.speedup
             duration = self.service_rng.gamma(1.0/f.serviceSCV, f.serviceMean*f.serviceSCV/speedup) # TODO: check
             # check warm or cold
-            if f in self.edge.warm_pool:
-                self.edge.warm_pool.remove(f)
+            if f in n.warm_pool:
+                n.warm_pool.remove(f)
                 init_time = 0
             else:
-                self.edge.curr_memory -= f.memory
-                assert(self.edge.curr_memory >= 0)
-                self.stats.cold_starts[(f,self.edge)] += 1
-                init_time = self.init_time[self.edge]
-            self.schedule(self.t + init_time + duration, Completion(self.t, f,c, self.edge, init_time > 0, duration))
+                n.curr_memory -= f.memory
+                assert(n.curr_memory >= 0)
+                self.stats.cold_starts[(f,n)] += 1
+                init_time = self.init_time[n]
+            self.schedule(self.t + init_time + duration, Completion(self.t, f,c, n, init_time > 0, duration))
         elif sched_decision == SchedulerDecision.DROP:
-            self.stats.dropped_reqs[(f,c)] += 1
+            self.stats.dropped_reqs[(f,c,n)] += 1
         elif sched_decision == SchedulerDecision.OFFLOAD:
-            self.stats.offloaded[(f,c)] += 1
-            self.handle_offload(f,c)
+            self.stats.offloaded[(f,c,n)] += 1
+            self.handle_offload(f,c,n)
 
         # Schedule next
         self.__schedule_next_arrival(n, arv_proc)

@@ -49,6 +49,12 @@ class Infrastructure:
                 nodes.extend(self.region_nodes[r])
         return nodes
 
+    def get_nodes (self):
+        nodes = []
+        for r in self.regions:
+            nodes.extend(self.region_nodes[r])
+        return nodes
+
     def __repr__ (self):
         s=""
         for r in self.regions:

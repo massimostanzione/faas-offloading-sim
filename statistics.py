@@ -4,17 +4,19 @@ class Stats:
 
     def __init__ (self, sim, functions, classes, nodes):
         self.sim = sim
+        self.infra = sim.infra
         self.functions = functions
         self.classes = classes
         self.nodes = nodes
         fun_classes = [(f,c) for f in functions for c in classes]
+        fcn = [(f,c,n) for f in functions for c in classes for n in self.infra.get_nodes()]
 
-        self.arrivals = {x: 0 for x in fun_classes}
-        self.offloaded = {x: 0 for x in fun_classes}
-        self.dropped_reqs = {c: 0 for c in fun_classes}
-        self.completions = {x: 0 for x in fun_classes}
-        self.violations = {c: 0 for c in fun_classes}
-        self.resp_time_sum = {c: 0.0 for c in fun_classes}
+        self.arrivals = {x: 0 for x in fcn}
+        self.offloaded = {x: 0 for x in fcn}
+        self.dropped_reqs = {c: 0 for c in fcn}
+        self.completions = {x: 0 for x in fcn}
+        self.violations = {c: 0 for c in fcn}
+        self.resp_time_sum = {c: 0.0 for c in fcn}
         self.cold_starts = {(f,n): 0 for f in functions for n in nodes}
         self.execution_time_sum = {(f,n): 0 for f in functions for n in nodes}
         self.node2completions = {(f,n): 0 for n in nodes for f in functions}
@@ -55,10 +57,10 @@ class Stats:
         class_completions = {}
         class_rt = {}
         for c in self.classes:
-            class_completions[repr(c)] = sum([self.completions[(f,c)] for f in self.functions if c in self.classes])
+            class_completions[repr(c)] = sum([self.completions[(f,c,n)] for f in self.functions for n in self.infra.get_nodes() if c in self.classes])
             if class_completions[repr(c)] == 0:
                 continue
-            rt_sum = sum([self.resp_time_sum[(f,c)] for f in self.functions])
+            rt_sum = sum([self.resp_time_sum[(f,c,n)] for f in self.functions for n in self.infra.get_nodes()])
             class_rt[repr(c)] = rt_sum/class_completions[repr(c)]
         stats["perClassCompleted"] = class_completions
         stats["perClassAvgRT"] = class_rt
