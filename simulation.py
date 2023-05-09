@@ -83,6 +83,7 @@ class Simulation:
 
 
         self.first_stat_print = True
+        self.arrivals_allowed = True
 
     def new_policy (self, configured_policy):
         if configured_policy == "basic":
@@ -184,6 +185,9 @@ class Simulation:
 
     
     def __schedule_next_arrival(self, node, arrival_proc):
+        if not self.arrivals_allowed:
+            return
+
         c = arrival_proc.next_class()
         iat = arrival_proc.next_iat()
         f = arrival_proc.function
@@ -204,6 +208,7 @@ class Simulation:
                    or isinstance(item[1], PolicyUpdate) \
                    or isinstance(item[1], StatPrinter):
                     item[1].canceled = True
+            self.arrivals_allowed = False
 
 
     def schedule (self, t, event):
@@ -266,7 +271,7 @@ class Simulation:
             self.stats.cost += duration * f.memory/1024 * n.cost
 
         n.warm_pool.append((f, self.t + self.expiration_timeout))
-        if self.close_the_door_time < 0 or self.t < self.close_the_door_time:
+        if self.arrivals_allowed:
             self.schedule(self.t + self.expiration_timeout, CheckExpiredContainers(n)) 
 
 
