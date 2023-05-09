@@ -68,7 +68,9 @@ def read_spec_file (spec_file_name, infra, classes):
             elif "rate" in f:
                 for fun in arriving_functions:
                     arv = PoissonArrivalProcess(fun, invoking_classes[fun], float(f["rate"]))
-            node2arrivals.get(node, []).append(arv)
+            if not node in node2arrivals:
+                node2arrivals[node] = []
+            node2arrivals[node].append(arv)
 
     return functions, node2arrivals
 

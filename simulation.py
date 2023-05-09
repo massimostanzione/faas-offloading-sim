@@ -11,6 +11,7 @@ from policy import SchedulerDecision
 import policy
 import probabilistic
 from faas import *
+from arrivals import ArrivalProcess
 from infrastructure import *
 from statistics import Stats
 
@@ -29,8 +30,10 @@ class Event:
 
 @dataclass
 class Arrival(Event):
+    node: Node
     function: Function
     qos_class: QoSClass
+    arrival_proc: ArrivalProcess
 
 @dataclass
 class CheckExpiredContainers(Event):
@@ -76,7 +79,7 @@ class Simulation:
         self.cloud = self.infra.get_cloud_nodes()[0]
 
         self.stats = Stats(self, self.functions, self.classes, [self.edge,self.cloud])
-        self.function_classes = [(f,c) for f in self.functions for c in f.get_invoking_classes()]
+        #self.function_classes = [(f,c) for f in self.functions for c in f.get_invoking_classes()]
 
 
         self.first_stat_print = True
@@ -108,26 +111,24 @@ class Simulation:
         policy_name = self.config.get(conf.SEC_POLICY, conf.POLICY_NAME, fallback="basic")
         self.policy = self.new_policy(policy_name)
         self.policy_update_interval = self.config.getfloat(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, fallback=-1)
-        if self.policy_update_interval > 0.0:
-            self.schedule(self.policy_update_interval, PolicyUpdate())
         self.stats_print_interval = self.config.getfloat(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, fallback=-1)
         self.stats_file = sys.stdout
-        if self.stats_print_interval > 0.0:
-            self.schedule(self.stats_print_interval, StatPrinter())
-            stats_print_filename = self.config.get(conf.SEC_SIM, conf.STAT_PRINT_FILE, fallback="")
-            if len(stats_print_filename) > 0:
-                self.stats_file = open(stats_print_filename, "w")
 
 
         # Seeds
         seed = self.config.getint(conf.SEC_SIM, conf.SEED, fallback=1)
         ss = SeedSequence(seed)
+        n_arrival_processes = sum([len(arrival_procs) for arrival_procs in self.node2arrivals.values()])
         # Spawn off child SeedSequences to pass to child processes.
-        child_seeds = ss.spawn(4)
-        self.arrival_rng = default_rng(child_seeds[0])
-        self.arrival_rng2 = default_rng(child_seeds[1])
-        self.service_rng = default_rng(child_seeds[2])
-        self.latency_rng = default_rng(child_seeds[3])
+        child_seeds = ss.spawn(2 + 2*n_arrival_processes)
+        self.service_rng = default_rng(child_seeds[0])
+        self.latency_rng = default_rng(child_seeds[1])
+
+        i = 2
+        for n,arvs in self.node2arrivals.items():
+            for arv in arvs:
+                arv.init_rng(default_rng(child_seeds[i]), default_rng(child_seeds[i+1]))
+                i += 2
 
         # Other params
         self.init_time = {}
@@ -141,7 +142,22 @@ class Simulation:
         else:
             self.resp_time_samples = {(f,c): [] for f in self.functions for c in f.get_invoking_classes()}
 
-        self.__schedule_first_arrival()
+        for n, arvs in self.node2arrivals.items():
+            for arv in arvs:
+                self.__schedule_next_arrival(n, arv)
+
+        if len(self.events) == 0:
+            # No arrivals
+            print("No arrivals configured.")
+            exit(1)
+
+        if self.policy_update_interval > 0.0:
+            self.schedule(self.policy_update_interval, PolicyUpdate())
+        if self.stats_print_interval > 0.0:
+            self.schedule(self.stats_print_interval, StatPrinter())
+            stats_print_filename = self.config.get(conf.SEC_SIM, conf.STAT_PRINT_FILE, fallback="")
+            if len(stats_print_filename) > 0:
+                self.stats_file = open(stats_print_filename, "w")
 
         while len(self.events) > 0:
             t,e = heappop(self.events)
@@ -159,56 +175,28 @@ class Simulation:
         if len(self.resp_time_samples) > 0:
             plot.plot_rt_cdf(self.resp_time_samples)
 
-        self.__close_trace_files()
+        for n, arvs in self.node2arrivals.items():
+            for arv in arvs:
+                arv.close()
 
         return self.stats
 
-    def __compute_class_probs (self):
-        self.class_probs = {}
-        for f in self.functions:
-            total_weight = sum([c.arrival_weight for c in f.get_invoking_classes()])
-            self.class_probs[f] = [c.arrival_weight/total_weight for c in f.get_invoking_classes()]
-
-    def __close_trace_files (self):
-        for f in self.fun2tracefile.values():
-            f.close()
-
-    def __schedule_first_arrival (self):
-        self.arriving_functions = set(self.functions)
-        self.fun2tracefile = {}
-        for f in self.functions:
-            if f.arrival_trace is not None:
-                self.fun2tracefile[f] = open(f.arrival_trace, "r")
-
-        self.__compute_class_probs()
-
-        for f in self.functions:
-            self.__schedule_next_arrival(f)
-
 
     
-    def __schedule_next_arrival(self, f):
-        c = self.arrival_rng.choice(f.get_invoking_classes(), p=self.class_probs[f])
-        if not f in self.fun2tracefile:
-            iat = self.arrival_rng2.exponential(1.0/f.arrivalRate)
-            if self.t + iat < self.close_the_door_time:
-                self.schedule(self.t + iat, Arrival(f,c))
-            else:
-                self.arriving_functions.remove(f)
-        else:
-            trace = self.fun2tracefile[f]
-            line = trace.readline().strip()
-            if len(line) < 1:
-                # EOF
-                self.arriving_functions.remove(f)
-            else:
-                iat = float(line)
-                if self.t + iat < self.close_the_door_time:
-                    self.schedule(self.t + iat, Arrival(f,c))
-                else:
-                    self.arriving_functions.remove(f)
+    def __schedule_next_arrival(self, node, arrival_proc):
+        c = arrival_proc.next_class()
+        iat = arrival_proc.next_iat()
+        f = arrival_proc.function
 
-        if len(self.arriving_functions) == 0:
+        if iat >= 0.0 and self.t + iat < self.close_the_door_time:
+            self.schedule(self.t + iat, Arrival(node,f,c, arrival_proc))
+        else:
+            arrival_proc.close()
+            self.node2arrivals[node].remove(arrival_proc)
+            if len(self.node2arrivals[node]) == 0:
+                del(self.node2arrivals[node])
+
+        if len(self.node2arrivals) == 0:
             # Little hack: remove all expiration from the event list (we do not
             # need to wait for them)
             for item in self.events:
@@ -307,6 +295,8 @@ class Simulation:
         self.schedule(self.t + rtt + OFFLOADING_OVERHEAD + init_time + duration, Completion(self.t, f,c, self.cloud, init_time > 0, duration))
 
     def handle_arrival (self, event):
+        n = event.node # TODO !!!
+        arv_proc = event.arrival_proc
         f = event.function
         c = event.qos_class
         self.stats.arrivals[(f,c)] += 1
@@ -335,4 +325,4 @@ class Simulation:
             self.handle_offload(f,c)
 
         # Schedule next
-        self.__schedule_next_arrival(f)
+        self.__schedule_next_arrival(n, arv_proc)

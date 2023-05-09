@@ -7,7 +7,7 @@ class Stats:
         self.functions = functions
         self.classes = classes
         self.nodes = nodes
-        fun_classes = [(f,c) for f in functions for c in f.get_invoking_classes()]
+        fun_classes = [(f,c) for f in functions for c in classes]
 
         self.arrivals = {x: 0 for x in fun_classes}
         self.offloaded = {x: 0 for x in fun_classes}
@@ -55,10 +55,10 @@ class Stats:
         class_completions = {}
         class_rt = {}
         for c in self.classes:
-            class_completions[repr(c)] = sum([self.completions[(f,c)] for f in self.functions if c in f.get_invoking_classes()])
+            class_completions[repr(c)] = sum([self.completions[(f,c)] for f in self.functions if c in self.classes])
             if class_completions[repr(c)] == 0:
                 continue
-            rt_sum = sum([self.resp_time_sum[(f,c)] for f in self.functions if c in f.get_invoking_classes()])
+            rt_sum = sum([self.resp_time_sum[(f,c)] for f in self.functions])
             class_rt[repr(c)] = rt_sum/class_completions[repr(c)]
         stats["perClassCompleted"] = class_completions
         stats["perClassAvgRT"] = class_rt
