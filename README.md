@@ -1,7 +1,5 @@
 This software simulates the execution of a FaaS system deployed over Edge and 
 Cloud nodes.
-Currently, a single Edge node and a single Cloud node are considered (though
-the Cloud node can actually represent an abstraction of multiple servers).
 
 
 ## Requirements
