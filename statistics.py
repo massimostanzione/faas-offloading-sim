@@ -23,6 +23,7 @@ class Stats:
         self.cost = 0.0
         self.raw_utility = 0.0
         self.utility = 0.0
+        self.utility_detail = {x: 0.0 for x in fcn}
 
     def to_dict (self):
         stats = {}

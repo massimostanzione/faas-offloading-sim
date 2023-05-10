@@ -280,7 +280,8 @@ class Simulation:
         self.stats.raw_utility += c.utility
         if c.max_rt <= 0.0 or rt <= c.max_rt:
             self.stats.utility += c.utility
-        else:
+            self.stats.utility_detail[(f,c,n)] += c.utility
+        elif c.max_rt > 0.0:
             self.stats.violations[(f,c,n)] += 1
 
         if n.cost > 0.0:

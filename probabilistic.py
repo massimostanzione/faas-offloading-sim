@@ -24,7 +24,7 @@ class ProbabilisticPolicy(Policy):
         self.arrival_rates = {}
         self.rt_percentile = self.simulation.config.getfloat(conf.SEC_POLICY, "rt-percentile", fallback=-1.0)
 
-        self.probs = {(f, c): [0.33, 0.33, 1 - 0.66] for f in simulation.functions for c in simulation.classes}
+        self.probs = {(f, c): [0.8, 0.2, 0.] for f in simulation.functions for c in simulation.classes}
 
     def schedule(self, f, c):
         probabilities = self.probs[(f, c)]
@@ -85,11 +85,12 @@ class ProbabilisticPolicy(Policy):
                                                    estimated_service_time,
                                                    estimated_service_time_cloud,
                                                    self.simulation.init_time[self.node],
-                                                   2 * self.simulation.infra.get_latency(self.node, self.cloud.region),
+                                                   2 * self.simulation.infra.get_latency(self.node, self.cloud),
                                                    cold_start_prob,
                                                    self.rt_percentile)
         if new_probs is not None:
             self.probs = new_probs
+            print(f"[{self.node}] Probs: {self.probs}")
         self.stats_snapshot = self.simulation.stats.to_dict()
         self.last_update_time = self.simulation.t
 
