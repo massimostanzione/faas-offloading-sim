@@ -15,14 +15,22 @@ def parse_config_file():
     config.read(config_file)
     return config
 
-def read_spec_file (spec_file_name, infra, classes):
-    classname2class = {}
-    for qc in classes:
-        classname2class[qc.name] = qc
-        
+def read_spec_file (spec_file_name, infra):
     with open(spec_file_name, "r") as stream:
-        node_names = {}
         spec = yaml.safe_load(stream)
+
+        classname2class={}
+        classes = []
+        for c in spec["classes"]:
+            classname = c["name"]
+            arrival_weight = c.get("arrival-weight", 1.0)
+            utility = c.get("utility", 1.0)
+            deadline = c.get("max_resp_time", 1.0)
+            newclass = faas.QoSClass(classname, deadline, arrival_weight, utility=utility)
+            classes.append(newclass)
+            classname2class[classname]=newclass
+
+        node_names = {}
         nodes = spec["nodes"]
         for n in nodes:
             node_name = n["name"]
@@ -48,31 +56,24 @@ def read_spec_file (spec_file_name, infra, classes):
 
         node2arrivals = {}
         for f in spec["arrivals"]:
-            node_name = f["node"]
-            node = node_names[node_name]
-            if not "functions" in f:
-                arriving_functions = functions
-                invoking_classes = {f: classes for f in arriving_functions}
+            node = node_names[f["node"]]
+            fun = function_names[f["function"]]
+        
+            if not "classes" in f:
+                invoking_classes = classes
             else:
-                arriving_functions = []
-                invoking_classes = {}
-                for fun_block in f["functions"]:
-                    fname = fun_block["name"]
-                arriving_functions.append(function_names[fname])
-                if not "classes" in fun_block:
-                    invoking_classes[function_names[fname]] = classes
-                else:
-                    invoking_classes[function_names[fname]] = [classname2class[qcname] for qcname in fun_block["classes"]]
+                invoking_classes = [classname2class[qcname] for qcname in f["classes"]]
+
             if "trace" in f:
                 raise RuntimeError("Not implemented yet")
             elif "rate" in f:
-                for fun in arriving_functions:
-                    arv = PoissonArrivalProcess(fun, invoking_classes[fun], float(f["rate"]))
+                arv = PoissonArrivalProcess(fun, invoking_classes, float(f["rate"]))
+
             if not node in node2arrivals:
                 node2arrivals[node] = []
             node2arrivals[node].append(arv)
 
-    return functions, node2arrivals
+    return classes, functions, node2arrivals
 
 
 def init_simulation (config):
@@ -81,25 +82,13 @@ def init_simulation (config):
     reg_edge = Region("edge", reg_cloud)
     regions = [reg_edge, reg_cloud]
     # Latency
-    edge_cloud_latency = config.getfloat("edge", "cloud-latency", fallback=0.050)
-    latencies = {(reg_edge,reg_cloud): edge_cloud_latency}
+    latencies = {(reg_edge,reg_cloud): 0.050}
     # Infrastructure
     infra = Infrastructure(regions, latencies)
 
-    # Read classes from config
-    classes = []
-    for section in config.sections():
-        if section.startswith("class_"):
-            classname = section[6:]
-            arrival_weight = config.getfloat(section, "arrival-weight", fallback=1.0)
-            utility = config.getfloat(section, "utility", fallback=1.0)
-            deadline = config.getfloat(section, "deadline", fallback=1.0)
-            c = faas.QoSClass(classname, deadline, arrival_weight, utility=utility)
-            classes.append(c)
-    
     # Read spec file
     spec_file_name = config.get(conf.SEC_SIM, conf.SPEC_FILE, fallback=None)
-    functions, node2arrivals  = read_spec_file (spec_file_name, infra, classes)
+    classes, functions, node2arrivals  = read_spec_file (spec_file_name, infra)
 
 
     sim = Simulation(config, infra, functions, classes, node2arrivals)

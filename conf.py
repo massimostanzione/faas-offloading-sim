@@ -9,7 +9,6 @@ PLOT_RESP_TIMES = "plot-rt"
 STAT_PRINT_INTERVAL = "stats-print-interval"
 STAT_PRINT_FILE = "stats-print-file"
 SPEC_FILE = "spec-file"
-CLOUD_COST = "cloud-cost"
 
 SEC_POLICY = "policy"
 POLICY_NAME = "name"
