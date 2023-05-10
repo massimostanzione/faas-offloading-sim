@@ -2,7 +2,6 @@ import configparser
 from dataclasses import dataclass, field
 from heapq import heappop, heappush
 import numpy as np
-import copy
 from numpy.random import SeedSequence, default_rng
 import sys
 
@@ -34,7 +33,7 @@ class Arrival(Event):
     node: Node
     function: Function
     qos_class: QoSClass
-    arrival_proc: ArrivalProcess
+    arrival_proc: ArrivalProcess = None
     offloaded_from: [Node] = field(default_factory=list)
 
 @dataclass
@@ -150,7 +149,7 @@ class Simulation:
         else:
             self.resp_time_samples = {(f,c): [] for f in self.functions for c in f.get_invoking_classes()}
 
-        for n, arvs in self.node2arrivals.items():
+        for n, arvs in self.node2arrivals.copy().items():
             for arv in arvs:
                 self.__schedule_next_arrival(n, arv)
 
@@ -294,9 +293,8 @@ class Simulation:
 
     def do_offload (self, arrival, target_node):
         latency = self.infra.get_latency(arrival.node, target_node)
-        remote_arv = copy.deepcopy(arrival)
+        remote_arv = Arrival(target_node, arrival.function, arrival.qos_class, offloaded_from=arrival.offloaded_from.copy())
         remote_arv.offloaded_from.append(arrival.node)
-        remote_arv.node = target_node
 
         self.schedule(self.t + latency + OFFLOADING_OVERHEAD, remote_arv)
 

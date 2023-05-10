@@ -4,7 +4,7 @@ import yaml
 
 import faas
 import conf
-from arrivals import PoissonArrivalProcess
+from arrivals import PoissonArrivalProcess, TraceArrivalProcess
 from simulation import Simulation
 from infrastructure import *
 
@@ -65,7 +65,7 @@ def read_spec_file (spec_file_name, infra):
                 invoking_classes = [classname2class[qcname] for qcname in f["classes"]]
 
             if "trace" in f:
-                raise RuntimeError("Not implemented yet")
+                arv = TraceArrivalProcess(fun, invoking_classes, f["trace"])
             elif "rate" in f:
                 arv = PoissonArrivalProcess(fun, invoking_classes, float(f["rate"]))
 

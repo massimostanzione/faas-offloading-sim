@@ -34,3 +34,19 @@ class PoissonArrivalProcess (ArrivalProcess):
 
     def next_iat (self):
         return self.iat_rng.exponential(1.0/self.rate)
+
+class TraceArrivalProcess (ArrivalProcess):
+
+    def __init__ (self, function: Function, classes: [QoSClass], trace: str):
+        super().__init__(function, classes) 
+        self.trace = open(trace, "r")
+
+    def next_iat (self):
+        try:
+            return float(self.trace.readline().strip())
+        except:
+            return -1.0
+
+    def close(self):
+        super().close()
+        self.trace.close()
