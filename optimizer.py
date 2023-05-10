@@ -5,11 +5,11 @@ import pulp as pl
 
 warm_start = False
 
-def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud,
+def update_probabilities (edge, cloud, sim, arrival_rates, serv_time, serv_time_cloud,
                           init_time, offload_time, cold_start_p, required_percentile=-1.0):
     F = sim.functions
     C = sim.classes
-    F_C = [(f,c) for f in F for c in f.get_invoking_classes()]
+    F_C = [(f,c) for f in F for c in C]
 
     invoked_functions = {c: [] for c in C}
     for f,c in F_C:
@@ -29,22 +29,22 @@ def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud,
         # TODO: we are assuming exponential distribution
         p = 0.0
         if c.max_rt - init_time > 0.0:
-            p += cold_start_p[(f,sim.edge)]*(1.0 - math.exp(-1.0/serv_time[f]*(c.max_rt - init_time)))
+            p += cold_start_p[(f,edge)]*(1.0 - math.exp(-1.0/serv_time[f]*(c.max_rt - init_time)))
         if c.max_rt > 0.0:
-            p += (1.0-cold_start_p[(f,sim.edge)])*(1.0 - math.exp(-1.0/serv_time[f]*c.max_rt))
+            p += (1.0-cold_start_p[(f,edge)])*(1.0 - math.exp(-1.0/serv_time[f]*c.max_rt))
         deadline_satisfaction_prob_edge[(f,c)] = p
 
         p = 0.0
         if c.max_rt - init_time - offload_time > 0.0:
-            p += cold_start_p[(f,sim.cloud)]*(1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt - init_time - offload_time)))
+            p += cold_start_p[(f,cloud)]*(1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt - init_time - offload_time)))
         if c.max_rt - offload_time > 0.0:
-            p += (1.0-cold_start_p[(f,sim.cloud)])*(1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt-offload_time)))
+            p += (1.0-cold_start_p[(f,cloud)])*(1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt-offload_time)))
         deadline_satisfaction_prob_cloud[(f,c)] = p
 
     prob += (pl.lpSum([c.utility*arrival_rates[(f,c)]*\
                        (pE[f][c]*deadline_satisfaction_prob_edge[(f,c)]+\
                        pO[f][c]*deadline_satisfaction_prob_cloud[(f,c)]) for f,c in F_C]) -\
-                pl.lpSum([sim.cloud.cost*arrival_rates[(f,c)]*\
+                pl.lpSum([cloud.cost*arrival_rates[(f,c)]*\
                        pO[f][c]*serv_time_cloud[f]*f.memory/1024 for f,c in F_C]) , "objUtilCost")
 
     # Probability
@@ -52,7 +52,7 @@ def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud,
         prob += (pE[f][c] + pO[f][c] + pD[f][c] == 1.0)
 
     # Memory
-    prob += (pl.lpSum([f.memory*x[f][c] for f,c in F_C]) <= sim.edge.total_memory)
+    prob += (pl.lpSum([f.memory*x[f][c] for f,c in F_C]) <= edge.total_memory)
 
     # Share
     for f,c in F_C:
@@ -67,7 +67,7 @@ def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud,
     #                 <= c.max_rt)
     class_arrival_rates = {}
     for c in C:
-        class_arrival_rates[c] = sum([arrival_rates[(f,c)] for f in F if c in f.get_invoking_classes()])
+        class_arrival_rates[c] = sum([arrival_rates[(f,c)] for f in F if c in C])
 
     # RT percentile
     # XXX: this does not work well in practice, as RT violations are mostly due
@@ -77,13 +77,13 @@ def update_probabilities (sim, arrival_rates, serv_time, serv_time_cloud,
         if c.max_rt > 0.0 and required_percentile > 0.0 and class_arrival_rates[c] > 0.0:
             prob += (pl.lpSum([arrival_rates[(f,c)]*(pE[f][c]*deadline_satisfaction_prob_edge[(f,c)] +\
                     pO[f][c]*deadline_satisfaction_prob_cloud[(f,c)]+pD[f][c])\
-                     for f in invoked_functions[c] if c in f.get_invoking_classes()])/class_arrival_rates[c]
+                     for f in invoked_functions[c] if c in C])/class_arrival_rates[c]
                      >= required_percentile)
 
     # Min completion
     for c in C:
         if c.min_completion_percentage > 0.0 and class_arrival_rates[c] > 0.0:
-            prob += (pl.lpSum([pD[f][c]*arrival_rates[(f,c)] for f in invoked_functions[c] if c in f.get_invoking_classes()])/class_arrival_rates[c]                     <= 1 - c.min_completion_percentage)
+            prob += (pl.lpSum([pD[f][c]*arrival_rates[(f,c)] for f in invoked_functions[c] if c in C])/class_arrival_rates[c]                     <= 1 - c.min_completion_percentage)
 
 
     prob.writeLP("/tmp/problem.lp")

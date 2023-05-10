@@ -8,11 +8,10 @@ CLOSE_DOOR_TIME = "close-door-time"
 PLOT_RESP_TIMES = "plot-rt"
 STAT_PRINT_INTERVAL = "stats-print-interval"
 STAT_PRINT_FILE = "stats-print-file"
+SPEC_FILE = "spec-file"
 
 SEC_POLICY = "policy"
 POLICY_NAME = "name"
 POLICY_UPDATE_INTERVAL = "update-interval"
 POLICY_ARRIVAL_RATE_ALPHA = "arrival-alpha"
 
-SEC_CLOUD = "cloud"
-SEC_CLOUD_COST = "cost"

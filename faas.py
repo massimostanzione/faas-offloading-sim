@@ -84,20 +84,8 @@ class QoSClass:
 class Function:
     name: str
     memory: int
-    arrivalRate: float
     serviceMean: float
     serviceSCV: float = 1.0
-    arrival_trace: str = field(default=None)
-    __invoking_classes: [QoSClass] = field(default=None, init=False)
-
-    def add_invoking_class (self, c: QoSClass):
-        if self.__invoking_classes is None:
-            self.__invoking_classes = []
-        if not c in self.__invoking_classes:
-            self.__invoking_classes.append(c)
-
-    def get_invoking_classes (self):
-        return self.__invoking_classes
 
     def __repr__ (self):
         return self.name

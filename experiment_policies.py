@@ -7,9 +7,8 @@ import conf
 config = main.parse_config_file()
 config.set(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, "-1")
 
-#POLICIES = ["probabilistic", "probabilistic-legacy", "greedy", "greedy-min-cost", "basic", "random"]
-POLICIES = ["probabilistic", "greedy", "greedy-min-cost", "basic", "random"]
-#POLICIES = ["greedy", "basic", "random"]
+#POLICIES = ["probabilistic", "greedy", "greedy-min-cost", "basic", "random"]
+POLICIES = ["probabilistic", "greedy"]
 SEEDS = [1,2,53,12,567]
 
 results = []
