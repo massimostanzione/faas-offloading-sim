@@ -1,3 +1,5 @@
+from faas import Node
+
 class Region:
 
     def __init__ (self, name: str, is_cloud: bool = False):
@@ -18,16 +20,29 @@ class Infrastructure:
         self.region_nodes = {r: []  for r in self.regions}
         self.region_dict = {r.name: r for r in self.regions}
 
-    def get_latency (self, reg1: Region, reg2: Region):
-        if reg1 == reg2:
+    def get_latency (self, x, y):
+        if x == y:
             return 0.0
-        if (reg1, reg2) in self.latency:
-            return self.latency[(reg1, reg2)]
-        elif (reg2, reg1) in self.latency:
-            self.latency[(reg1,reg2)] = self.latency[(reg2, reg1)]
-            return self.latency[(reg1, reg2)]
+
+        if (x, y) in self.latency:
+            return self.latency[(x, y)]
+        elif (y, x) in self.latency:
+            self.latency[(x,y)] = self.latency[(y, x)]
+            return self.latency[(x, y)]
+
+        # Try to convert to regions
+        if isinstance(x, Node):
+            x = x.region
+        if isinstance(y, Node):
+            y = y.region
+
+        if (x, y) in self.latency:
+            return self.latency[(x, y)]
+        elif (y, x) in self.latency:
+            self.latency[(x,y)] = self.latency[(y, x)]
+            return self.latency[(x, y)]
         else:
-            raise KeyError("no latency specified for this pair of regions")
+            raise KeyError(f"no latency specified for {x} and {y}")
 
     def get_region (self, reg_name: str) -> Region:
         return self.region_dict[reg_name]

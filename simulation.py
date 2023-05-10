@@ -2,6 +2,7 @@ import configparser
 from dataclasses import dataclass, field
 from heapq import heappop, heappush
 import numpy as np
+import copy
 from numpy.random import SeedSequence, default_rng
 import sys
 
@@ -34,6 +35,7 @@ class Arrival(Event):
     function: Function
     qos_class: QoSClass
     arrival_proc: ArrivalProcess
+    offloaded_from: [Node] = field(default_factory=list)
 
 @dataclass
 class CheckExpiredContainers(Event):
@@ -55,6 +57,7 @@ class Completion(Event):
     node: Node
     cold: bool
     exec_time: float
+    offloaded_from: [Node] = None
 
 
 OFFLOADING_OVERHEAD = 0.005
@@ -83,21 +86,23 @@ class Simulation:
 
 
         self.first_stat_print = True
-        self.arrivals_allowed = True
+        self.external_arrivals_allowed = True
 
-    def new_policy (self, configured_policy):
+    def new_policy (self, configured_policy, node):
         if configured_policy == "basic":
-            return policy.BasicPolicy(self)
+            return policy.BasicPolicy(self, node)
+        if configured_policy == "cloud":
+            return policy.CloudPolicy(self, node)
         elif configured_policy == "probabilistic":
-            return probabilistic.ProbabilisticPolicy(self)
+            return probabilistic.ProbabilisticPolicy(self, node)
         elif configured_policy == "probabilistic-legacy":
-            return probabilistic.LegacyProbabilisticPolicy(self)
+            return probabilistic.LegacyProbabilisticPolicy(self, node)
         elif configured_policy == "greedy":
-            return policy.GreedyPolicy(self)
+            return policy.GreedyPolicy(self, node)
         elif configured_policy == "greedy-min-cost":
-            return policy.GreedyPolicyWithCostMinimization(self)
+            return policy.GreedyPolicyWithCostMinimization(self, node)
         elif configured_policy == "random":
-            return probabilistic.RandomPolicy(self)
+            return probabilistic.RandomPolicy(self, node)
         else:
             raise RuntimeError(f"Unknown policy: {configured_policy}")
 
@@ -112,7 +117,9 @@ class Simulation:
         # Policy
         policy_name = self.config.get(conf.SEC_POLICY, conf.POLICY_NAME, fallback="basic")
         for n in self.infra.get_edge_nodes():
-            self.node2policy[n] = self.new_policy(policy_name)
+            self.node2policy[n] = self.new_policy(policy_name, n)
+        for n in self.infra.get_cloud_nodes():
+            self.node2policy[n] = self.new_policy("cloud", n)
 
         self.policy_update_interval = self.config.getfloat(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, fallback=-1)
         self.stats_print_interval = self.config.getfloat(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, fallback=-1)
@@ -188,7 +195,7 @@ class Simulation:
 
     
     def __schedule_next_arrival(self, node, arrival_proc):
-        if not self.arrivals_allowed:
+        if not self.external_arrivals_allowed:
             return
 
         c = arrival_proc.next_class()
@@ -211,7 +218,7 @@ class Simulation:
                    or isinstance(item[1], PolicyUpdate) \
                    or isinstance(item[1], StatPrinter):
                     item[1].canceled = True
-            self.arrivals_allowed = False
+            self.external_arrivals_allowed = False
 
 
     def schedule (self, t, event):
@@ -230,12 +237,15 @@ class Simulation:
         if event.canceled:
             return
         self.t = t
+        #print(event)
+        #print(t)
         if isinstance(event, Arrival):
             self.handle_arrival(event)
         elif isinstance(event, Completion):
             self.handle_completion(event)
         elif isinstance(event, PolicyUpdate):
-            self.policy.update()
+            for p in self.node2policy.values():
+                p.update()
             self.schedule(t + self.policy_update_interval, event)
         elif isinstance(event, StatPrinter):
             self.print_periodic_stats()
@@ -258,6 +268,13 @@ class Simulation:
         duration = event.exec_time
         #print(f"Completed {f}-{c}: {rt}")
 
+        # Account for the time needed to send back the result
+        if event.offloaded_from != None:
+            curr_node = n
+            for remote_node in reversed(event.offloaded_from):
+                rt += self.infra.get_latency(curr_node, remote_node)
+                curr_node = remote_node
+
         self.stats.resp_time_sum[(f,c,n)] += rt
         if (f,c,n) in self.resp_time_samples:
             self.resp_time_samples[(f,c,n)].append(rt)
@@ -274,33 +291,17 @@ class Simulation:
             self.stats.cost += duration * f.memory/1024 * n.cost
 
         n.warm_pool.append((f, self.t + self.expiration_timeout))
-        if self.arrivals_allowed:
+        if self.external_arrivals_allowed:
             self.schedule(self.t + self.expiration_timeout, CheckExpiredContainers(n)) 
 
 
-    def handle_offload (self, f, c):
-        if not f in self.cloud.warm_pool and self.cloud.curr_memory < f.memory:
-            reclaimed = self.cloud.warm_pool.reclaim_memory(f.memory - self.cloud.curr_memory)
-            self.cloud.curr_memory += reclaimed
-            if self.cloud.curr_memory < f.memory:
-                self.stats.dropped_reqs[(f,c)] += 1
-                return
+    def do_offload (self, arrival, target_node):
+        latency = self.infra.get_latency(arrival.node, target_node)
+        remote_arv = copy.deepcopy(arrival)
+        remote_arv.offloaded_from.append(arrival.node)
+        remote_arv.node = target_node
 
-        speedup = self.cloud.speedup
-        duration = self.service_rng.gamma(1.0/f.serviceSCV, f.serviceMean*f.serviceSCV/speedup) # TODO: check
-        # check warm or cold
-        if f in self.cloud.warm_pool:
-            self.cloud.warm_pool.remove(f)
-            init_time = 0
-        else:
-            self.cloud.curr_memory -= f.memory
-            assert(self.cloud.curr_memory >= 0)
-            self.stats.cold_starts[(f,self.cloud)] += 1
-            init_time = self.init_time[self.cloud]
-        rtt = self.infra.get_latency(self.edge.region,self.cloud.region) +\
-                self.infra.get_latency(self.cloud.region, self.edge.region)
-
-        self.schedule(self.t + rtt + OFFLOADING_OVERHEAD + init_time + duration, Completion(self.t, f,c, self.cloud, init_time > 0, duration))
+        self.schedule(self.t + latency + OFFLOADING_OVERHEAD, remote_arv)
 
     def handle_arrival (self, event):
         n = event.node 
@@ -321,16 +322,18 @@ class Simulation:
                 n.warm_pool.remove(f)
                 init_time = 0
             else:
+                assert(n.curr_memory >= f.memory)
                 n.curr_memory -= f.memory
                 assert(n.curr_memory >= 0)
                 self.stats.cold_starts[(f,n)] += 1
                 init_time = self.init_time[n]
-            self.schedule(self.t + init_time + duration, Completion(self.t, f,c, n, init_time > 0, duration))
+            self.schedule(self.t + init_time + duration, Completion(self.t, f,c, n, init_time > 0, duration, event.offloaded_from))
         elif sched_decision == SchedulerDecision.DROP:
             self.stats.dropped_reqs[(f,c,n)] += 1
         elif sched_decision == SchedulerDecision.OFFLOAD:
             self.stats.offloaded[(f,c,n)] += 1
-            self.handle_offload(f,c,n)
+            self.do_offload(event,self.cloud)  # TODO pick the node
 
-        # Schedule next
-        self.__schedule_next_arrival(n, arv_proc)
+        # Schedule next (if this is an external arrival)
+        if len(event.offloaded_from) == 0:
+            self.__schedule_next_arrival(n, arv_proc)
