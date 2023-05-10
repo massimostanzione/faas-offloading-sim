@@ -77,7 +77,7 @@ class ProbabilisticPolicy(Policy):
             if stats.node2completions[x] == 0:
                 cold_start_prob[x] = 0.1  # TODO
 
-        print(self.arrival_rates)
+        print(f"[{self.node}] Arrivals: {self.arrival_rates}")
 
         new_probs = optimizer.update_probabilities(self.node, self.cloud,
                                                    self.simulation,
