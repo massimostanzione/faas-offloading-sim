@@ -2,14 +2,14 @@ import json
 
 class Stats:
 
-    def __init__ (self, sim, functions, classes, nodes):
+    def __init__ (self, sim, functions, classes, infra):
         self.sim = sim
-        self.infra = sim.infra
+        self.infra = infra
         self.functions = functions
         self.classes = classes
-        self.nodes = nodes
+        self.nodes = infra.get_nodes()
         fun_classes = [(f,c) for f in functions for c in classes]
-        fcn = [(f,c,n) for f in functions for c in classes for n in self.infra.get_nodes()]
+        fcn = [(f,c,n) for f in functions for c in classes for n in self.nodes]
 
         self.arrivals = {x: 0 for x in fcn}
         self.offloaded = {x: 0 for x in fcn}
@@ -17,9 +17,9 @@ class Stats:
         self.completions = {x: 0 for x in fcn}
         self.violations = {c: 0 for c in fcn}
         self.resp_time_sum = {c: 0.0 for c in fcn}
-        self.cold_starts = {(f,n): 0 for f in functions for n in nodes}
-        self.execution_time_sum = {(f,n): 0 for f in functions for n in nodes}
-        self.node2completions = {(f,n): 0 for n in nodes for f in functions}
+        self.cold_starts = {(f,n): 0 for f in functions for n in self.nodes}
+        self.execution_time_sum = {(f,n): 0 for f in functions for n in self.nodes}
+        self.node2completions = {(f,n): 0 for n in self.nodes for f in functions}
         self.cost = 0.0
         self.raw_utility = 0.0
         self.utility = 0.0

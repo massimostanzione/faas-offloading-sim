@@ -2,15 +2,21 @@ from faas import Node
 
 class Region:
 
-    def __init__ (self, name: str, is_cloud: bool = False):
+    def __init__ (self, name: str, default_cloud = None):
         self.name = name
-        self.is_cloud = is_cloud
+        self.default_cloud = default_cloud
+
+    def is_cloud (self):
+        return self.default_cloud is None
 
     def __eq__ (self, other):
         return self.name == other.name
 
     def __hash__ (self):
         return hash(self.name)
+
+    def __repr__ (self):
+        return self.name
 
 class Infrastructure:
 
@@ -53,14 +59,14 @@ class Infrastructure:
     def get_edge_nodes (self):
         nodes = []
         for r in self.regions:
-            if not r.is_cloud:
+            if not r.is_cloud():
                 nodes.extend(self.region_nodes[r])
         return nodes
 
     def get_cloud_nodes (self):
         nodes = []
         for r in self.regions:
-            if r.is_cloud:
+            if r.is_cloud():
                 nodes.extend(self.region_nodes[r])
         return nodes
 
@@ -70,10 +76,13 @@ class Infrastructure:
             nodes.extend(self.region_nodes[r])
         return nodes
 
+    def get_region_nodes (self, reg):
+        return self.region_nodes[reg]
+
     def __repr__ (self):
         s=""
         for r in self.regions:
-            s += f"-------- {r} -------\n"
+            s += f"-------- {r} ({r.is_cloud()} - {r.default_cloud}) -------\n"
             for n in self.region_nodes[r]:
                 s += repr(n) + "\n"
         return s

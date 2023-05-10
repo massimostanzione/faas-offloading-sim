@@ -77,11 +77,11 @@ def read_spec_file (spec_file_name, infra, classes):
 
 def init_simulation (config):
     # Regions
-    reg_cloud = Region("cloud", True)
-    reg_edge = Region("edge")
+    reg_cloud = Region("cloud")
+    reg_edge = Region("edge", reg_cloud)
     regions = [reg_edge, reg_cloud]
     # Latency
-    edge_cloud_latency = config.getfloat("edge", "cloud-latency", fallback=0.040)
+    edge_cloud_latency = config.getfloat("edge", "cloud-latency", fallback=0.050)
     latencies = {(reg_edge,reg_cloud): edge_cloud_latency}
     # Infrastructure
     infra = Infrastructure(regions, latencies)

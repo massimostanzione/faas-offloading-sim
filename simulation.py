@@ -77,16 +77,28 @@ class Simulation:
     def __post_init__ (self):
         assert(len(self.functions) > 0)
         assert(len(self.classes) > 0)
-        # TODO: legacy compatibility
-        self.edge = self.infra.get_edge_nodes()[0]
-        self.cloud = self.infra.get_cloud_nodes()[0]
 
-        self.stats = Stats(self, self.functions, self.classes, [self.edge,self.cloud])
-        #self.function_classes = [(f,c) for f in self.functions for c in f.get_invoking_classes()]
-
+        self.stats = Stats(self, self.functions, self.classes, self.infra)
 
         self.first_stat_print = True
         self.external_arrivals_allowed = True
+
+        # Seeds
+        seed = self.config.getint(conf.SEC_SIM, conf.SEED, fallback=1)
+        ss = SeedSequence(seed)
+        n_arrival_processes = sum([len(arrival_procs) for arrival_procs in self.node2arrivals.values()])
+        # Spawn off child SeedSequences to pass to child processes.
+        child_seeds = ss.spawn(3 + 2*n_arrival_processes)
+        self.service_rng = default_rng(child_seeds[0])
+        self.node_choice_rng = default_rng(child_seeds[1])
+        self.policy_rng1 = default_rng(child_seeds[2])
+
+        i = 3
+        for n,arvs in self.node2arrivals.items():
+            for arv in arvs:
+                arv.init_rng(default_rng(child_seeds[i]), default_rng(child_seeds[i+1]))
+                i += 2
+
 
     def new_policy (self, configured_policy, node):
         if configured_policy == "basic":
@@ -126,24 +138,9 @@ class Simulation:
         self.stats_file = sys.stdout
 
 
-        # Seeds
-        seed = self.config.getint(conf.SEC_SIM, conf.SEED, fallback=1)
-        ss = SeedSequence(seed)
-        n_arrival_processes = sum([len(arrival_procs) for arrival_procs in self.node2arrivals.values()])
-        # Spawn off child SeedSequences to pass to child processes.
-        child_seeds = ss.spawn(2 + 2*n_arrival_processes)
-        self.service_rng = default_rng(child_seeds[0])
-        self.latency_rng = default_rng(child_seeds[1])
-
-        i = 2
-        for n,arvs in self.node2arrivals.items():
-            for arv in arvs:
-                arv.init_rng(default_rng(child_seeds[i]), default_rng(child_seeds[i+1]))
-                i += 2
-
         # Other params
         self.init_time = {}
-        for node in [self.edge, self.cloud]:
+        for node in self.infra.get_nodes():
             self.init_time[node] = self.config.getfloat(conf.SEC_CONTAINER, conf.BASE_INIT_TIME, fallback=0.7)/node.speedup
         self.expiration_timeout = self.config.getfloat(conf.SEC_CONTAINER, conf.EXPIRATION_TIMEOUT, fallback=600)
 
@@ -305,10 +302,12 @@ class Simulation:
 
     def handle_arrival (self, event):
         n = event.node 
+        external = len(event.offloaded_from) == 0
         arv_proc = event.arrival_proc
         f = event.function
         c = event.qos_class
-        self.stats.arrivals[(f,c,n)] += 1
+        if external:
+            self.stats.arrivals[(f,c,n)] += 1
         #print(f"Arrived {f}-{c} @ {self.t}")
 
         # Policy
@@ -316,7 +315,7 @@ class Simulation:
 
         if sched_decision == SchedulerDecision.EXEC:
             speedup = n.speedup
-            duration = self.service_rng.gamma(1.0/f.serviceSCV, f.serviceMean*f.serviceSCV/speedup) # TODO: check
+            duration = self.service_rng.gamma(1.0/f.serviceSCV, f.serviceMean*f.serviceSCV/speedup) 
             # check warm or cold
             if f in n.warm_pool:
                 n.warm_pool.remove(f)
@@ -324,7 +323,6 @@ class Simulation:
             else:
                 assert(n.curr_memory >= f.memory)
                 n.curr_memory -= f.memory
-                assert(n.curr_memory >= 0)
                 self.stats.cold_starts[(f,n)] += 1
                 init_time = self.init_time[n]
             self.schedule(self.t + init_time + duration, Completion(self.t, f,c, n, init_time > 0, duration, event.offloaded_from))
@@ -332,8 +330,9 @@ class Simulation:
             self.stats.dropped_reqs[(f,c,n)] += 1
         elif sched_decision == SchedulerDecision.OFFLOAD:
             self.stats.offloaded[(f,c,n)] += 1
-            self.do_offload(event,self.cloud)  # TODO pick the node
+            remote_node = self.infra.get_cloud_nodes()[0]
+            self.do_offload(event, remote_node)  # TODO pick the node
 
         # Schedule next (if this is an external arrival)
-        if len(event.offloaded_from) == 0:
+        if external:
             self.__schedule_next_arrival(n, arv_proc)
