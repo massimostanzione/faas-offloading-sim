@@ -1,10 +1,10 @@
 import statistics
 import numpy as np
+from pacsltk import perfmodel
 
 import conf
 import optimizer, optimizer2
 from policy import Policy, SchedulerDecision
-
 
 class ProbabilisticPolicy(Policy):
 
@@ -20,6 +20,7 @@ class ProbabilisticPolicy(Policy):
         self.last_update_time = None
         self.arrival_rate_alpha = self.simulation.config.getfloat(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA,
                                                                   fallback=1.0)
+        self.cold_start_estimation_mode = "pacs" # "naive"
         self.arrival_rates = {}
         self.estimated_service_time = {}
         self.estimated_service_time_cloud = {}
@@ -83,12 +84,28 @@ class ProbabilisticPolicy(Policy):
                     continue
                 self.arrival_rates[(f, c)] = stats.arrivals[(f, c, self.node)] / self.simulation.t
 
-        # TODO: same prob for every function
         for f in self.simulation.functions:
-            if self.node in stats.node2completions and stats.node2completions[self.node] > 0:
-                self.cold_start_prob_local[f] = stats.cold_starts[self.node] / stats.node2completions[self.node]
+            if self.cold_start_estimation_mode == "pacs":
+                total_arrival_rate = sum([self.arrival_rates.get((f,x), 0.0) for x in self.simulation.classes])
+                # TODO: we are ignoring initial warm pool....
+                if total_arrival_rate > 0.0:
+                    props1, _ = perfmodel.get_sls_warm_count_dist(total_arrival_rate,
+                                                                self.estimated_service_time[f],
+                                                                self.estimated_service_time[f] + self.simulation.init_time[self.node],
+                                                                600) # TODO
+                    self.cold_start_prob_local[f] = props1["cold_prob"]
+                else:
+                    if f in self.node.warm_pool:
+                        self.cold_start_prob_local[f] = 0.0
+                    else:
+                        self.cold_start_prob_local[f] = 1.0
             else:
-                self.cold_start_prob_local[f] = 0.1
+                # XXX: same prob for every function
+                if self.node in stats.node2completions and stats.node2completions[self.node] > 0:
+                    self.cold_start_prob_local[f] = stats.cold_starts[self.node] / stats.node2completions[self.node]
+                else:
+                    self.cold_start_prob_local[f] = 0.1
+
             if self.cloud in stats.node2completions and stats.node2completions[self.cloud] > 0:
                 self.cold_start_prob_cloud[f] = stats.cold_starts[self.cloud] / stats.node2completions[self.cloud]
             else:
