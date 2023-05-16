@@ -117,11 +117,11 @@ Poisson process.
 
 The following policies are currently implemented:
 
-- `basic`: greedy heuristic that schedules all the requests for
+- `basic`: heuristic policy that schedules all the requests for
   local execution when possible
+- `greedy`: greedy heuristic that schedules requests so as to minimize the expected response time
 - `probabilistic`: probabilistic heuristic, whose probabilities are periodically
   updated solving a LP problem
-- `probabilistic-legacy`: legacy version of the aforementioned LP-based approach
 - `random`
 
 ### Configuring the *Probabilistic* policy
