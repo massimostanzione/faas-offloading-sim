@@ -9,6 +9,8 @@ PLOT_RESP_TIMES = "plot-rt"
 STAT_PRINT_INTERVAL = "stats-print-interval"
 STAT_PRINT_FILE = "stats-print-file"
 SPEC_FILE = "spec-file"
+EDGE_NEIGHBORS = "edge-neighbors"
+EDGE_EXPOSED_FRACTION = "edge-exposed-fraction"
 
 SEC_POLICY = "policy"
 POLICY_NAME = "name"

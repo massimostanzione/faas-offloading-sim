@@ -27,8 +27,9 @@ class Infrastructure:
         self.region_dict = {r.name: r for r in self.regions}
         self.node2neighbors = {}
 
-    def get_latency (self, x, y):
+    def get_latency (self, x: Node, y: Node):
         if x == y:
+            # same node
             return 0.0
 
         if (x, y) in self.latency:
@@ -36,17 +37,22 @@ class Infrastructure:
         elif (y, x) in self.latency:
             self.latency[(x,y)] = self.latency[(y, x)]
             return self.latency[(x, y)]
+        else:
+            return self.get_region_latency(x.region, y.region)
 
-        if not isinstance(x, Node) and not isinstance(y, Node):
-            raise KeyError(f"no latency specified for {x} and {y}")
 
-        # Try to convert to regions
-        if isinstance(x, Node):
-            x = x.region
-        if isinstance(y, Node):
-            y = y.region
+    def get_region_latency (self, x: Region, y: Region):
+        if x == y:
+            # same region
+            return 0.005
 
-        return self.get_latency(x, y)
+        if (x, y) in self.latency:
+            return self.latency[(x, y)]
+        elif (y, x) in self.latency:
+            self.latency[(x,y)] = self.latency[(y, x)]
+            return self.latency[(x, y)]
+
+        raise KeyError(f"no latency specified for {x} and {y}")
 
     def get_region (self, reg_name: str) -> Region:
         return self.region_dict[reg_name]

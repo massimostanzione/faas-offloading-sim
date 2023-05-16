@@ -100,6 +100,8 @@ class Simulation:
                 arv.init_rng(default_rng(child_seeds[i]), default_rng(child_seeds[i+1]))
                 i += 2
 
+        self.max_neighbors = self.config.getint(conf.SEC_SIM, conf.EDGE_NEIGHBORS, fallback=3)
+
 
     def new_policy (self, configured_policy, node):
         if configured_policy == "basic":
@@ -359,7 +361,7 @@ class Simulation:
             self.__schedule_next_arrival(n, arv_proc)
 
     def pick_edge_node (self, fun, qos, node):
-        peers = self.infra.get_neighbors(node, self.node_choice_rng, 3)
+        peers = self.infra.get_neighbors(node, self.node_choice_rng, self.max_neighbors)
         if len(peers) == 0:
             return None
 
