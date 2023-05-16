@@ -12,6 +12,7 @@ class Stats:
         fcn = [(f,c,n) for f in functions for c in classes for n in self.nodes]
 
         self.arrivals = {x: 0 for x in fcn}
+        self.ext_arrivals = {x: 0 for x in fcn}
         self.offloaded = {x: 0 for x in fcn}
         self.dropped_reqs = {c: 0 for c in fcn}
         self.completions = {x: 0 for x in fcn}

@@ -158,10 +158,10 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
 
         neighbors = self.simulation.infra.get_neighbors(self.node, self.simulation.node_choice_rng, 3)
         if len(neighbors) == 0:
-            self.aggregated_edge_memory = 0.0
-            return
-
-        self.aggregated_edge_memory = sum([x.curr_memory for x in neighbors])
+            self.aggregated_edge_memory = 1
+        else:
+            self.aggregated_edge_memory = max(1,sum([x.curr_memory for x in neighbors]))
+        
         neighbor_probs = [x.curr_memory/self.aggregated_edge_memory for x in neighbors]
 
         self.edge_rtt = sum([self.simulation.infra.get_latency(self.node, x)*prob for x,prob in zip(neighbors, neighbor_probs)])

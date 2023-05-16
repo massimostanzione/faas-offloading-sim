@@ -315,8 +315,9 @@ class Simulation:
         arv_proc = event.arrival_proc
         f = event.function
         c = event.qos_class
+        self.stats.arrivals[(f,c,n)] += 1
         if external:
-            self.stats.arrivals[(f,c,n)] += 1
+            self.stats.ext_arrivals[(f,c,n)] += 1
         #print(f"Arrived {f}-{c} @ {self.t}")
 
         # Policy
