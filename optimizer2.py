@@ -5,16 +5,12 @@ import pulp as pl
 
 warm_start = False
 
-def update_probabilities (edge, cloud, sim, arrival_rates, serv_time, serv_time_cloud,
-                          init_time, offload_time, cold_start_p_local, cold_start_p_cloud, required_percentile=-1.0):
+def update_probabilities (local, cloud, aggregated_edge_memory, sim, arrival_rates, serv_time, serv_time_cloud, serv_time_edge,
+                          init_time, offload_time_cloud, offload_time_edge, cold_start_p_local, cold_start_p_cloud,
+                          cold_start_p_edge):
     F = sim.functions
     C = sim.classes
     F_C = [(f,c) for f in F for c in C]
-
-    invoked_functions = {c: [] for c in C}
-    for f,c in F_C:
-        invoked_functions[c].append(f)
-
 
     prob = pl.LpProblem("MyProblem", pl.LpMaximize)
     x = pl.LpVariable.dicts("Share", (F, C), 0, None, pl.LpContinuous)
@@ -35,10 +31,10 @@ def update_probabilities (edge, cloud, sim, arrival_rates, serv_time, serv_time_
         deadline_satisfaction_prob_edge[(f,c)] = p
 
         p = 0.0
-        if c.max_rt - init_time - offload_time > 0.0:
-            p += cold_start_p_cloud[f]*(1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt - init_time - offload_time)))
-        if c.max_rt - offload_time > 0.0:
-            p += (1.0-cold_start_p_cloud[f])*(1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt-offload_time)))
+        if c.max_rt - init_time - offload_time_cloud > 0.0:
+            p += cold_start_p_cloud[f]*(1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt - init_time - offload_time_cloud)))
+        if c.max_rt - offload_time_cloud > 0.0:
+            p += (1.0-cold_start_p_cloud[f])*(1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt-offload_time_cloud)))
         deadline_satisfaction_prob_cloud[(f,c)] = p
 
     prob += (pl.lpSum([c.utility*arrival_rates[(f,c)]*\
@@ -52,38 +48,20 @@ def update_probabilities (edge, cloud, sim, arrival_rates, serv_time, serv_time_
         prob += (pE[f][c] + pO[f][c] + pD[f][c] == 1.0)
 
     # Memory
-    prob += (pl.lpSum([f.memory*x[f][c] for f,c in F_C]) <= edge.total_memory)
+    prob += (pl.lpSum([f.memory*x[f][c] for f,c in F_C]) <= local.total_memory)
 
     # Share
     for f,c in F_C:
         prob += (pE[f][c]*arrival_rates[(f,c)]*serv_time[f] <= x[f][c])
 
-    # Resp Time
-    #for f,c in F_C:
-    #    if c.max_rt > 0.0:
-    #        prob += (pE[f][c]*serv_time[f] +  
-    #                 pO[f][c]*(serv_time_cloud[f] + offload_time) +
-    #                 pCold[f]*init_time
-    #                 <= c.max_rt)
     class_arrival_rates = {}
     for c in C:
         class_arrival_rates[c] = sum([arrival_rates[(f,c)] for f in F if c in C])
 
-    # RT percentile
-    # XXX: this does not work well in practice, as RT violations are mostly due
-    # to cold starts, which we do not control here
-    assert(required_percentile <= 1.0)
-    for c in C:
-        if c.max_rt > 0.0 and required_percentile > 0.0 and class_arrival_rates[c] > 0.0:
-            prob += (pl.lpSum([arrival_rates[(f,c)]*(pE[f][c]*deadline_satisfaction_prob_edge[(f,c)] +\
-                    pO[f][c]*deadline_satisfaction_prob_cloud[(f,c)]+pD[f][c])\
-                     for f in invoked_functions[c] if c in C])/class_arrival_rates[c]
-                     >= required_percentile)
-
     # Min completion
     for c in C:
         if c.min_completion_percentage > 0.0 and class_arrival_rates[c] > 0.0:
-            prob += (pl.lpSum([pD[f][c]*arrival_rates[(f,c)] for f in invoked_functions[c] if c in C])/class_arrival_rates[c]                     <= 1 - c.min_completion_percentage)
+            prob += (pl.lpSum([pD[f][c]*arrival_rates[(f,c)] for f in F])/class_arrival_rates[c]                     <= 1 - c.min_completion_percentage)
 
 
     prob.writeLP("/tmp/problem.lp")

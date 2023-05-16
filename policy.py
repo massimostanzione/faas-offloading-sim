@@ -6,8 +6,8 @@ import conf
 class SchedulerDecision(Enum):
     EXEC = 1
     OFFLOAD_CLOUD = 2
-    DROP = 3
-    OFFLOAD_EDGE = 4
+    OFFLOAD_EDGE = 3
+    DROP = 4
 
 
 class Policy:

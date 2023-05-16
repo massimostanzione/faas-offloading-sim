@@ -77,6 +77,8 @@ class Simulation:
         assert(len(self.functions) > 0)
         assert(len(self.classes) > 0)
 
+        self.__event_counter = 0
+
         self.stats = Stats(self, self.functions, self.classes, self.infra)
 
         self.first_stat_print = True
@@ -108,6 +110,8 @@ class Simulation:
             return policy.CloudPolicy(self, node)
         elif configured_policy == "probabilistic":
             return probabilistic.ProbabilisticPolicy(self, node)
+        elif configured_policy == "probabilistic2":
+            return probabilistic.ProbabilisticPolicy2(self, node)
         elif configured_policy == "greedy":
             return policy.GreedyPolicy(self, node)
         elif configured_policy == "greedy-min-cost":
@@ -233,8 +237,12 @@ class Simulation:
         if event.canceled:
             return
         self.t = t
-        print(event)
-        print(t)
+        #print(event)
+
+        self.__event_counter += 1
+        if self.__event_counter % 10000 == 0:
+            print(t)
+            self.__event_counter = 0
         if isinstance(event, Arrival):
             self.handle_arrival(event)
         elif isinstance(event, Completion):
@@ -353,7 +361,7 @@ class Simulation:
         if len(peers) == 0:
             return None
 
-        # Sort peers based on resource availability
+        # Pick peers based on resource availability
         total_memory = sum([x.curr_memory for x in peers])
         probs = [x.curr_memory/total_memory for x in peers]
         return self.node_choice_rng.choice(peers, p=probs)

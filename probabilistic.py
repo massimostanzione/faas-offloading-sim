@@ -2,7 +2,7 @@ import statistics
 import numpy as np
 
 import conf
-import optimizer
+import optimizer, optimizer2
 from policy import Policy, SchedulerDecision
 
 
@@ -21,39 +21,52 @@ class ProbabilisticPolicy(Policy):
         self.arrival_rate_alpha = self.simulation.config.getfloat(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA,
                                                                   fallback=1.0)
         self.arrival_rates = {}
+        self.estimated_service_time = {}
+        self.estimated_service_time_cloud = {}
+        self.cold_start_prob_local = {}
+        self.cold_start_prob_cloud = {}
+        self.cloud_rtt = 0.0
         self.rt_percentile = self.simulation.config.getfloat(conf.SEC_POLICY, "rt-percentile", fallback=-1.0)
 
+        self.possible_decisions = [SchedulerDecision.EXEC, SchedulerDecision.OFFLOAD_CLOUD, SchedulerDecision.DROP]
         self.probs = {(f, c): [0.8, 0.2, 0.] for f in simulation.functions for c in simulation.classes}
 
-    def schedule(self, f, c):
+    def schedule(self, f, c, offloaded_from):
         probabilities = self.probs[(f, c)]
-        decision = self.rng.choice(list(SchedulerDecision), p=probabilities)
+        decision = self.rng.choice(self.possible_decisions, p=probabilities)
         if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
             nolocal_prob = sum(probabilities[1:])
             if nolocal_prob > 0.0:
-                decision = self.rng.choice([SchedulerDecision.OFFLOAD, SchedulerDecision.DROP],
+                decision = self.rng.choice([SchedulerDecision.OFFLOAD_CLOUD, SchedulerDecision.DROP],
                                            p=[probabilities[1] / nolocal_prob, probabilities[2] / nolocal_prob])
             else:
-                decision = SchedulerDecision.OFFLOAD
+                decision = SchedulerDecision.OFFLOAD_CLOUD
 
         return decision
 
     def update(self):
+        self.update_metrics()
+        self.update_probabilities()
+
+        self.stats_snapshot = self.simulation.stats.to_dict()
+        self.last_update_time = self.simulation.t
+
+    def update_metrics (self):
         stats = self.simulation.stats
 
-        estimated_service_time = {}
-        estimated_service_time_cloud = {}
+        self.estimated_service_time = {}
+        self.estimated_service_time_cloud = {}
         for f in self.simulation.functions:
             if stats.node2completions[(f, self.node)] > 0:
-                estimated_service_time[f] = stats.execution_time_sum[(f, self.node)] / \
+                self.estimated_service_time[f] = stats.execution_time_sum[(f, self.node)] / \
                                             stats.node2completions[(f, self.node)]
             else:
-                estimated_service_time[f] = 0.1
+                self.estimated_service_time[f] = 0.1
             if stats.node2completions[(f, self.cloud)] > 0:
-                estimated_service_time_cloud[f] = stats.execution_time_sum[(f, self.cloud)] / \
+                self.estimated_service_time_cloud[f] = stats.execution_time_sum[(f, self.cloud)] / \
                                                   stats.node2completions[(f, self.cloud)]
             else:
-                estimated_service_time_cloud[f] = 0.1
+                self.estimated_service_time_cloud[f] = 0.1
 
         if self.stats_snapshot is not None:
             arrival_rates = {}
@@ -70,40 +83,136 @@ class ProbabilisticPolicy(Policy):
                     continue
                 self.arrival_rates[(f, c)] = stats.arrivals[(f, c, self.node)] / self.simulation.t
 
-        cold_start_prob = {x: stats.cold_starts[x] / stats.node2completions[x] for x in stats.node2completions if
-                           stats.node2completions[x] > 0}
-        for x in stats.node2completions:
-            if stats.node2completions[x] == 0:
-                cold_start_prob[x] = 0.1  # TODO
+        # TODO: same prob for every function
+        for f in self.simulation.functions:
+            if self.node in stats.node2completions and stats.node2completions[self.node] > 0:
+                self.cold_start_prob_local[f] = stats.cold_starts[self.node] / stats.node2completions[self.node]
+            else:
+                self.cold_start_prob_local[f] = 0.1
+            if self.cloud in stats.node2completions and stats.node2completions[self.cloud] > 0:
+                self.cold_start_prob_cloud[f] = stats.cold_starts[self.cloud] / stats.node2completions[self.cloud]
+            else:
+                self.cold_start_prob_cloud[f] = 0.1
 
         print(f"[{self.node}] Arrivals: {self.arrival_rates}")
+        print(f"[{self.node}] Cold start prob: {self.cold_start_prob_local}")
 
+        self.cloud_rtt = 2 * self.simulation.infra.get_latency(self.node, self.cloud)
+
+
+    def update_probabilities (self):
         new_probs = optimizer.update_probabilities(self.node, self.cloud,
                                                    self.simulation,
                                                    self.arrival_rates,
-                                                   estimated_service_time,
-                                                   estimated_service_time_cloud,
+                                                   self.estimated_service_time,
+                                                   self.estimated_service_time_cloud,
                                                    self.simulation.init_time[self.node],
-                                                   2 * self.simulation.infra.get_latency(self.node, self.cloud),
-                                                   cold_start_prob,
+                                                   self.cloud_rtt,
+                                                   self.cold_start_prob_local,
+                                                   self.cold_start_prob_cloud,
                                                    self.rt_percentile)
         if new_probs is not None:
             self.probs = new_probs
             print(f"[{self.node}] Probs: {self.probs}")
-        self.stats_snapshot = self.simulation.stats.to_dict()
-        self.last_update_time = self.simulation.t
 
 
+class ProbabilisticPolicy2 (ProbabilisticPolicy):
 
-
-class RandomPolicy(ProbabilisticPolicy):
+    # Probability vector: p_L, p_C, p_E, p_D
+    # LP Model v2
 
     def __init__(self, simulation, node):
         super().__init__(simulation, node)
-        self.probs = {(f, c): [0.33, 0.33, 1 - 0.66] for f in simulation.functions for c in simulation.classes}
 
-    def schedule(self, f, c):
-        return super().schedule(f, c)
+        self.aggregated_edge_memory = 0.0
+        self.estimated_service_time_edge = {}
+        self.edge_rtt = 0.0
+        self.cold_start_prob_edge = {}
+
+        self.possible_decisions = list(SchedulerDecision)
+        self.probs = {(f, c): [0.8, 0.2, 0., 0.] for f in simulation.functions for c in simulation.classes}
+
+    def schedule(self, f, c, offloaded_from):
+        probabilities = self.probs[(f, c)].copy()
+        
+        # If the request has already been offloaded, cannot offload again to
+        # Edge
+        if len(offloaded_from) > 0: 
+            probabilities[SchedulerDecision.OFFLOAD_EDGE.value-1] = 0
+            s = sum(probabilities)
+            if not s > 0.0:
+                return SchedulerDecision.OFFLOAD_CLOUD
+            probabilities = [x/s for x in probabilities]
+        if not self.can_execute_locally(f):
+            probabilities[SchedulerDecision.EXEC.value-1] = 0
+            s = sum(probabilities)
+            if not s > 0.0:
+                return SchedulerDecision.OFFLOAD_CLOUD
+            probabilities = [x/s for x in probabilities]
+
+        return self.rng.choice(self.possible_decisions, p=probabilities)
+
+    def update_metrics(self):
+        super().update_metrics()
+        stats = self.simulation.stats
+
+        neighbors = self.simulation.infra.get_neighbors(self.node, self.simulation.node_choice_rng, 3)
+        if len(neighbors) == 0:
+            self.aggregated_edge_memory = 0.0
+            return
+
+        self.aggregated_edge_memory = sum([x.curr_memory for x in neighbors])
+        neighbor_probs = [x.curr_memory/self.aggregated_edge_memory for x in neighbors]
+
+        self.edge_rtt = sum([self.simulation.infra.get_latency(self.node, x)*prob for x,prob in zip(neighbors, neighbor_probs)])
+
+        # TODO: Here we are using istantaneous info to estimate cold start probs
+        for fun in self.simulation.functions:
+            cs_prob = 0.0
+            for neighbor, prob in zip(neighbors, neighbor_probs):
+                if not fun in neighbor.warm_pool:
+                    cs_prob += prob
+            self.cold_start_prob_edge[fun] = cs_prob
+
+        self.estimated_service_time_edge = {}
+        for f in self.simulation.functions:
+            servtime = 0.0
+            for neighbor, prob in zip(neighbors, neighbor_probs):
+                if stats.node2completions[(f, neighbor)] > 0:
+                    servtime += prob* stats.execution_time_sum[(f, neighbor)] / stats.node2completions[(f, neighbor)]
+            if servtime == 0.0:
+                servtime = self.estimated_service_time[f]
+            self.estimated_service_time_edge[f] = servtime
+
+    def update_probabilities(self):
+
+        new_probs = optimizer2.update_probabilities(self.node, self.cloud,
+                                                   self.aggregated_edge_memory,
+                                                   self.simulation,
+                                                   self.arrival_rates,
+                                                   self.estimated_service_time,
+                                                   self.estimated_service_time_cloud,
+                                                   self.estimated_service_time_edge,
+                                                   self.simulation.init_time[self.node],
+                                                   self.cloud_rtt,
+                                                   self.edge_rtt,
+                                                   self.cold_start_prob_local,
+                                                   self.cold_start_prob_cloud,
+                                                   self.cold_start_prob_edge)
+        if new_probs is not None:
+            self.probs = new_probs
+            print(f"[{self.node}] Probs: {self.probs}")
+
+
+
+class RandomPolicy(Policy):
+
+    def __init__(self, simulation, node):
+        super().__init__(simulation, node)
+        self.rng = self.simulation.policy_rng1
+
+    def schedule(self, f, c, offloaded_from):
+        return self.rng.choice(list(SchedulerDecision))
 
     def update(self):
         pass
