@@ -318,7 +318,6 @@ class Simulation:
         self.stats.arrivals[(f,c,n)] += 1
         if external:
             self.stats.ext_arrivals[(f,c,n)] += 1
-        #print(f"Arrived {f}-{c} @ {self.t}")
 
         # Policy
         sched_decision = self.node2policy[n].schedule(f,c,event.offloaded_from)

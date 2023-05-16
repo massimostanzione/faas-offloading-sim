@@ -71,6 +71,7 @@ Example `spec.yml`:
     - name: edge2
         region: edge
         memory: 2048
+        policy: basic
     - name: edge3
         region: edge
         memory: 2048
