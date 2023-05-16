@@ -102,6 +102,8 @@ class Simulation:
     def new_policy (self, configured_policy, node):
         if configured_policy == "basic":
             return policy.BasicPolicy(self, node)
+        if configured_policy == "basic-edge":
+            return policy.BasicEdgePolicy(self, node)
         if configured_policy == "cloud":
             return policy.CloudPolicy(self, node)
         elif configured_policy == "probabilistic":
@@ -231,8 +233,8 @@ class Simulation:
         if event.canceled:
             return
         self.t = t
-        #print(event)
-        #print(t)
+        print(event)
+        print(t)
         if isinstance(event, Arrival):
             self.handle_arrival(event)
         elif isinstance(event, Completion):
@@ -308,7 +310,7 @@ class Simulation:
         #print(f"Arrived {f}-{c} @ {self.t}")
 
         # Policy
-        sched_decision = self.node2policy[n].schedule(f,c)
+        sched_decision = self.node2policy[n].schedule(f,c,event.offloaded_from)
 
         if sched_decision == SchedulerDecision.EXEC:
             speedup = n.speedup
@@ -325,11 +327,33 @@ class Simulation:
             self.schedule(self.t + init_time + duration, Completion(self.t, f,c, n, init_time > 0, duration, event.offloaded_from))
         elif sched_decision == SchedulerDecision.DROP:
             self.stats.dropped_reqs[(f,c,n)] += 1
-        elif sched_decision == SchedulerDecision.OFFLOAD:
-            self.stats.offloaded[(f,c,n)] += 1
-            remote_node = self.infra.get_cloud_nodes()[0]
-            self.do_offload(event, remote_node)  # TODO pick the node
+        elif sched_decision == SchedulerDecision.OFFLOAD_CLOUD:
+            remote_node = self.infra.get_cloud_nodes()[0] # TODO pick a Cloud node
+            if remote_node is None:
+                # drop
+                self.stats.dropped_reqs[(f,c,n)] += 1
+            else:
+                self.stats.offloaded[(f,c,n)] += 1
+                self.do_offload(event, remote_node)  
+        elif sched_decision == SchedulerDecision.OFFLOAD_EDGE:
+            remote_node = self.pick_edge_node(f,c,n)
+            if remote_node is None:
+                # drop
+                self.stats.dropped_reqs[(f,c,n)] += 1
+            else:
+                self.stats.offloaded[(f,c,n)] += 1
+                self.do_offload(event, remote_node)  
 
         # Schedule next (if this is an external arrival)
         if external:
             self.__schedule_next_arrival(n, arv_proc)
+
+    def pick_edge_node (self, fun, qos, node):
+        peers = self.infra.get_neighbors(node, self.node_choice_rng, 3)
+        if len(peers) == 0:
+            return None
+
+        # Sort peers based on resource availability
+        total_memory = sum([x.curr_memory for x in peers])
+        probs = [x.curr_memory/total_memory for x in peers]
+        return self.node_choice_rng.choice(peers, p=probs)

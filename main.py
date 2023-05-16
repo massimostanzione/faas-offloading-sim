@@ -82,7 +82,7 @@ def init_simulation (config):
     reg_edge = Region("edge", reg_cloud)
     regions = [reg_edge, reg_cloud]
     # Latency
-    latencies = {(reg_edge,reg_cloud): 1.050}
+    latencies = {(reg_edge,reg_cloud): 0.100}
     # Infrastructure
     infra = Infrastructure(regions, latencies)
 

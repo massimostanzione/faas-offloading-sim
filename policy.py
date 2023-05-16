@@ -5,8 +5,9 @@ import conf
 
 class SchedulerDecision(Enum):
     EXEC = 1
-    OFFLOAD = 2
+    OFFLOAD_CLOUD = 2
     DROP = 3
+    OFFLOAD_EDGE = 4
 
 
 class Policy:
@@ -15,7 +16,7 @@ class Policy:
         self.simulation = simulation
         self.node = node
 
-    def schedule(self, function, qos_class):
+    def schedule(self, function, qos_class, offloaded_from):
         pass
 
     def update(self):
@@ -33,17 +34,29 @@ class Policy:
 
 class BasicPolicy(Policy):
 
-    def schedule(self, f, c):
+    def schedule(self, f, c, offloaded_from):
         if self.can_execute_locally(f):
             sched_decision = SchedulerDecision.EXEC
         else:
-            sched_decision = SchedulerDecision.OFFLOAD
+            sched_decision = SchedulerDecision.OFFLOAD_CLOUD
+
+        return sched_decision
+
+class BasicEdgePolicy(Policy):
+
+    def schedule(self, f, c, offloaded_from):
+        if self.can_execute_locally(f):
+            sched_decision = SchedulerDecision.EXEC
+        elif len(offloaded_from) == 0:
+            sched_decision = SchedulerDecision.OFFLOAD_EDGE
+        else:
+            sched_decision = SchedulerDecision.DROP
 
         return sched_decision
 
 class CloudPolicy(Policy):
 
-    def schedule(self, f, c):
+    def schedule(self, f, c, offloaded_from):
         if self.can_execute_locally(f):
             sched_decision = SchedulerDecision.EXEC
         else:
@@ -65,7 +78,7 @@ class GreedyPolicy(Policy):
         cloud_region = node.region.default_cloud
         self.cloud = self.simulation.node_choice_rng.choice(self.simulation.infra.get_region_nodes(cloud_region), 1)[0]
 
-    def schedule(self, f, c):
+    def schedule(self, f, c, offloaded_from):
         latency_local = self.estimated_service_time.get(f, 0) + \
                         self.cold_start_prob.get((f, self.node), 1) * \
                         self.simulation.init_time[self.node]
@@ -77,7 +90,7 @@ class GreedyPolicy(Policy):
         if self.can_execute_locally(f) and latency_local < latency_cloud:
             sched_decision = SchedulerDecision.EXEC
         else:
-            sched_decision = SchedulerDecision.OFFLOAD
+            sched_decision = SchedulerDecision.OFFLOAD_CLOUD
 
         return sched_decision
 
@@ -116,7 +129,7 @@ class GreedyPolicyWithCostMinimization(GreedyPolicy):
         assert(cloud_region is not None)
         self.cloud = self.simulation.node_choice_rng.choice(self.simulation.infra.get_region_nodes(cloud_region), 1)[0]
 
-    def schedule(self, f, c):
+    def schedule(self, f, c, offloaded_from):
         latency_local = self.estimated_service_time.get(f, 0) + \
                         self.cold_start_prob.get((f, self.node), 1) * \
                         self.simulation.init_time[self.node]
@@ -130,10 +143,10 @@ class GreedyPolicyWithCostMinimization(GreedyPolicy):
             # the deadline
             sched_decision = SchedulerDecision.EXEC
         elif latency_cloud < c.max_rt:
-            sched_decision = SchedulerDecision.OFFLOAD
+            sched_decision = SchedulerDecision.OFFLOAD_CLOUD
         elif self.can_execute_locally(f):
             sched_decision = SchedulerDecision.EXEC
         else:
-            sched_decision = SchedulerDecision.OFFLOAD
+            sched_decision = SchedulerDecision.OFFLOAD_CLOUD
 
         return sched_decision
