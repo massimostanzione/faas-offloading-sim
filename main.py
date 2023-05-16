@@ -39,7 +39,8 @@ def read_spec_file (spec_file_name, infra):
             memory = n["memory"] if "memory" in n else 1024
             speedup = n["speedup"] if "speedup" in n else 1.0
             cost = n["cost"] if "cost" in n else 0.0
-            node = faas.Node(node_name, memory, speedup, reg, cost=cost)
+            custom_policy = n["policy"] if "policy" in n else None
+            node = faas.Node(node_name, memory, speedup, reg, cost=cost, custom_sched_policy=custom_policy)
             node_names[node_name] = node
             infra.add_node(node, reg)
 

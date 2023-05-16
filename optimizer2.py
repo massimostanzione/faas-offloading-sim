@@ -5,30 +5,38 @@ import pulp as pl
 
 warm_start = False
 
-def update_probabilities (local, cloud, aggregated_edge_memory, sim, arrival_rates, serv_time, serv_time_cloud, serv_time_edge,
-                          init_time, offload_time_cloud, offload_time_edge, cold_start_p_local, cold_start_p_cloud,
+def update_probabilities (local, cloud, aggregated_edge_memory, sim,
+                          arrival_rates,
+                          serv_time, serv_time_cloud, serv_time_edge,
+                          init_time,
+                          offload_time_cloud, offload_time_edge,
+                          cold_start_p_local, cold_start_p_cloud,
                           cold_start_p_edge):
     F = sim.functions
     C = sim.classes
     F_C = [(f,c) for f in F for c in C]
 
     prob = pl.LpProblem("MyProblem", pl.LpMaximize)
-    x = pl.LpVariable.dicts("Share", (F, C), 0, None, pl.LpContinuous)
-    pE = pl.LpVariable.dicts("ProbExec", (F, C), 0, 1, pl.LpContinuous)
-    pO = pl.LpVariable.dicts("ProbOffl", (F, C), 0, 1, pl.LpContinuous)
-    pD = pl.LpVariable.dicts("ProbDrop", (F, C), 0, 1, pl.LpContinuous)
+    x = pl.LpVariable.dicts("X", (F, C), 0, None, pl.LpContinuous)
+    y = pl.LpVariable.dicts("Y", (F, C), 0, None, pl.LpContinuous)
+    pL = pl.LpVariable.dicts("PExec", (F, C), 0, 1, pl.LpContinuous)
+    pC = pl.LpVariable.dicts("PCloud", (F, C), 0, 1, pl.LpContinuous)
+    pE = pl.LpVariable.dicts("PEdge", (F, C), 0, 1, pl.LpContinuous)
+    pD = pl.LpVariable.dicts("PDrop", (F, C), 0, 1, pl.LpContinuous)
 
+    deadline_satisfaction_prob_local = {}
     deadline_satisfaction_prob_edge = {}
     deadline_satisfaction_prob_cloud = {}
 
+    # TODO: we are assuming exponential distribution
+    # Probability of satisfying the deadline
     for f,c in F_C:
-        # TODO: we are assuming exponential distribution
         p = 0.0
         if c.max_rt - init_time > 0.0:
             p += cold_start_p_local[f]*(1.0 - math.exp(-1.0/serv_time[f]*(c.max_rt - init_time)))
         if c.max_rt > 0.0:
             p += (1.0-cold_start_p_local[f])*(1.0 - math.exp(-1.0/serv_time[f]*c.max_rt))
-        deadline_satisfaction_prob_edge[(f,c)] = p
+        deadline_satisfaction_prob_local[(f,c)] = p
 
         p = 0.0
         if c.max_rt - init_time - offload_time_cloud > 0.0:
@@ -37,22 +45,41 @@ def update_probabilities (local, cloud, aggregated_edge_memory, sim, arrival_rat
             p += (1.0-cold_start_p_cloud[f])*(1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt-offload_time_cloud)))
         deadline_satisfaction_prob_cloud[(f,c)] = p
 
+        p = 0.0
+        if c.max_rt - init_time - offload_time_edge > 0.0:
+            p += cold_start_p_edge[f]*(1.0 - math.exp(-1.0/serv_time_edge[f]*(c.max_rt - init_time - offload_time_edge)))
+        if c.max_rt - offload_time_edge > 0.0:
+            p += (1.0-cold_start_p_edge[f])*(1.0 - math.exp(-1.0/serv_time_edge[f]*(c.max_rt-offload_time_edge)))
+        deadline_satisfaction_prob_edge[(f,c)] = p
+
+    #print("Sat prob C:")
+    #print(deadline_satisfaction_prob_cloud)
+    #print(offload_time_cloud)
+    #print(serv_time_cloud)
+    #print("Sat prob E:")
+    #print(deadline_satisfaction_prob_edge)
+    #print(offload_time_edge)
+    #print(serv_time_edge)
+
     prob += (pl.lpSum([c.utility*arrival_rates[(f,c)]*\
-                       (pE[f][c]*deadline_satisfaction_prob_edge[(f,c)]+\
-                       pO[f][c]*deadline_satisfaction_prob_cloud[(f,c)]) for f,c in F_C]) -\
+                       (pL[f][c]*deadline_satisfaction_prob_local[(f,c)]+\
+                       pE[f][c]*deadline_satisfaction_prob_edge[(f,c)]+\
+                       pC[f][c]*deadline_satisfaction_prob_cloud[(f,c)]) for f,c in F_C]) -\
                 pl.lpSum([cloud.cost*arrival_rates[(f,c)]*\
-                       pO[f][c]*serv_time_cloud[f]*f.memory/1024 for f,c in F_C]) , "objUtilCost")
+                       pC[f][c]*serv_time_cloud[f]*f.memory/1024 for f,c in F_C]) , "objUtilCost")
 
     # Probability
     for f,c in F_C:
-        prob += (pE[f][c] + pO[f][c] + pD[f][c] == 1.0)
+        prob += (pL[f][c] + pE[f][c] + pC[f][c] + pD[f][c] == 1.0)
 
     # Memory
     prob += (pl.lpSum([f.memory*x[f][c] for f,c in F_C]) <= local.total_memory)
+    prob += (pl.lpSum([f.memory*y[f][c] for f,c in F_C]) <= aggregated_edge_memory)
 
     # Share
     for f,c in F_C:
-        prob += (pE[f][c]*arrival_rates[(f,c)]*serv_time[f] <= x[f][c])
+        prob += (pL[f][c]*arrival_rates[(f,c)]*serv_time[f] <= x[f][c])
+        prob += (pE[f][c]*arrival_rates[(f,c)]*serv_time_edge[f] <= y[f][c])
 
     class_arrival_rates = {}
     for c in C:
@@ -75,8 +102,9 @@ def update_probabilities (local, cloud, aggregated_edge_memory, sim, arrival_rat
     shares = {(f,c): pl.value(x[f][c]) for f,c in F_C}
     print(f"Shares: {shares}")
 
-    probs = {(f,c): [pl.value(pE[f][c]),
-                     pl.value(pO[f][c]),
+    probs = {(f,c): [pl.value(pL[f][c]),
+                     pl.value(pC[f][c]),
+                     pl.value(pE[f][c]),
                      pl.value(pD[f][c])] for f,c in F_C}
 
     # Workaround to avoid numerical issues

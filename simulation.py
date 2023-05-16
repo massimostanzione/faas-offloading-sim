@@ -132,9 +132,11 @@ class Simulation:
         # Policy
         policy_name = self.config.get(conf.SEC_POLICY, conf.POLICY_NAME, fallback="basic")
         for n in self.infra.get_edge_nodes():
-            self.node2policy[n] = self.new_policy(policy_name, n)
+            _policy = n.custom_sched_policy if n.custom_sched_policy is not None else policy_name
+            self.node2policy[n] = self.new_policy(_policy, n)
         for n in self.infra.get_cloud_nodes():
-            self.node2policy[n] = self.new_policy("cloud", n)
+            _policy = n.custom_sched_policy if n.custom_sched_policy is not None else "cloud"
+            self.node2policy[n] = self.new_policy(_policy, n)
 
         self.policy_update_interval = self.config.getfloat(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, fallback=-1)
         self.stats_print_interval = self.config.getfloat(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, fallback=-1)

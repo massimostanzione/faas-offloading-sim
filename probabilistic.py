@@ -171,7 +171,7 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
             cs_prob = 0.0
             for neighbor, prob in zip(neighbors, neighbor_probs):
                 if not fun in neighbor.warm_pool:
-                    cs_prob += prob
+                    cs_prob += prob * 0.2 # TODO: magic number 20% prob if currently no warm
             self.cold_start_prob_edge[fun] = cs_prob
 
         self.estimated_service_time_edge = {}
@@ -185,7 +185,6 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
             self.estimated_service_time_edge[f] = servtime
 
     def update_probabilities(self):
-
         new_probs = optimizer2.update_probabilities(self.node, self.cloud,
                                                    self.aggregated_edge_memory,
                                                    self.simulation,
