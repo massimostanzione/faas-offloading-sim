@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, StrEnum, auto
 
 import conf
 
@@ -8,6 +8,13 @@ class SchedulerDecision(Enum):
     OFFLOAD_CLOUD = 2
     OFFLOAD_EDGE = 3
     DROP = 4
+
+class ColdStartEstimation(StrEnum):
+    NO = auto()
+    NAIVE = auto()
+    PACS = auto()
+
+
 
 
 class Policy:

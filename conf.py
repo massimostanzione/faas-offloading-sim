@@ -16,4 +16,5 @@ SEC_POLICY = "policy"
 POLICY_NAME = "name"
 POLICY_UPDATE_INTERVAL = "update-interval"
 POLICY_ARRIVAL_RATE_ALPHA = "arrival-alpha"
+COLD_START_EST_STRATEGY = "cold-start-estimation"
 
