@@ -91,8 +91,6 @@ def update_probabilities (local, cloud, aggregated_edge_memory, sim,
             prob += (pl.lpSum([pD[f][c]*arrival_rates[(f,c)] for f in F])/class_arrival_rates[c]                     <= 1 - c.min_completion_percentage)
 
 
-    prob.writeLP("/tmp/problem.lp")
-
     status = solve(prob)
     if status != "Optimal":
         print(f"WARNING: solution status: {status}")
