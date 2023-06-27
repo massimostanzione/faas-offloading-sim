@@ -12,6 +12,7 @@ class SchedulerDecision(Enum):
 class ColdStartEstimation(StrEnum):
     NO = auto()
     NAIVE = auto()
+    NAIVE_PER_FUNCTION = "naive-per-function"
     PACS = auto()
 
 
@@ -109,7 +110,7 @@ class GreedyPolicy(Policy):
                                 stats.node2completions[x] > 0}
         for x in stats.node2completions:
             if stats.node2completions[x] == 0:
-                self.cold_start_prob[x] = 0.1  # TODO
+                self.cold_start_prob[x] = 0.1  # TODO: initial guess
 
         for f in self.simulation.functions:
             if stats.node2completions[(f, self.node)] > 0:

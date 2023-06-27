@@ -6,6 +6,8 @@ import conf
 import optimizer, optimizer2
 from policy import Policy, SchedulerDecision, ColdStartEstimation
 
+COLD_START_PROB_INITIAL_GUESS = 0.0
+
 class ProbabilisticPolicy(Policy):
 
     # Probability vector: p_e, p_o, p_d
@@ -20,7 +22,10 @@ class ProbabilisticPolicy(Policy):
         self.last_update_time = None
         self.arrival_rate_alpha = self.simulation.config.getfloat(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA,
                                                                   fallback=1.0)
-        self.cold_start_estimation_mode = ColdStartEstimation(self.simulation.config.get(conf.SEC_POLICY, conf.COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))
+        self.local_cold_start_estimation = ColdStartEstimation(self.simulation.config.get(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))
+        self.cloud_cold_start_estimation = ColdStartEstimation(self.simulation.config.get(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))
+        self.edge_cold_start_estimation = ColdStartEstimation(self.simulation.config.get(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))
+
         self.arrival_rates = {}
         self.estimated_service_time = {}
         self.estimated_service_time_cloud = {}
@@ -84,42 +89,76 @@ class ProbabilisticPolicy(Policy):
                     continue
                 self.arrival_rates[(f, c)] = stats.arrivals[(f, c, self.node)] / self.simulation.t
 
-        for f in self.simulation.functions:
-            if self.cold_start_estimation_mode == ColdStartEstimation.PACS:
-                total_arrival_rate = sum([self.arrival_rates.get((f,x), 0.0) for x in self.simulation.classes])
-                # TODO: we are ignoring initial warm pool....
-                if total_arrival_rate > 0.0:
-                    props1, _ = perfmodel.get_sls_warm_count_dist(total_arrival_rate,
-                                                                self.estimated_service_time[f],
-                                                                self.estimated_service_time[f] + self.simulation.init_time[self.node],
-                                                                600) # TODO
-                    self.cold_start_prob_local[f] = props1["cold_prob"]
-                else:
-                    if f in self.node.warm_pool:
-                        self.cold_start_prob_local[f] = 0.0
-                    else:
-                        self.cold_start_prob_local[f] = 1.0
-            elif self.cold_start_estimation_mode == ColdStartEstimation.NAIVE:
-                # XXX: same prob for every function
-                if self.node in stats.node2completions and stats.node2completions[self.node] > 0:
-                    self.cold_start_prob_local[f] = stats.cold_starts[self.node] / stats.node2completions[self.node]
-                else:
-                    self.cold_start_prob_local[f] = 0.1
-            else: # No
-                self.cold_start_prob_local[f] = 0
-
-
-            # TODO: cloud cold start prob
-            if self.cloud in stats.node2completions and stats.node2completions[self.cloud] > 0:
-                self.cold_start_prob_cloud[f] = stats.cold_starts[self.cloud] / stats.node2completions[self.cloud]
-            else:
-                self.cold_start_prob_cloud[f] = 0.1
+        self.estimate_cold_start_prob(stats)
 
         print(f"[{self.node}] Arrivals: {self.arrival_rates}")
-        print(f"[{self.node}] Cold start prob: {self.cold_start_prob_local}")
 
         self.cloud_rtt = 2 * self.simulation.infra.get_latency(self.node, self.cloud)
 
+    def estimate_cold_start_prob (self, stats):
+        #
+        # LOCAL NODE
+        #
+        if self.local_cold_start_estimation == ColdStartEstimation.PACS:
+            for f in self.simulation.functions:
+                total_arrival_rate = max(0.001, sum([self.arrival_rates.get((f,x), 0.0) for x in self.simulation.classes]))
+                # XXX: we are ignoring initial warm pool....
+                props1, _ = perfmodel.get_sls_warm_count_dist(total_arrival_rate,
+                                                            self.estimated_service_time[f],
+                                                            self.estimated_service_time[f] + self.simulation.init_time[self.node],
+                                                            self.simulation.expiration_timeout)
+                self.cold_start_prob_local[f] = props1["cold_prob"]
+        elif self.local_cold_start_estimation == ColdStartEstimation.NAIVE:
+            # Same prob for every function
+            node_compl = sum([stats.node2completions[(_f,self.node)] for _f in self.simulation.functions])
+            node_cs = sum([stats.cold_starts[(_f,self.node)] for _f in self.simulation.functions])
+            for f in self.simulation.functions:
+                if node_compl > 0:
+                    self.cold_start_prob_local[f] = node_cs / node_compl
+                else:
+                    self.cold_start_prob_local[f] = COLD_START_PROB_INITIAL_GUESS
+        elif self.local_cold_start_estimation == ColdStartEstimation.NAIVE_PER_FUNCTION:
+            for f in self.simulation.functions:
+                if stats.node2completions.get((f,self.node), 0) > 0:
+                    self.cold_start_prob_local[f] = stats.cold_starts.get((f,self.node),0) / stats.node2completions.get((f,self.node),0)
+                else:
+                    self.cold_start_prob_local[f] = COLD_START_PROB_INITIAL_GUESS
+        else: # No
+            for f in self.simulation.functions:
+                self.cold_start_prob_local[f] = 0
+
+        # CLOUD
+        #
+        if self.cloud_cold_start_estimation == ColdStartEstimation.PACS:
+            for f in self.simulation.functions:
+                total_arrival_rate = max(0.001, \
+                        sum([self.arrival_rates.get((f,x), 0.0)*self.probs[(f,x)][1] for x in self.simulation.classes]))
+                props1, _ = perfmodel.get_sls_warm_count_dist(total_arrival_rate,
+                                                            self.estimated_service_time_cloud[f],
+                                                            self.estimated_service_time_cloud[f] + self.simulation.init_time[self.node],
+                                                            self.simulation.expiration_timeout)
+                self.cold_start_prob_cloud[f] = props1["cold_prob"]
+        elif self.cloud_cold_start_estimation == ColdStartEstimation.NAIVE:
+            # Same prob for every function
+            node_compl = sum([stats.node2completions[(_f,self.cloud)] for _f in self.simulation.functions])
+            node_cs = sum([stats.cold_starts[(_f,self.cloud)] for _f in self.simulation.functions])
+            for f in self.simulation.functions:
+                if node_compl > 0:
+                    self.cold_start_prob_cloud[f] = node_cs / node_compl
+                else:
+                    self.cold_start_prob_cloud[f] = COLD_START_PROB_INITIAL_GUESS
+        elif self.cloud_cold_start_estimation == ColdStartEstimation.NAIVE_PER_FUNCTION:
+            for f in self.simulation.functions:
+                if stats.node2completions.get((f,self.cloud), 0) > 0:
+                    self.cold_start_prob_cloud[f] = stats.cold_starts.get((f,self.cloud),0) / stats.node2completions.get((f,self.cloud),0)
+                else:
+                    self.cold_start_prob_cloud[f] = COLD_START_PROB_INITIAL_GUESS
+        else: # No
+            for f in self.simulation.functions:
+                self.cold_start_prob_cloud[f] = 0
+
+        print(f"[{self.node}] Cold start prob: {self.cold_start_prob_local}")
+        print(f"[{self.cloud}] Cold start prob: {self.cold_start_prob_cloud}")
 
     def update_probabilities (self):
         new_probs = optimizer.update_probabilities(self.node, self.cloud,
@@ -188,14 +227,6 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
 
         self.edge_rtt = sum([self.simulation.infra.get_latency(self.node, x)*prob for x,prob in zip(neighbors, neighbor_probs)])
 
-        # TODO: Here we are using istantaneous info to estimate cold start probs
-        for fun in self.simulation.functions:
-            cs_prob = 0.0
-            for neighbor, prob in zip(neighbors, neighbor_probs):
-                if not fun in neighbor.warm_pool:
-                    cs_prob += prob * 0.2 # TODO: magic number 20% prob if currently no warm
-            self.cold_start_prob_edge[fun] = cs_prob
-
         self.estimated_service_time_edge = {}
         for f in self.simulation.functions:
             servtime = 0.0
@@ -205,6 +236,18 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
             if servtime == 0.0:
                 servtime = self.estimated_service_time[f]
             self.estimated_service_time_edge[f] = servtime
+
+        self.estimate_edge_cold_start_prob(stats, neighbors, neighbor_probs)
+
+    def estimate_edge_cold_start_prob (self, stats, neighbors, neighbor_probs):
+        # TODO: Here we are using istantaneous info to estimate cold start probs
+        for fun in self.simulation.functions:
+            cs_prob = 0.0
+            for neighbor, prob in zip(neighbors, neighbor_probs):
+                if not fun in neighbor.warm_pool:
+                    cs_prob += prob * 0.2 # TODO: magic number 20% prob if currently no warm
+            self.cold_start_prob_edge[fun] = cs_prob
+
 
     def update_probabilities(self):
         new_probs = optimizer2.update_probabilities(self.node, self.cloud,
