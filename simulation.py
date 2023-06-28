@@ -313,6 +313,7 @@ class Simulation:
 
     def handle_arrival (self, event):
         n = event.node 
+        node_policy = self.node2policy[n]
         external = len(event.offloaded_from) == 0
         arv_proc = event.arrival_proc
         f = event.function
@@ -322,7 +323,7 @@ class Simulation:
             self.stats.ext_arrivals[(f,c,n)] += 1
 
         # Policy
-        sched_decision = self.node2policy[n].schedule(f,c,event.offloaded_from)
+        sched_decision = node_policy.schedule(f,c,event.offloaded_from)
 
         if sched_decision == SchedulerDecision.EXEC:
             speedup = n.speedup
@@ -348,7 +349,7 @@ class Simulation:
                 self.stats.offloaded[(f,c,n)] += 1
                 self.do_offload(event, remote_node)  
         elif sched_decision == SchedulerDecision.OFFLOAD_EDGE:
-            remote_node = self.pick_edge_node(f,c,n)
+            remote_node = node_policy.pick_edge_node(f,c)
             if remote_node is None:
                 # drop
                 self.stats.dropped_reqs[(f,c,n)] += 1
@@ -360,12 +361,3 @@ class Simulation:
         if external:
             self.__schedule_next_arrival(n, arv_proc)
 
-    def pick_edge_node (self, fun, qos, node):
-        peers = self.infra.get_neighbors(node, self.node_choice_rng, self.max_neighbors)
-        if len(peers) == 0:
-            return None
-
-        # Pick peers based on resource availability
-        total_memory = sum([x.curr_memory for x in peers])
-        probs = [x.curr_memory/total_memory for x in peers]
-        return self.node_choice_rng.choice(peers, p=probs)

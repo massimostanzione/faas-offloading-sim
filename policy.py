@@ -23,6 +23,7 @@ class Policy:
     def __init__(self, simulation, node):
         self.simulation = simulation
         self.node = node
+        self.edge_peers = None
 
     def schedule(self, function, qos_class, offloaded_from):
         pass
@@ -37,6 +38,22 @@ class Policy:
             reclaimed = self.node.warm_pool.reclaim_memory(f.memory - self.node.curr_memory)
             self.node.curr_memory += reclaimed
         return self.node.curr_memory >= f.memory
+
+    def __get_edge_peers_probabilities (self):
+        total_memory = sum([x.curr_memory for x in self.edge_peers])
+        probs = [x.curr_memory/total_memory for x in self.edge_peers]
+        return probs
+
+    # Picks a node for Edge offloading
+    def pick_edge_node (self, fun, qos):
+        if self.edge_peers is None:
+            # TODO: need to refresh over time?
+            self.edge_peers = self.simulation.infra.get_neighbors(self.node, self.simulation.node_choice_rng, self.simulation.max_neighbors)
+        if len(self.edge_peers) == 0:
+            return None
+
+        # Pick peers based on resource availability
+        return self.simulation.node_choice_rng.choice(self.edge_peers, p=self.__get_edge_peers_probabilities())
 
 
 
