@@ -4,9 +4,8 @@ from pacsltk import perfmodel
 
 import conf
 import optimizer, optimizer2
-from policy import Policy, SchedulerDecision, ColdStartEstimation
+from policy import Policy, SchedulerDecision, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS
 
-COLD_START_PROB_INITIAL_GUESS = 0.0
 
 class ProbabilisticPolicy(Policy):
 
@@ -216,15 +215,13 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
         super().update_metrics()
         stats = self.simulation.stats
 
-        neighbors = self.simulation.infra.get_neighbors(self.node, self.simulation.node_choice_rng, self.simulation.max_neighbors)
+        neighbor_probs, neighbors = self._get_edge_peers_probabilities()
         exposed_fraction = self.simulation.config.getfloat(conf.SEC_SIM, conf.EDGE_EXPOSED_FRACTION, fallback=0.25)
         if len(neighbors) == 0:
             self.aggregated_edge_memory = 1
         else:
             self.aggregated_edge_memory = max(1,sum([x.curr_memory*exposed_fraction for x in neighbors]))
         
-        neighbor_probs = [x.curr_memory*exposed_fraction/self.aggregated_edge_memory for x in neighbors]
-
         self.edge_rtt = sum([self.simulation.infra.get_latency(self.node, x)*prob for x,prob in zip(neighbors, neighbor_probs)])
 
         self.estimated_service_time_edge = {}
@@ -240,13 +237,44 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
         self.estimate_edge_cold_start_prob(stats, neighbors, neighbor_probs)
 
     def estimate_edge_cold_start_prob (self, stats, neighbors, neighbor_probs):
-        # TODO: Here we are using istantaneous info to estimate cold start probs
-        for fun in self.simulation.functions:
-            cs_prob = 0.0
-            for neighbor, prob in zip(neighbors, neighbor_probs):
-                if not fun in neighbor.warm_pool:
-                    cs_prob += prob * 0.2 # TODO: magic number 20% prob if currently no warm
-            self.cold_start_prob_edge[fun] = cs_prob
+        peer_probs, peers = self._get_edge_peers_probabilities()
+
+        if self.edge_cold_start_estimation == ColdStartEstimation.PACS:
+            for f in self.simulation.functions:
+                total_offloaded_rate = max(0.001, \
+                        sum([self.arrival_rates.get((f,x), 0.0)*self.probs[(f,x)][3] for x in self.simulation.classes]))
+                print(f"Offloaded rate: {f}: {total_offloaded_rate}")
+                props1, _ = perfmodel.get_sls_warm_count_dist(total_offloaded_rate,
+                                                            self.estimated_service_time_edge[f],
+                                                            self.estimated_service_time_edge[f] + self.simulation.init_time[self.node],
+                                                            self.simulation.expiration_timeout)
+                self.cold_start_prob_edge[f] = props1["cold_prob"]
+        elif self.edge_cold_start_estimation == ColdStartEstimation.NAIVE:
+            # Same prob for every function
+            total_prob = 0
+            for p,peer_prob in zip(peers, peer_probs):
+                node_compl = sum([stats.node2completions[(_f,p)] for _f in self.simulation.functions])
+                node_cs = sum([stats.cold_starts[(_f,p)] for _f in self.simulation.functions])
+                if node_compl > 0:
+                    _prob = node_cs / node_compl
+                else:
+                    _prob = COLD_START_PROB_INITIAL_GUESS
+                total_prob += _prob*peer_prob
+            for f in self.simulation.functions:
+                self.cold_start_prob_edge[f] = total_prob
+        elif self.edge_cold_start_estimation == ColdStartEstimation.NAIVE_PER_FUNCTION:
+            for f in self.simulation.functions:
+                self.cold_start_prob_edge[f] = 0
+                for p,peer_prob in zip(peers, peer_probs):
+                    if stats.node2completions.get((f,p), 0) > 0:
+                        _prob = stats.cold_starts.get((f,p),0) / stats.node2completions.get((f,p),0)
+                    else:
+                        _prob = COLD_START_PROB_INITIAL_GUESS
+                    self.cold_start_prob_edge[f] += _prob*peer_prob
+
+        else: # No
+            for f in self.simulation.functions:
+                self.cold_start_prob_edge[f] = 0
 
 
     def update_probabilities(self):
