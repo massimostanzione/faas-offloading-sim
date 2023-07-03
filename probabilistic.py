@@ -22,8 +22,11 @@ class ProbabilisticPolicy(Policy):
         self.arrival_rate_alpha = self.simulation.config.getfloat(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA,
                                                                   fallback=1.0)
         self.local_cold_start_estimation = ColdStartEstimation(self.simulation.config.get(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))
+        assert(self.local_cold_start_estimation != ColdStartEstimation.FULL_KNOWLEDGE)
         self.cloud_cold_start_estimation = ColdStartEstimation(self.simulation.config.get(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))
+        assert(self.cloud_cold_start_estimation != ColdStartEstimation.FULL_KNOWLEDGE)
         self.edge_cold_start_estimation = ColdStartEstimation(self.simulation.config.get(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))
+        assert(self.edge_cold_start_estimation != ColdStartEstimation.FULL_KNOWLEDGE)
 
         self.arrival_rates = {}
         self.estimated_service_time = {}

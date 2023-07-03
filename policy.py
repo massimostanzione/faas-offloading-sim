@@ -16,6 +16,7 @@ class ColdStartEstimation(StrEnum):
     NAIVE = auto()
     NAIVE_PER_FUNCTION = "naive-per-function"
     PACS = auto()
+    FULL_KNOWLEDGE = "full-knowledge"
 
 
 
@@ -112,6 +113,17 @@ class GreedyPolicy(Policy):
         self.cloud = self.simulation.node_choice_rng.choice(self.simulation.infra.get_region_nodes(cloud_region), 1)[0]
 
     def schedule(self, f, c, offloaded_from):
+        if self.local_cold_start_estimation == ColdStartEstimation.FULL_KNOWLEDGE:
+            if f in self.node.warm_pool:
+                self.cold_start_prob[(f, self.node)] = 0
+            else:
+                self.cold_start_prob[(f, self.node)] = 1
+        if self.cloud_cold_start_estimation == ColdStartEstimation.FULL_KNOWLEDGE:
+            if f in self.cloud.warm_pool:
+                self.cold_start_prob[(f, self.cloud)] = 0
+            else:
+                self.cold_start_prob[(f, self.cloud)] = 1
+
         latency_local = self.estimated_service_time.get(f, 0) + \
                         self.cold_start_prob.get((f, self.node), 1) * \
                         self.simulation.init_time[self.node]
@@ -154,13 +166,13 @@ class GreedyPolicy(Policy):
                     self.cold_start_prob[(f, self.node)] = stats.cold_starts.get((f,self.node),0) / stats.node2completions.get((f,self.node),0)
                 else:
                     self.cold_start_prob[(f, self.node)] = COLD_START_PROB_INITIAL_GUESS
-        else: # No
+        elif self.local_cold_start_estimation == ColdStartEstimation.NO: 
             for f in self.simulation.functions:
                 self.cold_start_prob[(f, self.node)] = 0
 
         # CLOUD
         #
-        if self.local_cold_start_estimation == ColdStartEstimation.PACS:
+        if self.cloud_cold_start_estimation == ColdStartEstimation.PACS:
             for f in self.simulation.functions:
                 total_arrival_rate = max(0.001, sum([stats.arrivals.get((f,x,self.cloud), 0.0) for x in self.simulation.classes])/self.simulation.t)
                 props1, _ = perfmodel.get_sls_warm_count_dist(total_arrival_rate,
@@ -168,7 +180,7 @@ class GreedyPolicy(Policy):
                                                             self.estimated_service_time[f] + self.simulation.init_time[self.cloud],
                                                             self.simulation.expiration_timeout)
                 self.cold_start_prob[(f, self.cloud)] = props1["cold_prob"]
-        elif self.local_cold_start_estimation == ColdStartEstimation.NAIVE:
+        elif self.cloud_cold_start_estimation == ColdStartEstimation.NAIVE:
             # Same prob for every function
             node_compl = sum([stats.node2completions[(_f,self.cloud)] for _f in self.simulation.functions])
             node_cs = sum([stats.cold_starts[(_f,self.cloud)] for _f in self.simulation.functions])
@@ -177,13 +189,13 @@ class GreedyPolicy(Policy):
                     self.cold_start_prob[(f, self.cloud)] = node_cs / node_compl
                 else:
                     self.cold_start_prob[(f, self.cloud)] = COLD_START_PROB_INITIAL_GUESS
-        elif self.local_cold_start_estimation == ColdStartEstimation.NAIVE_PER_FUNCTION:
+        elif self.cloud_cold_start_estimation == ColdStartEstimation.NAIVE_PER_FUNCTION:
             for f in self.simulation.functions:
                 if stats.node2completions.get((f,self.cloud), 0) > 0:
                     self.cold_start_prob[(f, self.cloud)] = stats.cold_starts.get((f,self.cloud),0) / stats.node2completions.get((f,self.cloud),0)
                 else:
                     self.cold_start_prob[(f, self.cloud)] = COLD_START_PROB_INITIAL_GUESS
-        else: # No
+        elif self.cloud_cold_start_estimation == ColdStartEstimation.NO: 
             for f in self.simulation.functions:
                 self.cold_start_prob[(f, self.cloud)] = 0
 
@@ -221,6 +233,17 @@ class GreedyPolicyWithCostMinimization(GreedyPolicy):
         self.cloud = self.simulation.node_choice_rng.choice(self.simulation.infra.get_region_nodes(cloud_region), 1)[0]
 
     def schedule(self, f, c, offloaded_from):
+        if self.local_cold_start_estimation == ColdStartEstimation.FULL_KNOWLEDGE:
+            if f in self.node.warm_pool:
+                self.cold_start_prob[(f, self.node)] = 0
+            else:
+                self.cold_start_prob[(f, self.node)] = 1
+        if self.cloud_cold_start_estimation == ColdStartEstimation.FULL_KNOWLEDGE:
+            if f in self.cloud.warm_pool:
+                self.cold_start_prob[(f, self.cloud)] = 0
+            else:
+                self.cold_start_prob[(f, self.cloud)] = 1
+
         latency_local = self.estimated_service_time.get(f, 0) + \
                         self.cold_start_prob.get((f, self.node), 1) * \
                         self.simulation.init_time[self.node]
@@ -241,3 +264,4 @@ class GreedyPolicyWithCostMinimization(GreedyPolicy):
             sched_decision = SchedulerDecision.OFFLOAD_CLOUD
 
         return sched_decision
+
