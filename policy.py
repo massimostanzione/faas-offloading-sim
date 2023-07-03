@@ -134,7 +134,8 @@ class GreedyPolicy(Policy):
 
         latency_cloud = self.estimated_service_time_cloud.get(f, 0) +\
                 2 * self.simulation.infra.get_latency(self.node, self.cloud) + \
-                        self.cold_start_prob.get((f, self.cloud), 1) * self.simulation.init_time[(f,self.cloud)]
+                        self.cold_start_prob.get((f, self.cloud), 1) * self.simulation.init_time[(f,self.cloud)] +\
+                        f.inputSizeMean*8/1000/1000/self.simulation.infra.get_bandwidth(self.node, self.cloud)
 
         if self.can_execute_locally(f) and latency_local < latency_cloud:
             sched_decision = SchedulerDecision.EXEC
@@ -152,7 +153,7 @@ class GreedyPolicy(Policy):
                 total_arrival_rate = max(0.001, sum([stats.arrivals.get((f,x,self.node), 0.0) for x in self.simulation.classes])/self.simulation.t)
                 props1, _ = perfmodel.get_sls_warm_count_dist(total_arrival_rate,
                                                             self.estimated_service_time[f],
-                                                            self.estimated_service_time[f] + self.simulation.init_time[self.node],
+                                                            self.estimated_service_time[f] + self.simulation.init_time[(f,self.node)],
                                                             self.simulation.expiration_timeout)
                 self.cold_start_prob[(f, self.node)] = props1["cold_prob"]
         elif self.local_cold_start_estimation == ColdStartEstimation.NAIVE:
@@ -181,7 +182,7 @@ class GreedyPolicy(Policy):
                 total_arrival_rate = max(0.001, sum([stats.arrivals.get((f,x,self.cloud), 0.0) for x in self.simulation.classes])/self.simulation.t)
                 props1, _ = perfmodel.get_sls_warm_count_dist(total_arrival_rate,
                                                             self.estimated_service_time[f],
-                                                            self.estimated_service_time[f] + self.simulation.init_time[self.cloud],
+                                                            self.estimated_service_time[f] + self.simulation.init_time[(f,self.cloud)],
                                                             self.simulation.expiration_timeout)
                 self.cold_start_prob[(f, self.cloud)] = props1["cold_prob"]
         elif self.cloud_cold_start_estimation == ColdStartEstimation.NAIVE:
@@ -250,11 +251,11 @@ class GreedyPolicyWithCostMinimization(GreedyPolicy):
 
         latency_local = self.estimated_service_time.get(f, 0) + \
                         self.cold_start_prob.get((f, self.node), 1) * \
-                        self.simulation.init_time[self.node]
+                        self.simulation.init_time[(f,self.node)]
 
         latency_cloud = self.estimated_service_time_cloud.get(f, 0) + 2 * self.simulation.infra.get_latency(self.node, self.cloud) + \
-                        self.cold_start_prob.get((f, self.cloud), 1) * self.simulation.init_time[
-                            self.cloud]
+                        self.cold_start_prob.get((f, self.cloud), 1) * self.simulation.init_time[(f,self.cloud)] +\
+                        f.inputSizeMean*8/1000/1000/self.simulation.infra.get_bandwidth(self.node, self.cloud)
 
         if latency_local < c.max_rt and self.can_execute_locally(f):
             # Choose the configuration with minimum cost (edge execution) if both configuration can execute within

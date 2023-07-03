@@ -20,9 +20,10 @@ class Region:
 
 class Infrastructure:
 
-    def __init__ (self, regions: [Region], network_latency: dict):
+    def __init__ (self, regions: [Region], network_latency: dict, bandwidth_mbps: dict):
         self.regions = regions
         self.latency = network_latency
+        self.bandwidth_mbps = bandwidth_mbps
         self.region_nodes = {r: []  for r in self.regions}
         self.region_dict = {r.name: r for r in self.regions}
         self.node2neighbors = {}
@@ -53,6 +54,29 @@ class Infrastructure:
             return self.latency[(x, y)]
 
         raise KeyError(f"no latency specified for {x} and {y}")
+
+    def get_bandwidth (self, x: Node, y: Node):
+        if x == y:
+            # same node
+            return float("inf")
+
+        if (x, y) in self.bandwidth_mbps:
+            return self.bandwidth_mbps[(x, y)]
+        elif (y, x) in self.bandwidth_mbps:
+            self.bandwidth_mbps[(x,y)] = self.bandwidth_mbps[(y, x)]
+            return self.bandwidth_mbps[(x, y)]
+        else:
+            return self.get_region_bandwidth(x.region, y.region)
+
+
+    def get_region_bandwidth (self, x: Region, y: Region):
+        if (x, y) in self.bandwidth_mbps:
+            return self.bandwidth_mbps[(x, y)]
+        elif (y, x) in self.bandwidth_mbps:
+            self.bandwidth_mbps[(x,y)] = self.bandwidth_mbps[(y, x)]
+            return self.bandwidth_mbps[(x, y)]
+
+        raise KeyError(f"no bandwidth_mbps specified for {x} and {y}")
 
     def get_region (self, reg_name: str) -> Region:
         return self.region_dict[reg_name]

@@ -6,7 +6,7 @@ import pulp as pl
 warm_start = False
 
 def update_probabilities (edge, cloud, sim, arrival_rates, serv_time, serv_time_cloud,
-                          init_time, offload_time, cold_start_p_local, cold_start_p_cloud, required_percentile=-1.0):
+                          init_time, offload_time, edge_cloud_bandwidth, cold_start_p_local, cold_start_p_cloud, required_percentile=-1.0):
     F = sim.functions
     C = sim.classes
     F_C = [(f,c) for f in F for c in C]
@@ -34,11 +34,12 @@ def update_probabilities (edge, cloud, sim, arrival_rates, serv_time, serv_time_
             p += (1.0-cold_start_p_local[f])*(1.0 - math.exp(-1.0/serv_time[f]*c.max_rt))
         deadline_satisfaction_prob_edge[(f,c)] = p
 
+        tx_time = f.inputSizeMean*8/1000/1000/edge_cloud_bandwidth
         p = 0.0
-        if c.max_rt - init_time[(f,cloud)] - offload_time > 0.0:
-            p += cold_start_p_cloud[f]*(1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt - init_time[(f,cloud)] - offload_time)))
-        if c.max_rt - offload_time > 0.0:
-            p += (1.0-cold_start_p_cloud[f])*(1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt-offload_time)))
+        if c.max_rt - init_time[(f,cloud)] - offload_time - tx_time > 0.0:
+            p += cold_start_p_cloud[f]*(1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt - init_time[(f,cloud)] - offload_time - tx_time)))
+        if c.max_rt - offload_time - tx_time > 0.0:
+            p += (1.0-cold_start_p_cloud[f])*(1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt-offload_time-tx_time)))
         deadline_satisfaction_prob_cloud[(f,c)] = p
 
     prob += (pl.lpSum([c.utility*arrival_rates[(f,c)]*\
@@ -58,13 +59,6 @@ def update_probabilities (edge, cloud, sim, arrival_rates, serv_time, serv_time_
     for f,c in F_C:
         prob += (pE[f][c]*arrival_rates[(f,c)]*serv_time[f] <= x[f][c])
 
-    # Resp Time
-    #for f,c in F_C:
-    #    if c.max_rt > 0.0:
-    #        prob += (pE[f][c]*serv_time[f] +  
-    #                 pO[f][c]*(serv_time_cloud[f] + offload_time) +
-    #                 pCold[f]*init_time
-    #                 <= c.max_rt)
     class_arrival_rates = {}
     for c in C:
         class_arrival_rates[c] = sum([arrival_rates[(f,c)] for f in F if c in C])

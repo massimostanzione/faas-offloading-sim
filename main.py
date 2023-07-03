@@ -52,7 +52,8 @@ def read_spec_file (spec_file_name, infra):
             duration_mean = f["duration_mean"] if "duration_mean" in f else 1.0
             duration_scv = f["duration_scv"] if "duration_scv" in f else 1.0
             init_mean = f["init_mean"] if "init_mean" in f else 0.500
-            fun = faas.Function(fname, memory, serviceMean=duration_mean, serviceSCV=duration_scv, initMean=init_mean)
+            input_mean = f["input_mean"] if "input_mean" in f else 1024
+            fun = faas.Function(fname, memory, serviceMean=duration_mean, serviceSCV=duration_scv, initMean=init_mean, inputSizeMean=input_mean)
             function_names[fname] = fun
             functions.append(fun)
 
@@ -85,8 +86,10 @@ def init_simulation (config):
     regions = [reg_edge, reg_cloud]
     # Latency
     latencies = {(reg_edge,reg_cloud): 0.100}
+    bandwidth_mbps = {(reg_edge,reg_edge): 100.0, (reg_cloud,reg_cloud): 1000.0,\
+            (reg_edge,reg_cloud): 10.0}
     # Infrastructure
-    infra = Infrastructure(regions, latencies)
+    infra = Infrastructure(regions, latencies, bandwidth_mbps)
 
     # Read spec file
     spec_file_name = config.get(conf.SEC_SIM, conf.SPEC_FILE, fallback=None)

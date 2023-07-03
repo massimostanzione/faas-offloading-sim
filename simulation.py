@@ -309,10 +309,11 @@ class Simulation:
 
     def do_offload (self, arrival, target_node):
         latency = self.infra.get_latency(arrival.node, target_node)
+        transfer_time = arrival.function.inputSizeMean*8/1000/1000/self.infra.get_bandwidth(arrival.node, target_node)
         remote_arv = Arrival(target_node, arrival.function, arrival.qos_class, offloaded_from=arrival.offloaded_from.copy())
         remote_arv.offloaded_from.append(arrival.node)
 
-        self.schedule(self.t + latency + OFFLOADING_OVERHEAD, remote_arv)
+        self.schedule(self.t + latency + OFFLOADING_OVERHEAD + transfer_time, remote_arv)
 
     def handle_arrival (self, event):
         n = event.node 

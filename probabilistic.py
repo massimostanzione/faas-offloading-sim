@@ -100,6 +100,7 @@ class ProbabilisticPolicy(Policy):
         print(f"[{self.node}] Arrivals: {self.arrival_rates}")
 
         self.cloud_rtt = 2 * self.simulation.infra.get_latency(self.node, self.cloud)
+        self.cloud_bw = self.simulation.infra.get_bandwidth(self.node, self.cloud)
 
     def estimate_cold_start_prob (self, stats):
         #
@@ -167,6 +168,7 @@ class ProbabilisticPolicy(Policy):
         print(f"[{self.cloud}] Cold start prob: {self.cold_start_prob_cloud}")
 
     def update_probabilities (self):
+        bandwidth = self.simulation.infra.get_bandwidth(self.node, self.cloud)
         new_probs = optimizer.update_probabilities(self.node, self.cloud,
                                                    self.simulation,
                                                    self.arrival_rates,
@@ -174,6 +176,7 @@ class ProbabilisticPolicy(Policy):
                                                    self.estimated_service_time_cloud,
                                                    self.simulation.init_time,
                                                    self.cloud_rtt,
+                                                   bandwidth,
                                                    self.cold_start_prob_local,
                                                    self.cold_start_prob_cloud,
                                                    self.rt_percentile)
@@ -230,6 +233,7 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
             self.aggregated_edge_memory = max(1,sum([x.curr_memory*exposed_fraction for x in neighbors]))
         
         self.edge_rtt = sum([self.simulation.infra.get_latency(self.node, x)*prob for x,prob in zip(neighbors, neighbor_probs)])
+        self.edge_bw = sum([self.simulation.infra.get_bandwidth(self.node, x)*prob for x,prob in zip(neighbors, neighbor_probs)])
 
         self.estimated_service_time_edge = {}
         for f in self.simulation.functions:
@@ -300,6 +304,8 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
                                                    self.init_time_edge,
                                                    self.cloud_rtt,
                                                    self.edge_rtt,
+                                                   self.cloud_bw,
+                                                   self.edge_bw,
                                                    self.cold_start_prob_local,
                                                    self.cold_start_prob_cloud,
                                                    self.cold_start_prob_edge)
