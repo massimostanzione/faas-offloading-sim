@@ -87,6 +87,7 @@ class Function:
     memory: int
     serviceMean: float
     serviceSCV: float = 1.0
+    initMean: float = 0.500
 
     def __repr__ (self):
         return self.name

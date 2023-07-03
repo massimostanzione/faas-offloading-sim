@@ -79,6 +79,7 @@ class Simulation:
 
         self.__event_counter = 0
 
+
         self.stats = Stats(self, self.functions, self.classes, self.infra)
 
         self.first_stat_print = True
@@ -101,6 +102,12 @@ class Simulation:
                 i += 2
 
         self.max_neighbors = self.config.getint(conf.SEC_SIM, conf.EDGE_NEIGHBORS, fallback=3)
+
+        # Other params
+        self.init_time = {}
+        for node in self.infra.get_nodes():
+            for fun in self.functions:
+                self.init_time[(fun,node)] = fun.initMean/node.speedup
 
 
     def new_policy (self, configured_policy, node):
@@ -145,10 +152,6 @@ class Simulation:
         self.stats_file = sys.stdout
 
 
-        # Other params
-        self.init_time = {}
-        for node in self.infra.get_nodes():
-            self.init_time[node] = self.config.getfloat(conf.SEC_CONTAINER, conf.BASE_INIT_TIME, fallback=0.7)/node.speedup
         self.expiration_timeout = self.config.getfloat(conf.SEC_CONTAINER, conf.EXPIRATION_TIMEOUT, fallback=600)
 
 
@@ -336,7 +339,7 @@ class Simulation:
                 assert(n.curr_memory >= f.memory)
                 n.curr_memory -= f.memory
                 self.stats.cold_starts[(f,n)] += 1
-                init_time = self.init_time[n]
+                init_time = self.init_time[(f,n)]
             self.schedule(self.t + init_time + duration, Completion(self.t, f,c, n, init_time > 0, duration, event.offloaded_from))
         elif sched_decision == SchedulerDecision.DROP:
             self.stats.dropped_reqs[(f,c,n)] += 1

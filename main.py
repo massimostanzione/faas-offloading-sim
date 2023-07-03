@@ -51,7 +51,8 @@ def read_spec_file (spec_file_name, infra):
             memory = f["memory"] if "memory" in f else 128
             duration_mean = f["duration_mean"] if "duration_mean" in f else 1.0
             duration_scv = f["duration_scv"] if "duration_scv" in f else 1.0
-            fun = faas.Function(fname, memory, serviceMean=duration_mean, serviceSCV=duration_scv)
+            init_mean = f["init_mean"] if "init_mean" in f else 0.500
+            fun = faas.Function(fname, memory, serviceMean=duration_mean, serviceSCV=duration_scv, initMean=init_mean)
             function_names[fname] = fun
             functions.append(fun)
 

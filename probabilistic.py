@@ -36,6 +36,10 @@ class ProbabilisticPolicy(Policy):
         self.cloud_rtt = 0.0
         self.rt_percentile = self.simulation.config.getfloat(conf.SEC_POLICY, "rt-percentile", fallback=-1.0)
 
+        self.init_time_local = {f: simulation.init_time[(f,self.node)] for f in simulation.functions}
+        self.init_time_cloud = {f: simulation.init_time[(f,self.cloud)] for f in simulation.functions}
+        self.init_time_edge = {} # updated periodically
+
         self.possible_decisions = [SchedulerDecision.EXEC, SchedulerDecision.OFFLOAD_CLOUD, SchedulerDecision.DROP]
         self.probs = {(f, c): [0.8, 0.2, 0.] for f in simulation.functions for c in simulation.classes}
 
@@ -107,7 +111,7 @@ class ProbabilisticPolicy(Policy):
                 # XXX: we are ignoring initial warm pool....
                 props1, _ = perfmodel.get_sls_warm_count_dist(total_arrival_rate,
                                                             self.estimated_service_time[f],
-                                                            self.estimated_service_time[f] + self.simulation.init_time[self.node],
+                                                            self.estimated_service_time[f] + self.simulation.init_time[(f,self.node)],
                                                             self.simulation.expiration_timeout)
                 self.cold_start_prob_local[f] = props1["cold_prob"]
         elif self.local_cold_start_estimation == ColdStartEstimation.NAIVE:
@@ -137,7 +141,7 @@ class ProbabilisticPolicy(Policy):
                         sum([self.arrival_rates.get((f,x), 0.0)*self.probs[(f,x)][1] for x in self.simulation.classes]))
                 props1, _ = perfmodel.get_sls_warm_count_dist(total_arrival_rate,
                                                             self.estimated_service_time_cloud[f],
-                                                            self.estimated_service_time_cloud[f] + self.simulation.init_time[self.node],
+                                                            self.estimated_service_time_cloud[f] + self.simulation.init_time[(f,self.node)],
                                                             self.simulation.expiration_timeout)
                 self.cold_start_prob_cloud[f] = props1["cold_prob"]
         elif self.cloud_cold_start_estimation == ColdStartEstimation.NAIVE:
@@ -168,7 +172,7 @@ class ProbabilisticPolicy(Policy):
                                                    self.arrival_rates,
                                                    self.estimated_service_time,
                                                    self.estimated_service_time_cloud,
-                                                   self.simulation.init_time[self.node],
+                                                   self.simulation.init_time,
                                                    self.cloud_rtt,
                                                    self.cold_start_prob_local,
                                                    self.cold_start_prob_cloud,
@@ -229,13 +233,16 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
 
         self.estimated_service_time_edge = {}
         for f in self.simulation.functions:
+            inittime = 0.0
             servtime = 0.0
             for neighbor, prob in zip(neighbors, neighbor_probs):
                 if stats.node2completions[(f, neighbor)] > 0:
                     servtime += prob* stats.execution_time_sum[(f, neighbor)] / stats.node2completions[(f, neighbor)]
+                inittime += prob*self.simulation.init_time[(f,neighbor)]
             if servtime == 0.0:
                 servtime = self.estimated_service_time[f]
             self.estimated_service_time_edge[f] = servtime
+            self.init_time_edge[f] = inittime
 
         self.estimate_edge_cold_start_prob(stats, neighbors, neighbor_probs)
 
@@ -249,7 +256,7 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
                 print(f"Offloaded rate: {f}: {total_offloaded_rate}")
                 props1, _ = perfmodel.get_sls_warm_count_dist(total_offloaded_rate,
                                                             self.estimated_service_time_edge[f],
-                                                            self.estimated_service_time_edge[f] + self.simulation.init_time[self.node],
+                                                            self.estimated_service_time_edge[f] + self.simulation.init_time[(f,self.node)],
                                                             self.simulation.expiration_timeout)
                 self.cold_start_prob_edge[f] = props1["cold_prob"]
         elif self.edge_cold_start_estimation == ColdStartEstimation.NAIVE:
@@ -288,7 +295,9 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
                                                    self.estimated_service_time,
                                                    self.estimated_service_time_cloud,
                                                    self.estimated_service_time_edge,
-                                                   self.simulation.init_time[self.node],
+                                                   self.init_time_local,
+                                                   self.init_time_cloud,
+                                                   self.init_time_edge,
                                                    self.cloud_rtt,
                                                    self.edge_rtt,
                                                    self.cold_start_prob_local,

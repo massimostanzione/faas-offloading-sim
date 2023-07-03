@@ -1,6 +1,5 @@
 SEC_CONTAINER = "container"
 EXPIRATION_TIMEOUT = "expiration-timeout"
-BASE_INIT_TIME = "init-time"
 
 SEC_SIM = "simulation"
 SEED = "seed"

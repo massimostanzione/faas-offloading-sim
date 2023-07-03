@@ -28,15 +28,15 @@ def update_probabilities (edge, cloud, sim, arrival_rates, serv_time, serv_time_
     for f,c in F_C:
         # TODO: we are assuming exponential distribution
         p = 0.0
-        if c.max_rt - init_time > 0.0:
-            p += cold_start_p_local[f]*(1.0 - math.exp(-1.0/serv_time[f]*(c.max_rt - init_time)))
+        if c.max_rt - init_time[(f,edge)] > 0.0:
+            p += cold_start_p_local[f]*(1.0 - math.exp(-1.0/serv_time[f]*(c.max_rt - init_time[(f,edge)])))
         if c.max_rt > 0.0:
             p += (1.0-cold_start_p_local[f])*(1.0 - math.exp(-1.0/serv_time[f]*c.max_rt))
         deadline_satisfaction_prob_edge[(f,c)] = p
 
         p = 0.0
-        if c.max_rt - init_time - offload_time > 0.0:
-            p += cold_start_p_cloud[f]*(1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt - init_time - offload_time)))
+        if c.max_rt - init_time[(f,cloud)] - offload_time > 0.0:
+            p += cold_start_p_cloud[f]*(1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt - init_time[(f,cloud)] - offload_time)))
         if c.max_rt - offload_time > 0.0:
             p += (1.0-cold_start_p_cloud[f])*(1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt-offload_time)))
         deadline_satisfaction_prob_cloud[(f,c)] = p

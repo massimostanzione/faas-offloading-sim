@@ -8,7 +8,7 @@ warm_start = False
 def update_probabilities (local, cloud, aggregated_edge_memory, sim,
                           arrival_rates,
                           serv_time, serv_time_cloud, serv_time_edge,
-                          init_time,
+                          init_time_local, init_time_cloud, init_time_edge,
                           offload_time_cloud, offload_time_edge,
                           cold_start_p_local, cold_start_p_cloud,
                           cold_start_p_edge):
@@ -32,22 +32,22 @@ def update_probabilities (local, cloud, aggregated_edge_memory, sim,
     # Probability of satisfying the deadline
     for f,c in F_C:
         p = 0.0
-        if c.max_rt - init_time > 0.0:
-            p += cold_start_p_local[f]*(1.0 - math.exp(-1.0/serv_time[f]*(c.max_rt - init_time)))
+        if c.max_rt - init_time_local[f] > 0.0:
+            p += cold_start_p_local[f]*(1.0 - math.exp(-1.0/serv_time[f]*(c.max_rt - init_time_local[f])))
         if c.max_rt > 0.0:
             p += (1.0-cold_start_p_local[f])*(1.0 - math.exp(-1.0/serv_time[f]*c.max_rt))
         deadline_satisfaction_prob_local[(f,c)] = p
 
         p = 0.0
-        if c.max_rt - init_time - offload_time_cloud > 0.0:
-            p += cold_start_p_cloud[f]*(1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt - init_time - offload_time_cloud)))
+        if c.max_rt - init_time_cloud[f] - offload_time_cloud > 0.0:
+            p += cold_start_p_cloud[f]*(1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt - init_time_cloud[f] - offload_time_cloud)))
         if c.max_rt - offload_time_cloud > 0.0:
             p += (1.0-cold_start_p_cloud[f])*(1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt-offload_time_cloud)))
         deadline_satisfaction_prob_cloud[(f,c)] = p
 
         p = 0.0
-        if c.max_rt - init_time - offload_time_edge > 0.0:
-            p += cold_start_p_edge[f]*(1.0 - math.exp(-1.0/serv_time_edge[f]*(c.max_rt - init_time - offload_time_edge)))
+        if c.max_rt - init_time_edge[f] - offload_time_edge > 0.0:
+            p += cold_start_p_edge[f]*(1.0 - math.exp(-1.0/serv_time_edge[f]*(c.max_rt - init_time_edge[f] - offload_time_edge)))
         if c.max_rt - offload_time_edge > 0.0:
             p += (1.0-cold_start_p_edge[f])*(1.0 - math.exp(-1.0/serv_time_edge[f]*(c.max_rt-offload_time_edge)))
         deadline_satisfaction_prob_edge[(f,c)] = p

@@ -51,7 +51,11 @@ class Policy:
     def _get_edge_peers_probabilities (self):
         peers = self._get_edge_peers()
         total_memory = sum([x.curr_memory for x in peers])
-        probs = [x.curr_memory/total_memory for x in peers]
+        if total_memory > 0.0:
+            probs = [x.curr_memory/total_memory for x in peers]
+        else:
+            n = len(peers)
+            probs = [1.0/n for x in peers]
         return probs, peers
 
     # Picks a node for Edge offloading
@@ -126,11 +130,11 @@ class GreedyPolicy(Policy):
 
         latency_local = self.estimated_service_time.get(f, 0) + \
                         self.cold_start_prob.get((f, self.node), 1) * \
-                        self.simulation.init_time[self.node]
+                        self.simulation.init_time[(f,self.node)]
 
         latency_cloud = self.estimated_service_time_cloud.get(f, 0) +\
                 2 * self.simulation.infra.get_latency(self.node, self.cloud) + \
-                        self.cold_start_prob.get((f, self.cloud), 1) * self.simulation.init_time[self.cloud]
+                        self.cold_start_prob.get((f, self.cloud), 1) * self.simulation.init_time[(f,self.cloud)]
 
         if self.can_execute_locally(f) and latency_local < latency_cloud:
             sched_decision = SchedulerDecision.EXEC
