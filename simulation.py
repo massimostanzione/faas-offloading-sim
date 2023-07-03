@@ -152,6 +152,13 @@ class Simulation:
         self.stats_file = sys.stdout
 
 
+        rt_print_filename = self.config.get(conf.SEC_SIM, conf.RESP_TIMES_FILE, fallback="")
+        if len(rt_print_filename) > 0:
+            self.resp_times_file = open(rt_print_filename, "w")
+        else:
+            self.resp_times_file = None
+
+
         self.expiration_timeout = self.config.getfloat(conf.SEC_CONTAINER, conf.EXPIRATION_TIMEOUT, fallback=600)
 
 
@@ -189,6 +196,9 @@ class Simulation:
                 self.stats.print(sys.stdout)
         else:
             self.stats.print(sys.stdout)
+
+        if self.resp_times_file is not None:
+            self.resp_times_file.close()
 
         if len(self.resp_time_samples) > 0:
             plot.plot_rt_cdf(self.resp_time_samples)
@@ -301,6 +311,9 @@ class Simulation:
 
         if n.cost > 0.0:
             self.stats.cost += duration * f.memory/1024 * n.cost
+
+        if self.resp_times_file is not None:
+            print(f"{f},{c},{n},{event.offloaded_from != None and len(event.offloaded_from) > 0},{rt}", file=self.resp_times_file)
 
         n.warm_pool.append((f, self.t + self.expiration_timeout))
         if self.external_arrivals_allowed:

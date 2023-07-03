@@ -3,5 +3,6 @@
 config.ini
 env/
 stats.txt
+resptimes.csv
 results*txt
 traces/

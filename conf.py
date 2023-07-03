@@ -10,6 +10,7 @@ STAT_PRINT_FILE = "stats-print-file"
 SPEC_FILE = "spec-file"
 EDGE_NEIGHBORS = "edge-neighbors"
 EDGE_EXPOSED_FRACTION = "edge-exposed-fraction"
+RESP_TIMES_FILE = "resp-times-file"
 
 SEC_POLICY = "policy"
 POLICY_NAME = "name"
