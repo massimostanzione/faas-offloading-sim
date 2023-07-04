@@ -4,6 +4,7 @@ import sys
 import pulp as pl
 
 warm_start = False
+VERBOSE=False
 
 def update_probabilities (local, cloud, aggregated_edge_memory, sim,
                           arrival_rates,
@@ -16,6 +17,12 @@ def update_probabilities (local, cloud, aggregated_edge_memory, sim,
     F = sim.functions
     C = sim.classes
     F_C = [(f,c) for f in F for c in C]
+
+    if VERBOSE:
+        print("------------------------------")
+        print(f"Edge memory: {aggregated_edge_memory}")
+        print(f"Arrival rates: {arrival_rates}")
+        print("------------------------------")
 
     prob = pl.LpProblem("MyProblem", pl.LpMaximize)
     x = pl.LpVariable.dicts("X", (F, C), 0, None, pl.LpContinuous)
@@ -54,6 +61,16 @@ def update_probabilities (local, cloud, aggregated_edge_memory, sim,
         if c.max_rt - offload_time_edge - tx_time > 0.0:
             p += (1.0-cold_start_p_edge[f])*(1.0 - math.exp(-1.0/serv_time_edge[f]*(c.max_rt-offload_time_edge - tx_time)))
         deadline_satisfaction_prob_edge[(f,c)] = p
+
+    if VERBOSE:
+        print("------------------------------")
+        print(f"ColdStart ProbL: {cold_start_p_local}")
+        print(f"ColdStart ProbC: {cold_start_p_cloud}")
+        print(f"ColdStart ProbE: {cold_start_p_edge}")
+        print(f"Deadline Sat ProbL: {deadline_satisfaction_prob_local}")
+        print(f"Deadline Sat ProbC: {deadline_satisfaction_prob_cloud}")
+        print(f"Deadline Sat ProbE: {deadline_satisfaction_prob_edge}")
+        print("------------------------------")
 
     #print("Sat prob C:")
     #print(deadline_satisfaction_prob_cloud)
@@ -98,8 +115,13 @@ def update_probabilities (local, cloud, aggregated_edge_memory, sim,
     if status != "Optimal":
         print(f"WARNING: solution status: {status}")
         return None
+    
+    obj = pl.value(prob.objective)
+    if obj is None:
+        print(f"WARNING: objective is None")
+        return None
 
-    print("Obj = ", pl.value(prob.objective))
+    print("Obj = ", obj)
     shares = {(f,c): pl.value(x[f][c]) for f,c in F_C}
     print(f"Shares: {shares}")
 

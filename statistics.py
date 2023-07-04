@@ -69,6 +69,8 @@ class Stats:
 
         stats["_Time"] = self.sim.t
 
+        stats["_Objective"] = stats["utility"] - stats["cost"]
+
         return stats
     
 

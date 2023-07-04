@@ -2,6 +2,7 @@ import os
 import math
 import sys
 import pulp as pl
+from optimizer2 import VERBOSE
 
 warm_start = False
 
@@ -48,6 +49,14 @@ def update_probabilities (edge, cloud, sim, arrival_rates, serv_time, serv_time_
                 pl.lpSum([cloud.cost*arrival_rates[(f,c)]*\
                        pO[f][c]*serv_time_cloud[f]*f.memory/1024 for f,c in F_C]) , "objUtilCost")
 
+    if VERBOSE:
+        print("------------------------------")
+        print(f"ColdStart ProbL: {cold_start_p_local}")
+        print(f"ColdStart ProbC: {cold_start_p_cloud}")
+        print(f"Deadline Sat ProbL: {deadline_satisfaction_prob_edge}")
+        print(f"Deadline Sat ProbC: {deadline_satisfaction_prob_cloud}")
+        print("------------------------------")
+
     # Probability
     for f,c in F_C:
         prob += (pE[f][c] + pO[f][c] + pD[f][c] == 1.0)
@@ -87,7 +96,13 @@ def update_probabilities (edge, cloud, sim, arrival_rates, serv_time, serv_time_
         print(f"WARNING: solution status: {status}")
         return None
 
-    print("Obj = ", pl.value(prob.objective))
+    obj = pl.value(prob.objective)
+    if obj is None:
+        print(f"WARNING: objective is None")
+        return None
+
+    print("Obj = ", obj)
+
     shares = {(f,c): pl.value(x[f][c]) for f,c in F_C}
     print(f"Shares: {shares}")
 

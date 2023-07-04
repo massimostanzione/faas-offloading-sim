@@ -8,11 +8,11 @@ config = main.parse_config_file()
 config.set(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, "-1")
 
 #POLICIES = ["probabilistic", "greedy", "greedy-min-cost", "basic", "random"]
-POLICIES = ["probabilistic", "greedy"]
-SEEDS = [1,2,53,12,567]
+POLICIES = ["probabilistic", "probabilistic2", "greedy"]
+SEEDS = [1]
 
 results = []
-COL_NAMES = ["Policy", "Seeds", "Utility", "Cost"]
+COL_NAMES = ["Policy", "Seeds", "Objective", "Utility", "Cost"]
 
 
 for policy in POLICIES:
@@ -22,7 +22,7 @@ for policy in POLICIES:
         simulation = main.init_simulation(config)
         stats = simulation.run()
 
-        results.append((policy,s1,stats.utility, stats.cost))
+        results.append((policy,s1, stats.utility-stats.cost, stats.utility, stats.cost))
 
 df = pd.DataFrame(results, columns=COL_NAMES)
 mean_df = df.groupby("Policy").mean()
