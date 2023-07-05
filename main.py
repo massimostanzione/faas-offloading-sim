@@ -1,4 +1,3 @@
-import configparser
 import sys
 import yaml
 
@@ -8,12 +7,6 @@ from arrivals import PoissonArrivalProcess, TraceArrivalProcess
 from simulation import Simulation
 from infrastructure import *
 
-def parse_config_file():
-    DEFAULT_CONFIG_FILE = "config.ini"
-    config_file = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_CONFIG_FILE
-    config = configparser.ConfigParser()
-    config.read(config_file)
-    return config
 
 def read_spec_file (spec_file_name, infra):
     with open(spec_file_name, "r") as stream:
@@ -100,7 +93,9 @@ def init_simulation (config):
     return sim
 
 def main():
-    config = parse_config_file()
+    DEFAULT_CONFIG_FILE = "config.ini"
+    config_file = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_CONFIG_FILE
+    config = conf.parse_config_file(config_file)
     simulation = init_simulation(config)
     final_stats = simulation.run()
 
