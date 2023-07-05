@@ -13,6 +13,7 @@ from main import read_spec_file
 DEFAULT_CONFIG_FILE = "config.ini"
 DEFAULT_OUT_DIR = "results"
 DEFAULT_DURATION = 3600
+SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
 
 
 def print_results (results, filename=None):
@@ -46,19 +47,15 @@ def _experiment (config):
 def relevant_stats_dict (stats):
     result = {}
     result["Utility"] = stats.utility
+    result["Cost"] = stats.cost
     return result
 
 
 
-def experiment_main_comparison(args, debug=False):
-    config = conf.parse_config_file(DEFAULT_CONFIG_FILE)
-    config.set(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, "-1")
-    config.set(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, str(DEFAULT_DURATION))
-
+def experiment_main_comparison(args, config):
     results = []
     outfile=os.path.join(DEFAULT_OUT_DIR,"mainComparison.csv")
 
-    SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
     POLICIES = ["probabilistic", "probabilistic2", "greedy"]
 
     # Check existing results
@@ -79,6 +76,8 @@ def experiment_main_comparison(args, debug=False):
             keys["Policy"] = pol
             keys["Seed"] = seed
 
+            run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
+
             # Check if we can skip this run
             if old_results is not None and not\
                     old_results[(old_results.Seed == seed) &\
@@ -86,8 +85,9 @@ def experiment_main_comparison(args, debug=False):
                 print("Skipping conf")
                 continue
 
-            # TODO: save to file?
             stats = _experiment(config)
+            with open(os.path.join(DEFAULT_OUT_DIR, f"mainComparison_{run_string}.json"), "w") as of:
+                stats.print(of)
 
             result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
             results.append(result)
@@ -104,11 +104,20 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--experiment', action='store', required=False, default="", type=str)
     parser.add_argument('--force', action='store_true', required=False, default=False)
+    parser.add_argument('--debug', action='store_true', required=False, default=False)
 
     args = parser.parse_args()
+
+    config = conf.parse_config_file(DEFAULT_CONFIG_FILE)
+    config.set(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, "-1")
+    config.set(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, str(DEFAULT_DURATION))
+
+    if args.debug:
+        args.force = True
+        SEEDS=SEEDS[:1]
     
     if args.experiment.lower() == "a":
-        experiment_main_comparison(args)
+        experiment_main_comparison(args, config)
     else:
         print("Unknown experiment!")
         exit(1)
