@@ -1,7 +1,6 @@
 import sys
-import re
+import os
 import argparse
-import numpy as np
 import pandas as pd
 
 import faas
@@ -12,6 +11,8 @@ from infrastructure import *
 from main import read_spec_file
 
 DEFAULT_CONFIG_FILE = "config.ini"
+DEFAULT_OUT_DIR = "results"
+DEFAULT_DURATION = 3600
 
 
 def print_results (results, filename=None):
@@ -42,23 +43,31 @@ def _experiment (config):
     final_stats = sim.run()
     return final_stats
 
+def relevant_stats_dict (stats):
+    result = {}
+    result["Utility"] = stats.utility
+    return result
+
+
 
 def experiment_main_comparison(args, debug=False):
     config = conf.parse_config_file(DEFAULT_CONFIG_FILE)
-    config.set(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, "2")
+    config.set(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, "-1")
+    config.set(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, str(DEFAULT_DURATION))
 
     results = []
-    outfile="resultsMainComparison.csv"
+    outfile=os.path.join(DEFAULT_OUT_DIR,"mainComparison.csv")
 
-    #SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
-    SEEDS=[1]
+    SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
     POLICIES = ["probabilistic", "probabilistic2", "greedy"]
 
     # Check existing results
-    try:
-        old_results = pd.read_csv(outfile)
-    except:
-        old_results = None
+    old_results = None
+    if not args.force:
+        try:
+            old_results = pd.read_csv(outfile)
+        except:
+            pass
 
     for seed in SEEDS:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
@@ -66,21 +75,21 @@ def experiment_main_comparison(args, debug=False):
         for pol in POLICIES:
             config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
 
+            keys = {}
+            keys["Policy"] = pol
+            keys["Seed"] = seed
+
             # Check if we can skip this run
-            if old_results is not None:
-                if not old_results[(old_results.Seed == seed) &\
+            if old_results is not None and not\
+                    old_results[(old_results.Seed == seed) &\
                         (old_results.Policy == pol)].empty:
-                    print("Skipping conf")
-                    continue
+                print("Skipping conf")
+                continue
 
-
+            # TODO: save to file?
             stats = _experiment(config)
 
-            result = {}
-            result["Policy"] = pol
-            result["Seed"] = seed
-            result["Utility"] = stats.utility
-
+            result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
             results.append(result)
             print(result)
     
@@ -94,6 +103,7 @@ def experiment_main_comparison(args, debug=False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--experiment', action='store', required=False, default="", type=str)
+    parser.add_argument('--force', action='store_true', required=False, default=False)
 
     args = parser.parse_args()
     
