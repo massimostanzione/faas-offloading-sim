@@ -108,7 +108,6 @@ class GreedyPolicy(Policy):
         self.cold_start_prob_cloud = {}
         self.estimated_service_time = {}
         self.estimated_service_time_cloud = {}
-        self.estimated_latency = 0
 
         self.local_cold_start_estimation = ColdStartEstimation(self.simulation.config.get(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))
         self.cloud_cold_start_estimation = ColdStartEstimation(self.simulation.config.get(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))

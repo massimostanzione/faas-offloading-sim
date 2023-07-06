@@ -35,6 +35,7 @@ class Arrival(Event):
     qos_class: QoSClass
     arrival_proc: ArrivalProcess = None
     offloaded_from: [Node] = field(default_factory=list)
+    original_arrival_time: float = None
 
 @dataclass
 class CheckExpiredContainers(Event):
@@ -155,6 +156,7 @@ class Simulation:
         rt_print_filename = self.config.get(conf.SEC_SIM, conf.RESP_TIMES_FILE, fallback="")
         if len(rt_print_filename) > 0:
             self.resp_times_file = open(rt_print_filename, "w")
+            print(f"Function,Class,Node,Offloaded,Cold,RT", file=self.resp_times_file)
         else:
             self.resp_times_file = None
 
@@ -313,7 +315,7 @@ class Simulation:
             self.stats.cost += duration * f.memory/1024 * n.cost
 
         if self.resp_times_file is not None:
-            print(f"{f},{c},{n},{event.offloaded_from != None and len(event.offloaded_from) > 0},{rt}", file=self.resp_times_file)
+            print(f"{f},{c},{n},{event.offloaded_from != None and len(event.offloaded_from) > 0},{event.cold},{rt}", file=self.resp_times_file)
 
         n.warm_pool.append((f, self.t + self.expiration_timeout))
         if self.external_arrivals_allowed:
@@ -325,6 +327,7 @@ class Simulation:
         transfer_time = arrival.function.inputSizeMean*8/1000/1000/self.infra.get_bandwidth(arrival.node, target_node)
         remote_arv = Arrival(target_node, arrival.function, arrival.qos_class, offloaded_from=arrival.offloaded_from.copy())
         remote_arv.offloaded_from.append(arrival.node)
+        remote_arv.original_arrival_time = self.t
 
         self.schedule(self.t + latency + OFFLOADING_OVERHEAD + transfer_time, remote_arv)
 
@@ -354,7 +357,8 @@ class Simulation:
                 n.curr_memory -= f.memory
                 self.stats.cold_starts[(f,n)] += 1
                 init_time = self.init_time[(f,n)]
-            self.schedule(self.t + init_time + duration, Completion(self.t, f,c, n, init_time > 0, duration, event.offloaded_from))
+            arrival_time = self.t if event.original_arrival_time is None else event.original_arrival_time
+            self.schedule(self.t + init_time + duration, Completion(arrival_time, f,c, n, init_time > 0, duration, event.offloaded_from))
         elif sched_decision == SchedulerDecision.DROP:
             self.stats.dropped_reqs[(f,c,n)] += 1
         elif sched_decision == SchedulerDecision.OFFLOAD_CLOUD:
