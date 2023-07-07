@@ -41,6 +41,9 @@ class ContainerPool:
             if f.name == entry[0].name:
                 return True
         return False
+    
+    def __repr__ (self):
+        return repr(self.pool)
 
 class Node:
 

@@ -1,10 +1,11 @@
 import os
+import conf
 import math
 import sys
 import pulp as pl
 
 warm_start = False
-VERBOSE=False
+BETA_COST=0.0
 
 def update_probabilities (local, cloud, aggregated_edge_memory, sim,
                           arrival_rates,
@@ -13,12 +14,15 @@ def update_probabilities (local, cloud, aggregated_edge_memory, sim,
                           offload_time_cloud, offload_time_edge,
                           bandwidth_cloud, bandwidth_edge,
                           cold_start_p_local, cold_start_p_cloud,
-                          cold_start_p_edge):
+                          cold_start_p_edge,budget=-1):
+    VERBOSE = sim.verbosity
+    MEM_MAX_UTIL = sim.config.getfloat(conf.SEC_POLICY, conf.FUNC_MEMORY_MAX_UTILIZATION, fallback=0.75)
+
     F = sim.functions
     C = sim.classes
     F_C = [(f,c) for f in F for c in C]
 
-    if VERBOSE:
+    if VERBOSE > 1:
         print("------------------------------")
         print(f"Edge memory: {aggregated_edge_memory}")
         print(f"Arrival rates: {arrival_rates}")
@@ -62,7 +66,7 @@ def update_probabilities (local, cloud, aggregated_edge_memory, sim,
             p += (1.0-cold_start_p_edge[f])*(1.0 - math.exp(-1.0/serv_time_edge[f]*(c.max_rt-offload_time_edge - tx_time)))
         deadline_satisfaction_prob_edge[(f,c)] = p
 
-    if VERBOSE:
+    if VERBOSE > 1:
         print("------------------------------")
         print(f"ColdStart ProbL: {cold_start_p_local}")
         print(f"ColdStart ProbC: {cold_start_p_cloud}")
@@ -72,20 +76,11 @@ def update_probabilities (local, cloud, aggregated_edge_memory, sim,
         print(f"Deadline Sat ProbE: {deadline_satisfaction_prob_edge}")
         print("------------------------------")
 
-    #print("Sat prob C:")
-    #print(deadline_satisfaction_prob_cloud)
-    #print(offload_time_cloud)
-    #print(serv_time_cloud)
-    #print("Sat prob E:")
-    #print(deadline_satisfaction_prob_edge)
-    #print(offload_time_edge)
-    #print(serv_time_edge)
-
     prob += (pl.lpSum([c.utility*arrival_rates[(f,c)]*\
                        (pL[f][c]*deadline_satisfaction_prob_local[(f,c)]+\
                        pE[f][c]*deadline_satisfaction_prob_edge[(f,c)]+\
                        pC[f][c]*deadline_satisfaction_prob_cloud[(f,c)]) for f,c in F_C]) -\
-                pl.lpSum([cloud.cost*arrival_rates[(f,c)]*\
+                BETA_COST*pl.lpSum([cloud.cost*arrival_rates[(f,c)]*\
                        pC[f][c]*serv_time_cloud[f]*f.memory/1024 for f,c in F_C]) , "objUtilCost")
 
     # Probability
@@ -101,6 +96,10 @@ def update_probabilities (local, cloud, aggregated_edge_memory, sim,
         prob += (pL[f][c]*arrival_rates[(f,c)]*serv_time[f] <= x[f][c])
         prob += (pE[f][c]*arrival_rates[(f,c)]*serv_time_edge[f] <= y[f][c])
 
+    # Max memory utilization
+    for f in F:
+        prob += (pl.lpSum([f.memory*x[f][c] for c in C]) <= MEM_MAX_UTIL*local.total_memory)
+
     class_arrival_rates = {}
     for c in C:
         class_arrival_rates[c] = sum([arrival_rates[(f,c)] for f in F if c in C])
@@ -109,7 +108,11 @@ def update_probabilities (local, cloud, aggregated_edge_memory, sim,
     for c in C:
         if c.min_completion_percentage > 0.0 and class_arrival_rates[c] > 0.0:
             prob += (pl.lpSum([pD[f][c]*arrival_rates[(f,c)] for f in F])/class_arrival_rates[c]                     <= 1 - c.min_completion_percentage)
-
+    
+    # Max hourly budget
+    if budget is not None and budget > 0.0:
+        prob += (pl.lpSum([cloud.cost*arrival_rates[(f,c)]*\
+                       pC[f][c]*serv_time_cloud[f]*f.memory/1024 for f,c in F_C]) <= budget/3600)
 
     status = solve(prob)
     if status != "Optimal":
@@ -120,21 +123,33 @@ def update_probabilities (local, cloud, aggregated_edge_memory, sim,
     if obj is None:
         print(f"WARNING: objective is None")
         return None
-
-    print("Obj = ", obj)
-    shares = {(f,c): pl.value(x[f][c]) for f,c in F_C}
-    print(f"Shares: {shares}")
+    
+    if VERBOSE > 0:
+        print("Obj = ", obj)
+        shares = {(f,c): pl.value(x[f][c]) for f,c in F_C}
+        print(f"Shares: {shares}")
 
     probs = {(f,c): [pl.value(pL[f][c]),
                      pl.value(pC[f][c]),
                      pl.value(pE[f][c]),
                      pl.value(pD[f][c])] for f,c in F_C}
 
+    # Expected cost
+    #ec = 0
+    #ctput = 0
+    #for f,c in F_C:
+    #    ec += cloud.cost*arrival_rates[(f,c)]*pl.value(pC[f][c])*serv_time_cloud[f]*f.memory/1024
+    #    ctput += arrival_rates[(f,c)]*pl.value(pC[f][c])
+    #print(f"Expected cost: {ec:.5f} ({budget/3600:.5f})")
+    #print(f"Expected cloud throughput: {ctput:.1f}")
+
+
     # Workaround to avoid numerical issues
     for f,c in F_C:
-        print(f"{f}-{c}: {probs[(f,c)]}")
         s = sum(probs[(f,c)])
         probs[(f,c)] = [x/s for x in probs[(f,c)]]
+        if VERBOSE > 0:
+            print(f"{f}-{c}: {probs[(f,c)]}")
     return probs
 
 def solve (problem):

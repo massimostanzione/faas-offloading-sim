@@ -11,6 +11,7 @@ SPEC_FILE = "spec-file"
 EDGE_NEIGHBORS = "edge-neighbors"
 EDGE_EXPOSED_FRACTION = "edge-exposed-fraction"
 RESP_TIMES_FILE = "resp-times-file"
+VERBOSITY = "verbosity"
 
 SEC_POLICY = "policy"
 POLICY_NAME = "name"
@@ -19,6 +20,8 @@ POLICY_ARRIVAL_RATE_ALPHA = "arrival-alpha"
 LOCAL_COLD_START_EST_STRATEGY = "local-cold-start-estimation"
 CLOUD_COLD_START_EST_STRATEGY = "cloud-cold-start-estimation"
 EDGE_COLD_START_EST_STRATEGY = "edge-cold-start-estimation"
+HOURLY_BUDGET = "budget"
+FUNC_MEMORY_MAX_UTILIZATION = "func-memory-max-util"
 
 import configparser
 

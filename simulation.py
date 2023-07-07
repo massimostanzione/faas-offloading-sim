@@ -86,6 +86,8 @@ class Simulation:
         self.first_stat_print = True
         self.external_arrivals_allowed = True
 
+        self.verbosity = self.config.getint(conf.SEC_SIM, conf.VERBOSITY, fallback=0)
+
         # Seeds
         seed = self.config.getint(conf.SEC_SIM, conf.SEED, fallback=1)
         ss = SeedSequence(seed)

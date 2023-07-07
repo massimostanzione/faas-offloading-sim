@@ -16,7 +16,7 @@ def read_spec_file (spec_file_name, infra):
         classes = []
         for c in spec["classes"]:
             classname = c["name"]
-            arrival_weight = c.get("arrival-weight", 1.0)
+            arrival_weight = c.get("arrival_weight", 1.0)
             utility = c.get("utility", 1.0)
             deadline = c.get("max_resp_time", 1.0)
             newclass = faas.QoSClass(classname, deadline, arrival_weight, utility=utility)

@@ -6,7 +6,6 @@ import conf
 import optimizer, optimizer2
 from policy import Policy, SchedulerDecision, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS
 
-
 class ProbabilisticPolicy(Policy):
 
     # Probability vector: p_e, p_o, p_d
@@ -15,6 +14,8 @@ class ProbabilisticPolicy(Policy):
         super().__init__(simulation, node)
         cloud_region = node.region.default_cloud
         self.cloud = self.simulation.node_choice_rng.choice(self.simulation.infra.get_region_nodes(cloud_region), 1)[0]
+
+        self.budget = simulation.config.getfloat(conf.SEC_POLICY, conf.HOURLY_BUDGET, fallback=-1.0)
 
         self.rng = self.simulation.policy_rng1
         self.stats_snapshot = None
@@ -41,12 +42,17 @@ class ProbabilisticPolicy(Policy):
         self.init_time_edge = {} # updated periodically
 
         self.possible_decisions = [SchedulerDecision.EXEC, SchedulerDecision.OFFLOAD_CLOUD, SchedulerDecision.DROP]
-        self.probs = {(f, c): [0.8, 0.2, 0.] for f in simulation.functions for c in simulation.classes}
+        self.probs = {(f, c): [0.5, 0.5, 0.] for f in simulation.functions for c in simulation.classes}
 
     def schedule(self, f, c, offloaded_from):
         probabilities = self.probs[(f, c)]
         decision = self.rng.choice(self.possible_decisions, p=probabilities)
         if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
+
+            # check if we can afford a Cloud offloading
+            if self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
+                return SchedulerDecision.DROP
+
             nolocal_prob = sum(probabilities[1:])
             if nolocal_prob > 0.0:
                 decision = self.rng.choice([SchedulerDecision.OFFLOAD_CLOUD, SchedulerDecision.DROP],
@@ -68,6 +74,7 @@ class ProbabilisticPolicy(Policy):
 
         self.estimated_service_time = {}
         self.estimated_service_time_cloud = {}
+
         for f in self.simulation.functions:
             if stats.node2completions[(f, self.node)] > 0:
                 self.estimated_service_time[f] = stats.execution_time_sum[(f, self.node)] / \
@@ -79,13 +86,19 @@ class ProbabilisticPolicy(Policy):
                                                   stats.node2completions[(f, self.cloud)]
             else:
                 self.estimated_service_time_cloud[f] = 0.1
-
+        
+        expected_compl = {}
+        expected_drop = {}
+        expected_offload = {}
         if self.stats_snapshot is not None:
             arrival_rates = {}
             for f, c, n in stats.arrivals:
                 if n != self.node:
                     continue
                 new_arrivals = stats.arrivals[(f, c, self.node)] - self.stats_snapshot["arrivals"][repr((f, c, n))]
+                expected_compl[(f,c)] = new_arrivals*self.probs[(f,c)][0]
+                expected_offload[(f,c)] = new_arrivals*self.probs[(f,c)][1]
+                expected_drop[(f,c)] = new_arrivals*self.probs[(f,c)][2]
                 new_rate = new_arrivals / (self.simulation.t - self.last_update_time)
                 self.arrival_rates[(f, c)] = self.arrival_rate_alpha * new_rate + \
                                              (1.0 - self.arrival_rate_alpha) * self.arrival_rates[(f, c)]
@@ -101,6 +114,38 @@ class ProbabilisticPolicy(Policy):
 
         self.cloud_rtt = 2 * self.simulation.infra.get_latency(self.node, self.cloud)
         self.cloud_bw = self.simulation.infra.get_bandwidth(self.node, self.cloud)
+
+        # Empirical probabilities
+        if self.node.name == "edge1":
+            if self.stats_snapshot is not None:
+                local_completions_0 = sum([\
+                        self.stats_snapshot["node2completions"][repr((f, self.node))] \
+                        for f in self.simulation.functions\
+                    ])
+                local_completions = sum([\
+                        stats.node2completions[(f, self.node)] \
+                        for f in self.simulation.functions]) - local_completions_0
+                offloaded_0 = sum([\
+                        self.stats_snapshot["offloaded"][repr((f, c, self.node))] \
+                        for f in self.simulation.functions for c in self.simulation.classes\
+                    ])
+                offloaded = sum([\
+                        stats.offloaded[(f, c, self.node)] \
+                        for f in self.simulation.functions for c in self.simulation.classes]) - offloaded_0
+                dropped_0 = sum([\
+                        self.stats_snapshot["dropped_reqs"][repr((f, c, self.node))] \
+                        for f in self.simulation.functions for c in self.simulation.classes\
+                    ])
+                dropped = sum([\
+                        stats.dropped_reqs[(f, c, self.node)] \
+                        for f in self.simulation.functions for c in self.simulation.classes]) - dropped_0
+                total = offloaded + dropped + local_completions
+                exp_compl = sum(expected_compl.values())
+                exp_offload = sum(expected_offload.values())
+                exp_drop = sum(expected_drop.values())
+                exp_total = exp_compl + exp_offload + exp_drop
+                print(f"{local_completions/total:.2f} - {offloaded/total:.2f} - {dropped/total:.2f}")
+                print(f"{exp_compl/exp_total:.2f} - {exp_offload/exp_total:.2f} - {exp_drop/exp_total:.2f}")
 
     def estimate_cold_start_prob (self, stats):
         #
@@ -179,7 +224,8 @@ class ProbabilisticPolicy(Policy):
                                                    bandwidth,
                                                    self.cold_start_prob_local,
                                                    self.cold_start_prob_cloud,
-                                                   self.rt_percentile)
+                                                   self.rt_percentile,
+                                                   self.budget)
         if new_probs is not None:
             self.probs = new_probs
             print(f"[{self.node}] Probs: {self.probs}")
@@ -198,25 +244,26 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
         self.edge_rtt = 0.0
         self.cold_start_prob_edge = {}
 
+
         self.possible_decisions = list(SchedulerDecision)
         self.probs = {(f, c): [0.8, 0.2, 0., 0.] for f in simulation.functions for c in simulation.classes}
 
     def schedule(self, f, c, offloaded_from):
         probabilities = self.probs[(f, c)].copy()
         
-        # If the request has already been offloaded, cannot offload again to
-        # Edge
+        # If the request has already been offloaded, cannot offload again
         if len(offloaded_from) > 0: 
             probabilities[SchedulerDecision.OFFLOAD_EDGE.value-1] = 0
+            probabilities[SchedulerDecision.OFFLOAD_CLOUD.value-1] = 0
             s = sum(probabilities)
             if not s > 0.0:
-                return SchedulerDecision.OFFLOAD_CLOUD
+                return SchedulerDecision.DROP  # TODO
             probabilities = [x/s for x in probabilities]
         if not self.can_execute_locally(f):
             probabilities[SchedulerDecision.EXEC.value-1] = 0
             s = sum(probabilities)
             if not s > 0.0:
-                return SchedulerDecision.OFFLOAD_CLOUD
+                return SchedulerDecision.DROP # TODO
             probabilities = [x/s for x in probabilities]
 
         return self.rng.choice(self.possible_decisions, p=probabilities)
@@ -308,7 +355,8 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
                                                    self.edge_bw,
                                                    self.cold_start_prob_local,
                                                    self.cold_start_prob_cloud,
-                                                   self.cold_start_prob_edge)
+                                                   self.cold_start_prob_edge,
+                                                   self.budget)
         if new_probs is not None:
             self.probs = new_probs
             print(f"[{self.node}] Probs: {self.probs}")

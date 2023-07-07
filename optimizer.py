@@ -1,13 +1,16 @@
 import os
+import conf
 import math
 import sys
 import pulp as pl
-from optimizer2 import VERBOSE
 
 warm_start = False
 
 def update_probabilities (edge, cloud, sim, arrival_rates, serv_time, serv_time_cloud,
-                          init_time, offload_time, edge_cloud_bandwidth, cold_start_p_local, cold_start_p_cloud, required_percentile=-1.0):
+                          init_time, offload_time, edge_cloud_bandwidth, cold_start_p_local, cold_start_p_cloud, required_percentile=-1.0,budget=-1):
+    VERBOSE = sim.verbosity
+    MEM_MAX_UTIL = sim.config.getfloat(conf.SEC_POLICY, conf.FUNC_MEMORY_MAX_UTILIZATION, fallback=0.75)
+
     F = sim.functions
     C = sim.classes
     F_C = [(f,c) for f in F for c in C]
@@ -49,7 +52,7 @@ def update_probabilities (edge, cloud, sim, arrival_rates, serv_time, serv_time_
                 pl.lpSum([cloud.cost*arrival_rates[(f,c)]*\
                        pO[f][c]*serv_time_cloud[f]*f.memory/1024 for f,c in F_C]) , "objUtilCost")
 
-    if VERBOSE:
+    if VERBOSE > 1:
         print("------------------------------")
         print(f"ColdStart ProbL: {cold_start_p_local}")
         print(f"ColdStart ProbC: {cold_start_p_cloud}")
@@ -63,6 +66,10 @@ def update_probabilities (edge, cloud, sim, arrival_rates, serv_time, serv_time_
 
     # Memory
     prob += (pl.lpSum([f.memory*x[f][c] for f,c in F_C]) <= edge.total_memory)
+
+    # Max memory utilization
+    for f in F:
+        prob += (pl.lpSum([f.memory*x[f][c] for c in C]) <= MEM_MAX_UTIL*edge.total_memory)
 
     # Share
     for f,c in F_C:
@@ -83,6 +90,11 @@ def update_probabilities (edge, cloud, sim, arrival_rates, serv_time, serv_time_
                      for f in invoked_functions[c] if c in C])/class_arrival_rates[c]
                      >= required_percentile)
 
+    # Max hourly budget
+    if budget is not None and budget > 0.0:
+        prob += (pl.lpSum([cloud.cost*arrival_rates[(f,c)]*\
+                       pO[f][c]*serv_time_cloud[f]*f.memory/1024 for f,c in F_C]) <= budget/3600)
+
     # Min completion
     for c in C:
         if c.min_completion_percentage > 0.0 and class_arrival_rates[c] > 0.0:
@@ -100,11 +112,11 @@ def update_probabilities (edge, cloud, sim, arrival_rates, serv_time, serv_time_
     if obj is None:
         print(f"WARNING: objective is None")
         return None
-
-    print("Obj = ", obj)
-
-    shares = {(f,c): pl.value(x[f][c]) for f,c in F_C}
-    print(f"Shares: {shares}")
+    
+    if VERBOSE > 0:
+        print("Obj = ", obj)
+        shares = {(f,c): pl.value(x[f][c]) for f,c in F_C}
+        print(f"Shares: {shares}")
 
     probs = {(f,c): [pl.value(pE[f][c]),
                      pl.value(pO[f][c]),
@@ -112,9 +124,10 @@ def update_probabilities (edge, cloud, sim, arrival_rates, serv_time, serv_time_
 
     # Workaround to avoid numerical issues
     for f,c in F_C:
-        print(f"{f}-{c}: {probs[(f,c)]}")
         s = sum(probs[(f,c)])
         probs[(f,c)] = [x/s for x in probs[(f,c)]]
+        if VERBOSE > 0:
+            print(f"{f}-{c}: {probs[(f,c)]}")
     return probs
 
 def solve (problem):
