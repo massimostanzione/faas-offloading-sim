@@ -48,6 +48,7 @@ def relevant_stats_dict (stats):
     result = {}
     result["Utility"] = stats.utility
     result["Cost"] = stats.cost
+    result["BudgetExcessPerc"] = max(0, (stats.cost-stats.budget)/stats.budget*100)
     return result
 
 
@@ -56,7 +57,7 @@ def experiment_main_comparison(args, config):
     results = []
     outfile=os.path.join(DEFAULT_OUT_DIR,"mainComparison.csv")
 
-    POLICIES = ["probabilistic", "probabilistic2", "greedy"]
+    POLICIES = ["probabilistic", "probabilistic2", "greedy", "greedy-min-cost", "greedy-budget"]
 
     # Check existing results
     old_results = None
@@ -97,6 +98,7 @@ def experiment_main_comparison(args, config):
     if old_results is not None:
         resultsDf = pd.concat([old_results, resultsDf])
     resultsDf.to_csv(outfile, index=False)
+    print(resultsDf)
 
 
 

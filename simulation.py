@@ -126,6 +126,8 @@ class Simulation:
             return probabilistic.ProbabilisticPolicy2(self, node)
         elif configured_policy == "greedy":
             return policy.GreedyPolicy(self, node)
+        elif configured_policy == "greedy-budget":
+            return policy.GreedyBudgetAware(self, node)
         elif configured_policy == "greedy-min-cost":
             return policy.GreedyPolicyWithCostMinimization(self, node)
         elif configured_policy == "random":

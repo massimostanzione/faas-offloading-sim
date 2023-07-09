@@ -59,11 +59,14 @@ def update_probabilities (local, cloud, aggregated_edge_memory, sim,
         deadline_satisfaction_prob_cloud[(f,c)] = p
 
         p = 0.0
-        tx_time = f.inputSizeMean*8/1000/1000/bandwidth_edge
-        if c.max_rt - init_time_edge[f] - offload_time_edge - tx_time > 0.0:
-            p += cold_start_p_edge[f]*(1.0 - math.exp(-1.0/serv_time_edge[f]*(c.max_rt - init_time_edge[f] - offload_time_edge - tx_time)))
-        if c.max_rt - offload_time_edge - tx_time > 0.0:
-            p += (1.0-cold_start_p_edge[f])*(1.0 - math.exp(-1.0/serv_time_edge[f]*(c.max_rt-offload_time_edge - tx_time)))
+        try:
+            tx_time = f.inputSizeMean*8/1000/1000/bandwidth_edge
+            if c.max_rt - init_time_edge[f] - offload_time_edge - tx_time > 0.0:
+                p += cold_start_p_edge[f]*(1.0 - math.exp(-1.0/serv_time_edge[f]*(c.max_rt - init_time_edge[f] - offload_time_edge - tx_time)))
+            if c.max_rt - offload_time_edge - tx_time > 0.0:
+                p += (1.0-cold_start_p_edge[f])*(1.0 - math.exp(-1.0/serv_time_edge[f]*(c.max_rt-offload_time_edge - tx_time)))
+        except:
+            pass
         deadline_satisfaction_prob_edge[(f,c)] = p
 
     if VERBOSE > 1:

@@ -115,7 +115,7 @@ class GreedyPolicy(Policy):
         cloud_region = node.region.default_cloud
         self.cloud = self.simulation.node_choice_rng.choice(self.simulation.infra.get_region_nodes(cloud_region), 1)[0]
 
-    def schedule(self, f, c, offloaded_from):
+    def _estimate_latency (self, f, c):
         if self.local_cold_start_estimation == ColdStartEstimation.FULL_KNOWLEDGE:
             if f in self.node.warm_pool:
                 self.cold_start_prob[(f, self.node)] = 0
@@ -135,6 +135,10 @@ class GreedyPolicy(Policy):
                 2 * self.simulation.infra.get_latency(self.node, self.cloud) + \
                         self.cold_start_prob.get((f, self.cloud), 1) * self.simulation.init_time[(f,self.cloud)] +\
                         f.inputSizeMean*8/1000/1000/self.simulation.infra.get_bandwidth(self.node, self.cloud)
+        return (latency_local, latency_cloud)
+
+    def schedule(self, f, c, offloaded_from):
+        latency_local, latency_cloud = self._estimate_latency(f,c)
 
         if self.can_execute_locally(f) and latency_local < latency_cloud:
             sched_decision = SchedulerDecision.EXEC
@@ -226,6 +230,26 @@ class GreedyPolicy(Policy):
             print(f, self.estimated_service_time[f], self.estimated_service_time_cloud[f])
 
         self.update_cold_start(stats)
+
+class GreedyBudgetAware(GreedyPolicy):
+
+    def __init__ (self, simulation, node):
+        super().__init__(simulation, node)
+        self.budget = simulation.config.getfloat(conf.SEC_POLICY, conf.HOURLY_BUDGET, fallback=-1.0)
+
+    def schedule(self, f, c, offloaded_from):
+        latency_local, latency_cloud = self._estimate_latency(f,c)
+        local_ok = self.can_execute_locally(f)
+        budget_ok = self.simulation.stats.cost / self.simulation.t * 3600 < self.budget
+
+        if not budget_ok and not local_ok:
+            return SchedulerDecision.DROP
+        if local_ok and latency_local < latency_cloud:
+            return SchedulerDecision.EXEC
+        if budget_ok:
+            return SchedulerDecision.OFFLOAD_CLOUD
+        else:
+            return SchedulerDecision.EXEC
 
 
 class GreedyPolicyWithCostMinimization(GreedyPolicy):

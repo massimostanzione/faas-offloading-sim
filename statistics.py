@@ -1,4 +1,5 @@
 import json
+import conf
 
 class Stats:
 
@@ -25,6 +26,8 @@ class Stats:
         self.raw_utility = 0.0
         self.utility = 0.0
         self.utility_detail = {x: 0.0 for x in fcn}
+
+        self.budget = self.sim.config.getfloat(conf.SEC_POLICY, conf.HOURLY_BUDGET, fallback=-1.0)
 
     def to_dict (self):
         stats = {}
@@ -66,6 +69,8 @@ class Stats:
             class_rt[repr(c)] = rt_sum/class_completions[repr(c)]
         stats["perClassCompleted"] = class_completions
         stats["perClassAvgRT"] = class_rt
+
+        stats["budgetExceededPercentage"] = max(0, (self.cost-self.budget)/self.budget)
 
         stats["_Time"] = self.sim.t
 
