@@ -16,6 +16,7 @@ class Stats:
         self.ext_arrivals = {x: 0 for x in fcn}
         self.offloaded = {x: 0 for x in fcn}
         self.dropped_reqs = {c: 0 for c in fcn}
+        self.dropped_offloaded = {c: 0 for c in fcn}
         self.completions = {x: 0 for x in fcn}
         self.violations = {c: 0 for c in fcn}
         self.resp_time_sum = {c: 0.0 for c in fcn}

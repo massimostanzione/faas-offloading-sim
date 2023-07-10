@@ -6,6 +6,9 @@ import conf
 import optimizer, optimizer2
 from policy import Policy, SchedulerDecision, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS
 
+ADAPTIVE_LOCAL_MEMORY_COEFFICIENT=False
+ADAPTIVE_EDGE_MEMORY_COEFFICIENT=True
+
 class ProbabilisticPolicy(Policy):
 
     # Probability vector: p_e, p_o, p_d
@@ -29,6 +32,10 @@ class ProbabilisticPolicy(Policy):
         self.edge_cold_start_estimation = ColdStartEstimation(self.simulation.config.get(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))
         assert(self.edge_cold_start_estimation != ColdStartEstimation.FULL_KNOWLEDGE)
 
+        self.curr_local_blocked_reqs = 0
+        self.curr_local_reqs = 0
+        self.local_usable_memory_coeff = 1.0
+
         self.arrival_rates = {}
         self.estimated_service_time = {}
         self.estimated_service_time_cloud = {}
@@ -47,7 +54,10 @@ class ProbabilisticPolicy(Policy):
     def schedule(self, f, c, offloaded_from):
         probabilities = self.probs[(f, c)]
         decision = self.rng.choice(self.possible_decisions, p=probabilities)
+        if decision == SchedulerDecision.EXEC:
+            self.curr_local_reqs += 1
         if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
+            self.curr_local_blocked_reqs += 1
 
             # check if we can afford a Cloud offloading
             if self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
@@ -68,6 +78,9 @@ class ProbabilisticPolicy(Policy):
 
         self.stats_snapshot = self.simulation.stats.to_dict()
         self.last_update_time = self.simulation.t
+
+        self.curr_local_blocked_reqs = 0
+        self.curr_local_reqs = 0
 
     def update_metrics (self):
         stats = self.simulation.stats
@@ -213,6 +226,14 @@ class ProbabilisticPolicy(Policy):
         print(f"[{self.cloud}] Cold start prob: {self.cold_start_prob_cloud}")
 
     def update_probabilities (self):
+        if ADAPTIVE_LOCAL_MEMORY_COEFFICIENT:
+            loss = self.curr_local_blocked_reqs/self.curr_local_reqs if self.curr_local_reqs > 0 else 0
+            if loss > 0.0:
+                self.local_usable_memory_coeff -= self.local_usable_memory_coeff*loss/2.0
+            else:
+                self.local_usable_memory_coeff = min(self.local_usable_memory_coeff*1.1, 1.0)
+            print(f"Usable memory: {self.local_usable_memory_coeff:.2f}")
+
         bandwidth = self.simulation.infra.get_bandwidth(self.node, self.cloud)
         new_probs = optimizer.update_probabilities(self.node, self.cloud,
                                                    self.simulation,
@@ -225,7 +246,7 @@ class ProbabilisticPolicy(Policy):
                                                    self.cold_start_prob_local,
                                                    self.cold_start_prob_cloud,
                                                    self.rt_percentile,
-                                                   self.budget)
+                                                   self.budget, self.local_usable_memory_coeff)
         if new_probs is not None:
             self.probs = new_probs
             print(f"[{self.node}] Probs: {self.probs}")
@@ -275,13 +296,20 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
             probabilities[SchedulerDecision.OFFLOAD_CLOUD.value-1] = 0
             s = sum(probabilities)
             if not s > 0.0:
-                return SchedulerDecision.DROP  # TODO
-            probabilities = [x/s for x in probabilities]
+                probabilities = [0 for x in probabilities]
+                probabilities[SchedulerDecision.EXEC.value-1]=0.5
+                probabilities[SchedulerDecision.DROP.value-1]=0.5
+            else:
+                probabilities = [x/s for x in probabilities]
+
         if not self.can_execute_locally(f):
+            # check if we can afford a Cloud offloading
+            if self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
+                probabilities[SchedulerDecision.OFFLOAD_CLOUD.value-1] = 0
             probabilities[SchedulerDecision.EXEC.value-1] = 0
             s = sum(probabilities)
             if not s > 0.0:
-                return SchedulerDecision.DROP # TODO
+                return SchedulerDecision.DROP 
             probabilities = [x/s for x in probabilities]
 
         return self.rng.choice(self.possible_decisions, p=probabilities)

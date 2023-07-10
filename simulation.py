@@ -365,6 +365,8 @@ class Simulation:
             self.schedule(self.t + init_time + duration, Completion(arrival_time, f,c, n, init_time > 0, duration, event.offloaded_from))
         elif sched_decision == SchedulerDecision.DROP:
             self.stats.dropped_reqs[(f,c,n)] += 1
+            if event.offloaded_from is not None and len(event.offloaded_from) > 0:
+                self.stats.dropped_offloaded[(f,c,n)] += 1
         elif sched_decision == SchedulerDecision.OFFLOAD_CLOUD:
             remote_node = self.infra.get_cloud_nodes()[0] # TODO pick a Cloud node
             if remote_node is None:
