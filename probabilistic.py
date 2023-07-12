@@ -75,7 +75,10 @@ class ProbabilisticPolicy(Policy):
     def update(self):
 
         self.update_metrics()
-        self.update_probabilities()
+
+        arrivals = sum([self.arrival_rates.get((f,c), 0.0) for f in self.simulation.functions for c in self.simulation.classes])
+        if arrivals > 0.0:
+            self.update_probabilities()
 
         self.stats_snapshot = self.simulation.stats.to_dict()
         self.last_update_time = self.simulation.t
