@@ -267,23 +267,6 @@ class ProbabilisticPolicy(Policy):
             self.probs = new_probs
             print(f"[{self.node}] Probs: {self.probs}")
 
-        # Compute blocking probs
-        from math import factorial
-
-        def erlang(A, m):
-            L = (A ** m) / factorial(m)
-            sum_ = 0
-            for n in range(m + 1): sum_ += (A ** n) / factorial(n)
-
-            return (L / sum_)
-
-        for f in self.simulation.functions:
-            A = sum([self.arrival_rates.get((f,x), 0.0)*self.probs[(f,x)][0] for x in self.simulation.classes])*self.estimated_service_time[f]
-            channels = int(A)
-            blocking = erlang(A,channels)
-            print(f"{f}: A={A}, channels={channels}, PB: {blocking:.4f}")
-
-
 
 
 class ProbabilisticPolicy2 (ProbabilisticPolicy):

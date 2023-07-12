@@ -47,6 +47,8 @@ def _experiment (config):
 def relevant_stats_dict (stats):
     result = {}
     result["Utility"] = stats.utility
+    result["Penalty"] = stats.penalty
+    result["NetUtility"] = stats.utility-stats.penalty
     result["Cost"] = stats.cost
     result["BudgetExcessPerc"] = max(0, (stats.cost-stats.budget)/stats.budget*100)
     return result

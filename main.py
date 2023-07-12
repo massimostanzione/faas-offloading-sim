@@ -20,8 +20,9 @@ def read_spec_file (spec_file_name, infra, config):
             classname = c["name"]
             arrival_weight = c.get("arrival_weight", 1.0)
             utility = c.get("utility", 1.0)
+            penalty = c.get("penalty", 0.0)
             deadline = c.get("max_resp_time", 1.0)
-            newclass = faas.QoSClass(classname, deadline, arrival_weight, utility=utility)
+            newclass = faas.QoSClass(classname, deadline, arrival_weight, utility=utility, penalty=penalty)
             classes.append(newclass)
             classname2class[classname]=newclass
 
@@ -82,7 +83,7 @@ def init_simulation (config):
     reg_edge = Region("edge", reg_cloud)
     regions = [reg_edge, reg_cloud]
     # Latency
-    latencies = {(reg_edge,reg_cloud): 0.100}
+    latencies = {(reg_edge,reg_cloud): 0.100, (reg_edge,reg_edge): 0.005}
     bandwidth_mbps = {(reg_edge,reg_edge): 100.0, (reg_cloud,reg_cloud): 1000.0,\
             (reg_edge,reg_cloud): 10.0}
     # Infrastructure

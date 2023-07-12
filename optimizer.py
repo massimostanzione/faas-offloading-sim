@@ -6,6 +6,8 @@ import pulp as pl
 
 warm_start = False
 
+from optimizer2 import BETA_COST
+
 def update_probabilities (edge, cloud, sim, arrival_rates, serv_time, serv_time_cloud,
                           init_time, offload_time, edge_cloud_bandwidth, cold_start_p_local, cold_start_p_cloud, required_percentile=-1.0,budget=-1, local_usable_memory_coeff=1.0):
     VERBOSE = sim.verbosity
@@ -48,7 +50,10 @@ def update_probabilities (edge, cloud, sim, arrival_rates, serv_time, serv_time_
     prob += (pl.lpSum([c.utility*arrival_rates[(f,c)]*\
                        (pE[f][c]*deadline_satisfaction_prob_edge[(f,c)]+\
                        pO[f][c]*deadline_satisfaction_prob_cloud[(f,c)]) for f,c in F_C]) -\
-                pl.lpSum([cloud.cost*arrival_rates[(f,c)]*\
+                       pl.lpSum([c.penalty*arrival_rates[(f,c)]*\
+                       (pE[f][c]*(1.0-deadline_satisfaction_prob_edge[(f,c)])+\
+                       pO[f][c]*(1.0-deadline_satisfaction_prob_cloud[(f,c)])) for f,c in F_C])-\
+                BETA_COST*pl.lpSum([cloud.cost*arrival_rates[(f,c)]*\
                        pO[f][c]*serv_time_cloud[f]*f.memory/1024 for f,c in F_C]) , "objUtilCost")
 
     if VERBOSE > 1:

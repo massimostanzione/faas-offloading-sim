@@ -315,6 +315,7 @@ class Simulation:
             self.stats.utility_detail[(f,c,n)] += c.utility
         elif c.max_rt > 0.0:
             self.stats.violations[(f,c,n)] += 1
+            self.stats.penalty += c.penalty
 
         if n.cost > 0.0:
             self.stats.cost += duration * f.memory/1024 * n.cost

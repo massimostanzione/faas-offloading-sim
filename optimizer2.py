@@ -83,6 +83,10 @@ def update_probabilities (local, cloud, aggregated_edge_memory, sim,
                        (pL[f][c]*deadline_satisfaction_prob_local[(f,c)]+\
                        pE[f][c]*deadline_satisfaction_prob_edge[(f,c)]+\
                        pC[f][c]*deadline_satisfaction_prob_cloud[(f,c)]) for f,c in F_C]) -\
+                       pl.lpSum([c.penalty*arrival_rates[(f,c)]*\
+                       (pL[f][c]*(1.0-deadline_satisfaction_prob_local[(f,c)])+\
+                       pE[f][c]*(1.0-deadline_satisfaction_prob_edge[(f,c)])+\
+                       pC[f][c]*(1.0-deadline_satisfaction_prob_cloud[(f,c)])) for f,c in F_C])-\
                 BETA_COST*pl.lpSum([cloud.cost*arrival_rates[(f,c)]*\
                        pC[f][c]*serv_time_cloud[f]*f.memory/1024 for f,c in F_C]) , "objUtilCost")
 

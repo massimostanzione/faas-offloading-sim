@@ -27,6 +27,7 @@ class Stats:
         self.raw_utility = 0.0
         self.utility = 0.0
         self.utility_detail = {x: 0.0 for x in fcn}
+        self.penalty = 0.0
         self._memory_usage_area = {x: 0.0 for x in self.nodes}
         self._memory_usage_t0 = {x: 0.0 for x in self.nodes}
 

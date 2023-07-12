@@ -43,8 +43,8 @@ class Infrastructure:
 
 
     def get_region_latency (self, x: Region, y: Region):
-        if x == y:
-            # same region
+        if x == y and not (x,y) in self.latency:
+            # same region default
             return 0.005
 
         if (x, y) in self.latency:
