@@ -250,6 +250,8 @@ if __name__ == "__main__":
     
     if args.experiment.lower() == "a":
         experiment_main_comparison(args, config)
+    elif args.experiment.lower() == "c":
+        experiment_cold_start(args, config)
     else:
         print("Unknown experiment!")
         exit(1)
