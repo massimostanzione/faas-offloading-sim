@@ -1,4 +1,4 @@
-from enum import Enum, StrEnum, auto
+from enum import Enum, auto
 from pacsltk import perfmodel
 
 import conf
@@ -11,14 +11,27 @@ class SchedulerDecision(Enum):
     OFFLOAD_EDGE = 3
     DROP = 4
 
-class ColdStartEstimation(StrEnum):
+class ColdStartEstimation(Enum):
     NO = auto()
     NAIVE = auto()
-    NAIVE_PER_FUNCTION = "naive-per-function"
+    NAIVE_PER_FUNCTION = auto()
     PACS = auto()
-    FULL_KNOWLEDGE = "full-knowledge"
+    FULL_KNOWLEDGE = auto()
 
-
+    @classmethod
+    def from_string(cls,s):
+        s = s.lower()
+        if s == "no":
+            return ColdStartEstimation.NO
+        elif s == "naive":
+            return ColdStartEstimation.NAIVE
+        elif s == "naive-per-function":
+            return ColdStartEstimation.NAIVE_PER_FUNCTION
+        elif s == "pacs":
+            return ColdStartEstimation.PACS
+        elif s == "full-knowledge":
+            return ColdStartEstimation.FULL_KNOWLEDGE
+        return None
 
 
 class Policy:
@@ -50,9 +63,9 @@ class Policy:
 
     def _get_edge_peers_probabilities (self):
         peers = self._get_edge_peers()
-        total_memory = sum([x.curr_memory for x in peers])
+        total_memory = sum([x.curr_memory*x.peer_exposed_memory_fraction for x in peers])
         if total_memory > 0.0:
-            probs = [x.curr_memory/total_memory for x in peers]
+            probs = [x.curr_memory*x.peer_exposed_memory_fraction/total_memory for x in peers]
         else:
             n = len(peers)
             probs = [1.0/n for x in peers]
@@ -109,8 +122,8 @@ class GreedyPolicy(Policy):
         self.estimated_service_time = {}
         self.estimated_service_time_cloud = {}
 
-        self.local_cold_start_estimation = ColdStartEstimation(self.simulation.config.get(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))
-        self.cloud_cold_start_estimation = ColdStartEstimation(self.simulation.config.get(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))
+        self.local_cold_start_estimation = ColdStartEstimation.from_string(self.simulation.config.get(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))
+        self.cloud_cold_start_estimation = ColdStartEstimation.from_string(self.simulation.config.get(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))
 
         cloud_region = node.region.default_cloud
         self.cloud = self.simulation.node_choice_rng.choice(self.simulation.infra.get_region_nodes(cloud_region), 1)[0]

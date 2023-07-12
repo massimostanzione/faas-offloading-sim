@@ -8,7 +8,9 @@ from simulation import Simulation
 from infrastructure import *
 
 
-def read_spec_file (spec_file_name, infra):
+def read_spec_file (spec_file_name, infra, config):
+    peer_exposed_memory_fraction = config.getfloat(conf.SEC_SIM, conf.EDGE_EXPOSED_FRACTION, fallback=0.5)
+
     with open(spec_file_name, "r") as stream:
         spec = yaml.safe_load(stream)
 
@@ -33,7 +35,9 @@ def read_spec_file (spec_file_name, infra):
             speedup = n["speedup"] if "speedup" in n else 1.0
             cost = n["cost"] if "cost" in n else 0.0
             custom_policy = n["policy"] if "policy" in n else None
-            node = faas.Node(node_name, memory, speedup, reg, cost=cost, custom_sched_policy=custom_policy)
+            node = faas.Node(node_name, memory, speedup, reg, cost=cost,
+                             custom_sched_policy=custom_policy,
+                             peer_exposed_memory_fraction=peer_exposed_memory_fraction)
             node_names[node_name] = node
             infra.add_node(node, reg)
 
@@ -86,7 +90,7 @@ def init_simulation (config):
 
     # Read spec file
     spec_file_name = config.get(conf.SEC_SIM, conf.SPEC_FILE, fallback=None)
-    classes, functions, node2arrivals  = read_spec_file (spec_file_name, infra)
+    classes, functions, node2arrivals  = read_spec_file (spec_file_name, infra, config)
 
 
     sim = Simulation(config, infra, functions, classes, node2arrivals)

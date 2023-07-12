@@ -14,9 +14,9 @@ def update_probabilities (local, cloud, aggregated_edge_memory, sim,
                           offload_time_cloud, offload_time_edge,
                           bandwidth_cloud, bandwidth_edge,
                           cold_start_p_local, cold_start_p_cloud,
-                          cold_start_p_edge,budget=-1):
+                          cold_start_p_edge,budget=-1,
+                          local_usable_memory_coeff=1.0):
     VERBOSE = sim.verbosity
-    MEM_MAX_UTIL = sim.config.getfloat(conf.SEC_POLICY, conf.FUNC_MEMORY_MAX_UTILIZATION, fallback=0.75)
 
     F = sim.functions
     C = sim.classes
@@ -91,17 +91,13 @@ def update_probabilities (local, cloud, aggregated_edge_memory, sim,
         prob += (pL[f][c] + pE[f][c] + pC[f][c] + pD[f][c] == 1.0)
 
     # Memory
-    prob += (pl.lpSum([f.memory*x[f][c] for f,c in F_C]) <= local.total_memory)
+    prob += (pl.lpSum([f.memory*x[f][c] for f,c in F_C]) <= local_usable_memory_coeff*local.total_memory)
     prob += (pl.lpSum([f.memory*y[f][c] for f,c in F_C]) <= aggregated_edge_memory)
 
     # Share
     for f,c in F_C:
         prob += (pL[f][c]*arrival_rates[(f,c)]*serv_time[f] <= x[f][c])
         prob += (pE[f][c]*arrival_rates[(f,c)]*serv_time_edge[f] <= y[f][c])
-
-    # Max memory utilization
-    for f in F:
-        prob += (pl.lpSum([f.memory*x[f][c] for c in C]) <= MEM_MAX_UTIL*local.total_memory)
 
     class_arrival_rates = {}
     for c in C:

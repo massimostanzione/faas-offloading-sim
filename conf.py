@@ -21,7 +21,6 @@ LOCAL_COLD_START_EST_STRATEGY = "local-cold-start-estimation"
 CLOUD_COLD_START_EST_STRATEGY = "cloud-cold-start-estimation"
 EDGE_COLD_START_EST_STRATEGY = "edge-cold-start-estimation"
 HOURLY_BUDGET = "budget"
-FUNC_MEMORY_MAX_UTILIZATION = "func-memory-max-util"
 
 import configparser
 

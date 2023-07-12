@@ -39,7 +39,7 @@ def default_infra():
 def _experiment (config):
     infra = default_infra()
     spec_file_name = config.get(conf.SEC_SIM, conf.SPEC_FILE, fallback=None)
-    classes, functions, node2arrivals  = read_spec_file (spec_file_name, infra)
+    classes, functions, node2arrivals  = read_spec_file (spec_file_name, infra, config)
     sim = Simulation(config, infra, functions, classes, node2arrivals)
     final_stats = sim.run()
     return final_stats
@@ -98,7 +98,7 @@ def experiment_main_comparison(args, config):
     if old_results is not None:
         resultsDf = pd.concat([old_results, resultsDf])
     resultsDf.to_csv(outfile, index=False)
-    print(resultsDf)
+    print(resultsDf.groupby("Policy").mean())
 
 
 

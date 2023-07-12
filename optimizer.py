@@ -9,7 +9,6 @@ warm_start = False
 def update_probabilities (edge, cloud, sim, arrival_rates, serv_time, serv_time_cloud,
                           init_time, offload_time, edge_cloud_bandwidth, cold_start_p_local, cold_start_p_cloud, required_percentile=-1.0,budget=-1, local_usable_memory_coeff=1.0):
     VERBOSE = sim.verbosity
-    MEM_MAX_UTIL = sim.config.getfloat(conf.SEC_POLICY, conf.FUNC_MEMORY_MAX_UTILIZATION, fallback=1.0)
 
     F = sim.functions
     C = sim.classes
@@ -66,11 +65,6 @@ def update_probabilities (edge, cloud, sim, arrival_rates, serv_time, serv_time_
 
     # Memory
     prob += (pl.lpSum([f.memory*x[f][c] for f,c in F_C]) <= edge.total_memory*local_usable_memory_coeff)
-
-    # Max memory utilization
-    if local_usable_memory_coeff >= 1.0:
-        for f in F:
-            prob += (pl.lpSum([f.memory*x[f][c] for c in C]) <= MEM_MAX_UTIL*edge.total_memory)
 
     # Share
     for f,c in F_C:

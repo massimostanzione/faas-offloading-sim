@@ -47,10 +47,13 @@ class ContainerPool:
 
 class Node:
 
-    def __init__ (self, name, memory, speedup, region, cost=0.0, custom_sched_policy=None):
+    def __init__ (self, name, memory, speedup, region, cost=0.0,
+                  custom_sched_policy=None,
+                  peer_exposed_memory_fraction=1.0):
         self.name = name
         self.total_memory = memory
         self.curr_memory = memory
+        self.peer_exposed_memory_fraction = peer_exposed_memory_fraction
         self.speedup = speedup
         self.region = region
         self.cost = cost
