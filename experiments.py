@@ -1,7 +1,9 @@
 import sys
+import yaml
 import os
 import argparse
 import pandas as pd
+import tempfile
 
 import faas
 import conf
@@ -24,21 +26,19 @@ def print_results (results, filename=None):
             for line in results:
                 print(line,file=of)
 
-def default_infra():
+def default_infra(edge_cloud_latency=0.100):
     # Regions
     reg_cloud = Region("cloud")
     reg_edge = Region("edge", reg_cloud)
     regions = [reg_edge, reg_cloud]
     # Latency
-    latencies = {(reg_edge,reg_cloud): 0.100, (reg_edge,reg_edge): 0.005}
+    latencies = {(reg_edge,reg_cloud): edge_cloud_latency, (reg_edge,reg_edge): 0.005}
     bandwidth_mbps = {(reg_edge,reg_edge): 100.0, (reg_cloud,reg_cloud): 1000.0,\
             (reg_edge,reg_cloud): 10.0}
     # Infrastructure
     return Infrastructure(regions, latencies, bandwidth_mbps)
 
-def _experiment (config):
-    infra = default_infra()
-    spec_file_name = config.get(conf.SEC_SIM, conf.SPEC_FILE, fallback=None)
+def _experiment (config, infra, spec_file_name):
     classes, functions, node2arrivals  = read_spec_file (spec_file_name, infra, config)
     sim = Simulation(config, infra, functions, classes, node2arrivals)
     final_stats = sim.run()
@@ -53,11 +53,130 @@ def relevant_stats_dict (stats):
     result["BudgetExcessPerc"] = max(0, (stats.cost-stats.budget)/stats.budget*100)
     return result
 
+def generate_spec (n_functions=5, arrivals_to_single_node=True):
+    ntemp = tempfile.NamedTemporaryFile(mode="w")
+    classes = [{'name': 'critical', 'max_resp_time': 0.5, 'utility': 1.0, 'arrival_weight': 1.0}, {'name': 'standard', 'max_resp_time': 0.5, 'utility': 0.01, 'arrival_weight': 7.0}, {'name': 'batch', 'max_resp_time': 99.0, 'utility': 1.0, 'arrival_weight': 1.0}, {'name': 'criticalP', 'max_resp_time': 0.5, 'utility': 1.0, 'penalty': 0.75, 'arrival_weight': 1.0}]
+    nodes = [{'name': 'edge1', 'region': 'edge', 'memory': 4096}, {'name': 'edge2', 'region': 'edge', 'memory': 4096}, {'name': 'edge3', 'region': 'edge', 'memory': 4096}, {'name': 'edge4', 'region': 'edge', 'memory': 4096}, {'name': 'edge5', 'region': 'edge', 'memory': 4096}, {'name': 'cloud1', 'region': 'cloud', 'cost': 1e-06, 'speedup': 1.0, 'memory': 128000}]
+    functions = [{'name': 'f1', 'memory': 512, 'duration_mean': 0.4, 'duration_scv': 1.0, 'init_mean': 0.5}, {'name': 'f2', 'memory': 512, 'duration_mean': 0.2, 'duration_scv': 1.0, 'init_mean': 0.25}, {'name': 'f3', 'memory': 128, 'duration_mean': 0.3, 'duration_scv': 1.0, 'init_mean': 0.6}, {'name': 'f4', 'memory': 1024, 'duration_mean': 0.25, 'duration_scv': 1.0, 'init_mean': 0.25}, {'name': 'f5', 'memory': 256, 'duration_mean': 0.45, 'duration_scv': 1.0, 'init_mean': 0.5}]
+    
+    functions = functions[:n_functions]
+    function_names = [f["name"] for f in functions]
 
+    total_fun_weight = sum([f["duration_mean"]*f["memory"] for f in functions])
+
+    arrivals = []
+    if arrivals_to_single_node:
+        total_load = 8000
+        for f in functions:
+            rate = total_load/n_functions/(f["duration_mean"]*f["memory"])
+            arrivals.append({"node": "edge1",
+                            "function": f["name"],
+                            "rate": rate})
+    else:
+        edge_nodes = [n for n in nodes if "edge" in n["name"]]
+        total_load = 16000
+        load_per_node = total_load/len(edge_nodes)
+        for n in edge_nodes:
+            if "cloud" in n:
+                continue
+            for f in functions:
+                rate = load_per_node/n_functions/(f["duration_mean"]*f["memory"])
+                arrivals.append({"node": n["name"],
+                                "function": f["name"],
+                                "rate": rate})
+
+    spec = {'classes': classes, 'nodes': nodes, 'functions': functions, 'arrivals': arrivals}
+    ntemp.write(yaml.dump(spec))
+    ntemp.flush()
+    return ntemp
+
+def experiment_cold_start(args, config):
+    results = []
+    exp_tag = "coldStart"
+    outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
+
+    infra = default_infra()
+    temp_spec_file = generate_spec (1)
+
+    POLICIES = ["probabilistic2", "greedy", "greedy-budget"]
+    CS_STRATEGIES = ["pacs", "no", "naive", "naive-per-function", "full-knowledge"]
+
+    # Check existing results
+    old_results = None
+    if not args.force:
+        try:
+            old_results = pd.read_csv(outfile)
+        except:
+            pass
+
+    for seed in SEEDS:
+        config.set(conf.SEC_SIM, conf.SEED, str(seed))
+
+        for pol in POLICIES:
+            config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
+
+            for local_cs in CS_STRATEGIES:
+                if local_cs == "full-knowledge" and not "greedy" in pol:
+                    continue
+                config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, local_cs)
+
+                for cloud_cs in CS_STRATEGIES:
+                    if cloud_cs == "full-knowledge" and not "greedy" in pol:
+                        continue
+                    config.set(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, cloud_cs)
+
+                    for edge_cs in CS_STRATEGIES:
+                        if "greedy" in pol and edge_cs != CS_STRATEGIES[0]:
+                            continue
+                        if edge_cs == "full-knowledge" and not "greedy" in pol:
+                            continue
+                        config.set(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, edge_cs)
+
+                        keys = {}
+                        keys["Policy"] = pol
+                        keys["Seed"] = seed
+                        keys["LocalCS"] = local_cs
+                        keys["CloudCS"] = cloud_cs
+                        keys["EdgeCS"] = edge_cs
+
+                        run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
+
+                        # Check if we can skip this run
+                        if old_results is not None and not\
+                                old_results[(old_results.Seed == seed) &\
+                                    (old_results.LocalCS == local_cs) &\
+                                    (old_results.CloudCS == cloud_cs) &\
+                                    (old_results.EdgeCS == edge_cs) &\
+                                    (old_results.Policy == pol)].empty:
+                            print("Skipping conf")
+                            continue
+
+                        stats = _experiment(config, infra, temp_spec_file.name)
+                        with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                            stats.print(of)
+
+                        result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
+                        results.append(result)
+                        print(result)
+    
+    resultsDf = pd.DataFrame(results)
+    if old_results is not None:
+        resultsDf = pd.concat([old_results, resultsDf])
+    resultsDf.to_csv(outfile, index=False)
+    print(resultsDf.groupby(["Policy", "LocalCS", "CloudCS", "EdgeCS"]).mean())
+
+    temp_spec_file.close()
+
+    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
+        config.write(of)
 
 def experiment_main_comparison(args, config):
     results = []
-    outfile=os.path.join(DEFAULT_OUT_DIR,"mainComparison.csv")
+    exp_tag = "mainComparison"
+    outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
+
+    infra = default_infra()
+    temp_spec_file = generate_spec (1)
 
     POLICIES = ["random", "basic", "basic-edge", "basic-budget", "probabilistic", "probabilistic2", "greedy", "greedy-min-cost", "greedy-budget"]
 
@@ -88,8 +207,8 @@ def experiment_main_comparison(args, config):
                 print("Skipping conf")
                 continue
 
-            stats = _experiment(config)
-            with open(os.path.join(DEFAULT_OUT_DIR, f"mainComparison_{run_string}.json"), "w") as of:
+            stats = _experiment(exp_tag, config, infra, temp_spec_file.name)
+            with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
                 stats.print(of)
 
             result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
@@ -102,6 +221,11 @@ def experiment_main_comparison(args, config):
     resultsDf.to_csv(outfile, index=False)
     print(resultsDf.groupby("Policy").mean())
 
+    temp_spec_file.close()
+
+    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
+        config.write(of)
+
 
 
 if __name__ == "__main__":
@@ -113,7 +237,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    config = conf.parse_config_file(DEFAULT_CONFIG_FILE)
+    config = conf.parse_config_file("default.ini")
     config.set(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, "-1")
     config.set(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, str(DEFAULT_DURATION))
 
