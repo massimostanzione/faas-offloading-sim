@@ -235,12 +235,8 @@ class GreedyPolicy(Policy):
             for f in self.simulation.functions:
                 self.cold_start_prob[(f, self.cloud)] = 0
 
-        print(f"Cold start prob: {self.cold_start_prob}")
-
     def update(self):
-        print("Updating estimations")
         stats = self.simulation.stats
-
 
         for f in self.simulation.functions:
             if stats.node2completions[(f, self.node)] > 0:
@@ -253,9 +249,6 @@ class GreedyPolicy(Policy):
                                                        stats.node2completions[(f, self.cloud)]
             else:
                 self.estimated_service_time_cloud[f] = 0.1
-
-        for f in self.simulation.functions:
-            print(f, self.estimated_service_time[f], self.estimated_service_time_cloud[f])
 
         self.update_cold_start(stats)
 

@@ -157,7 +157,11 @@ def experiment_cold_start(args, config):
 
                         result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
                         results.append(result)
-                        print(result)
+
+                resultsDf = pd.DataFrame(results)
+                if old_results is not None:
+                    resultsDf = pd.concat([old_results, resultsDf])
+                resultsDf.to_csv(outfile, index=False)
     
     resultsDf = pd.DataFrame(results)
     if old_results is not None:
@@ -214,6 +218,11 @@ def experiment_main_comparison(args, config):
             result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
             results.append(result)
             print(result)
+
+            resultsDf = pd.DataFrame(results)
+            if old_results is not None:
+                resultsDf = pd.concat([old_results, resultsDf])
+            resultsDf.to_csv(outfile, index=False)
     
     resultsDf = pd.DataFrame(results)
     if old_results is not None:

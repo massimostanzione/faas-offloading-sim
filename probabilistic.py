@@ -101,7 +101,7 @@ class ProbabilisticPolicy(Policy):
                 self.node.peer_exposed_memory_fraction -= self.node.peer_exposed_memory_fraction*loss/2.0
             else:
                 self.node.peer_exposed_memory_fraction = min(self.node.peer_exposed_memory_fraction*1.1, 1.0)
-            print(f"{self.node}: Loss: {loss} ({dropped_offl-prev_dropped_offl}): {self.node.peer_exposed_memory_fraction:.3f}")
+            #print(f"{self.node}: Loss: {loss} ({dropped_offl-prev_dropped_offl}): {self.node.peer_exposed_memory_fraction:.3f}")
 
         self.estimated_service_time = {}
         self.estimated_service_time_cloud = {}
@@ -141,42 +141,42 @@ class ProbabilisticPolicy(Policy):
 
         self.estimate_cold_start_prob(stats)
 
-        print(f"[{self.node}] Arrivals: {self.arrival_rates}")
+        #print(f"[{self.node}] Arrivals: {self.arrival_rates}")
 
         self.cloud_rtt = 2 * self.simulation.infra.get_latency(self.node, self.cloud)
         self.cloud_bw = self.simulation.infra.get_bandwidth(self.node, self.cloud)
 
-        # Empirical probabilities
-        if self.node.name == "edge1":
-            if self.stats_snapshot is not None:
-                local_completions_0 = sum([\
-                        self.stats_snapshot["node2completions"][repr((f, self.node))] \
-                        for f in self.simulation.functions\
-                    ])
-                local_completions = sum([\
-                        stats.node2completions[(f, self.node)] \
-                        for f in self.simulation.functions]) - local_completions_0
-                offloaded_0 = sum([\
-                        self.stats_snapshot["offloaded"][repr((f, c, self.node))] \
-                        for f in self.simulation.functions for c in self.simulation.classes\
-                    ])
-                offloaded = sum([\
-                        stats.offloaded[(f, c, self.node)] \
-                        for f in self.simulation.functions for c in self.simulation.classes]) - offloaded_0
-                dropped_0 = sum([\
-                        self.stats_snapshot["dropped_reqs"][repr((f, c, self.node))] \
-                        for f in self.simulation.functions for c in self.simulation.classes\
-                    ])
-                dropped = sum([\
-                        stats.dropped_reqs[(f, c, self.node)] \
-                        for f in self.simulation.functions for c in self.simulation.classes]) - dropped_0
-                total = offloaded + dropped + local_completions
-                exp_compl = sum(expected_compl.values())
-                exp_offload = sum(expected_offload.values())
-                exp_drop = sum(expected_drop.values())
-                exp_total = exp_compl + exp_offload + exp_drop
-                print(f"{local_completions/total:.2f} - {offloaded/total:.2f} - {dropped/total:.2f}")
-                print(f"{exp_compl/exp_total:.2f} - {exp_offload/exp_total:.2f} - {exp_drop/exp_total:.2f}")
+        ## Empirical probabilities
+        #if self.node.name == "edge1":
+        #    if self.stats_snapshot is not None:
+        #        local_completions_0 = sum([\
+        #                self.stats_snapshot["node2completions"][repr((f, self.node))] \
+        #                for f in self.simulation.functions\
+        #            ])
+        #        local_completions = sum([\
+        #                stats.node2completions[(f, self.node)] \
+        #                for f in self.simulation.functions]) - local_completions_0
+        #        offloaded_0 = sum([\
+        #                self.stats_snapshot["offloaded"][repr((f, c, self.node))] \
+        #                for f in self.simulation.functions for c in self.simulation.classes\
+        #            ])
+        #        offloaded = sum([\
+        #                stats.offloaded[(f, c, self.node)] \
+        #                for f in self.simulation.functions for c in self.simulation.classes]) - offloaded_0
+        #        dropped_0 = sum([\
+        #                self.stats_snapshot["dropped_reqs"][repr((f, c, self.node))] \
+        #                for f in self.simulation.functions for c in self.simulation.classes\
+        #            ])
+        #        dropped = sum([\
+        #                stats.dropped_reqs[(f, c, self.node)] \
+        #                for f in self.simulation.functions for c in self.simulation.classes]) - dropped_0
+        #        total = offloaded + dropped + local_completions
+        #        exp_compl = sum(expected_compl.values())
+        #        exp_offload = sum(expected_offload.values())
+        #        exp_drop = sum(expected_drop.values())
+        #        exp_total = exp_compl + exp_offload + exp_drop
+        #        print(f"{local_completions/total:.2f} - {offloaded/total:.2f} - {dropped/total:.2f}")
+        #        print(f"{exp_compl/exp_total:.2f} - {exp_offload/exp_total:.2f} - {exp_drop/exp_total:.2f}")
 
     def estimate_cold_start_prob (self, stats):
         #
@@ -240,8 +240,8 @@ class ProbabilisticPolicy(Policy):
             for f in self.simulation.functions:
                 self.cold_start_prob_cloud[f] = 0
 
-        print(f"[{self.node}] Cold start prob: {self.cold_start_prob_local}")
-        print(f"[{self.cloud}] Cold start prob: {self.cold_start_prob_cloud}")
+        #print(f"[{self.node}] Cold start prob: {self.cold_start_prob_local}")
+        #print(f"[{self.cloud}] Cold start prob: {self.cold_start_prob_cloud}")
 
     def update_probabilities (self):
         if ADAPTIVE_LOCAL_MEMORY_COEFFICIENT:
@@ -267,7 +267,7 @@ class ProbabilisticPolicy(Policy):
                                                    self.budget, self.local_usable_memory_coeff)
         if new_probs is not None:
             self.probs = new_probs
-            print(f"[{self.node}] Probs: {self.probs}")
+            #print(f"[{self.node}] Probs: {self.probs}")
 
 
 
@@ -359,7 +359,6 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
             for f in self.simulation.functions:
                 total_offloaded_rate = max(0.001, \
                         sum([self.arrival_rates.get((f,x), 0.0)*self.probs[(f,x)][3] for x in self.simulation.classes]))
-                print(f"Offloaded rate: {f}: {total_offloaded_rate}")
                 props1, _ = perfmodel.get_sls_warm_count_dist(total_offloaded_rate,
                                                             self.estimated_service_time_edge[f],
                                                             self.estimated_service_time_edge[f] + self.simulation.init_time[(f,self.node)],
@@ -423,7 +422,7 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
                                                    self.local_usable_memory_coeff)
         if new_probs is not None:
             self.probs = new_probs
-            print(f"[{self.node}] Probs: {self.probs}")
+            #print(f"[{self.node}] Probs: {self.probs}")
 
 
 
