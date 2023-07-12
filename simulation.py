@@ -116,6 +116,8 @@ class Simulation:
     def new_policy (self, configured_policy, node):
         if configured_policy == "basic":
             return policy.BasicPolicy(self, node)
+        if configured_policy == "basic-budget":
+            return policy.BasicBudgetAwarePolicy(self, node)
         if configured_policy == "basic-edge":
             return policy.BasicEdgePolicy(self, node)
         if configured_policy == "cloud":

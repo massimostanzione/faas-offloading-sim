@@ -40,6 +40,7 @@ class Policy:
         self.simulation = simulation
         self.node = node
         self.__edge_peers = None
+        self.budget = simulation.config.getfloat(conf.SEC_POLICY, conf.HOURLY_BUDGET, fallback=-1.0)
 
     def schedule(self, function, qos_class, offloaded_from):
         pass
@@ -86,6 +87,20 @@ class BasicPolicy(Policy):
             sched_decision = SchedulerDecision.EXEC
         else:
             sched_decision = SchedulerDecision.OFFLOAD_CLOUD
+
+        return sched_decision
+
+class BasicBudgetAwarePolicy(Policy):
+
+    def schedule(self, f, c, offloaded_from):
+        budget_ok = self.simulation.stats.cost / self.simulation.t * 3600 < self.budget
+
+        if self.can_execute_locally(f):
+            sched_decision = SchedulerDecision.EXEC
+        elif self.simulation.stats.cost / self.simulation.t * 3600 < self.budget:
+            sched_decision = SchedulerDecision.OFFLOAD_CLOUD
+        else:
+            sched_decision = SchedulerDecision.DROP
 
         return sched_decision
 
@@ -248,7 +263,6 @@ class GreedyBudgetAware(GreedyPolicy):
 
     def __init__ (self, simulation, node):
         super().__init__(simulation, node)
-        self.budget = simulation.config.getfloat(conf.SEC_POLICY, conf.HOURLY_BUDGET, fallback=-1.0)
 
     def schedule(self, f, c, offloaded_from):
         latency_local, latency_cloud = self._estimate_latency(f,c)

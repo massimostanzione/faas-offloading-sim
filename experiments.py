@@ -30,7 +30,7 @@ def default_infra():
     reg_edge = Region("edge", reg_cloud)
     regions = [reg_edge, reg_cloud]
     # Latency
-    latencies = {(reg_edge,reg_cloud): 0.100}
+    latencies = {(reg_edge,reg_cloud): 0.100, (reg_edge,reg_edge): 0.005}
     bandwidth_mbps = {(reg_edge,reg_edge): 100.0, (reg_cloud,reg_cloud): 1000.0,\
             (reg_edge,reg_cloud): 10.0}
     # Infrastructure
@@ -59,7 +59,7 @@ def experiment_main_comparison(args, config):
     results = []
     outfile=os.path.join(DEFAULT_OUT_DIR,"mainComparison.csv")
 
-    POLICIES = ["probabilistic", "probabilistic2", "greedy", "greedy-min-cost", "greedy-budget"]
+    POLICIES = ["random", "basic", "basic-edge", "basic-budget", "probabilistic", "probabilistic2", "greedy", "greedy-min-cost", "greedy-budget"]
 
     # Check existing results
     old_results = None
@@ -109,6 +109,7 @@ if __name__ == "__main__":
     parser.add_argument('--experiment', action='store', required=False, default="", type=str)
     parser.add_argument('--force', action='store_true', required=False, default=False)
     parser.add_argument('--debug', action='store_true', required=False, default=False)
+    parser.add_argument('--seed', action='store', required=False, default=None, type=int)
 
     args = parser.parse_args()
 
@@ -119,6 +120,9 @@ if __name__ == "__main__":
     if args.debug:
         args.force = True
         SEEDS=SEEDS[:1]
+
+    if args.seed is not None:
+        SEEDS = [int(args.seed)]
     
     if args.experiment.lower() == "a":
         experiment_main_comparison(args, config)

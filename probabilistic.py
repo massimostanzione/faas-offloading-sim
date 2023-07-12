@@ -18,7 +18,6 @@ class ProbabilisticPolicy(Policy):
         cloud_region = node.region.default_cloud
         self.cloud = self.simulation.node_choice_rng.choice(self.simulation.infra.get_region_nodes(cloud_region), 1)[0]
 
-        self.budget = simulation.config.getfloat(conf.SEC_POLICY, conf.HOURLY_BUDGET, fallback=-1.0)
 
         self.rng = self.simulation.policy_rng1
         self.stats_snapshot = None
@@ -432,7 +431,11 @@ class RandomPolicy(Policy):
         self.rng = self.simulation.policy_rng1
 
     def schedule(self, f, c, offloaded_from):
-        return self.rng.choice(list(SchedulerDecision))
+        decision = self.rng.choice(list(SchedulerDecision))
+
+        if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
+            return self.rng.choice([SchedulerDecision.DROP, SchedulerDecision.OFFLOAD_CLOUD, SchedulerDecision.OFFLOAD_EDGE])
+        return decision
 
     def update(self):
         pass
