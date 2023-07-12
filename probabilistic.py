@@ -6,7 +6,7 @@ import conf
 import optimizer, optimizer2
 from policy import Policy, SchedulerDecision, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS
 
-ADAPTIVE_LOCAL_MEMORY_COEFFICIENT=False
+ADAPTIVE_LOCAL_MEMORY_COEFFICIENT=True
 ADAPTIVE_EDGE_MEMORY_COEFFICIENT=True
 
 class ProbabilisticPolicy(Policy):
@@ -35,6 +35,7 @@ class ProbabilisticPolicy(Policy):
         self.curr_local_blocked_reqs = 0
         self.curr_local_reqs = 0
         self.local_usable_memory_coeff = 1.0
+        self.forced_drop = 0.0
 
         self.arrival_rates = {}
         self.estimated_service_time = {}
@@ -327,7 +328,12 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
             probabilities[SchedulerDecision.EXEC.value-1] = 0
             s = sum(probabilities)
             if not s > 0.0:
-                return SchedulerDecision.DROP 
+                # NOTE: we may add new Cloud offloadings even if p_cloud=0
+                if c.utility > 0.0 and self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
+                    return SchedulerDecision.DROP
+                    self.forced_drop += 1
+                else:
+                    return SchedulerDecision.OFFLOAD_CLOUD
             probabilities = [x/s for x in probabilities]
             return self.rng.choice(self.possible_decisions, p=probabilities)
         return decision
@@ -409,7 +415,7 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
                 self.local_usable_memory_coeff -= self.local_usable_memory_coeff*loss/2.0
             else:
                 self.local_usable_memory_coeff = min(self.local_usable_memory_coeff*1.1, 1.0)
-            print(f"Usable memory: {self.local_usable_memory_coeff:.2f}")
+            print(f"{self.node}: Usable memory: {self.local_usable_memory_coeff:.2f}")
 
         new_probs = optimizer2.update_probabilities(self.node, self.cloud,
                                                    self.aggregated_edge_memory,
