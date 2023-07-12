@@ -12,6 +12,8 @@ in `requirements.txt`. E.g.:
 	source env/bin/activate
 	pip install -r requirements.txt 
 
+You may also need to install the GLPK solver.
+
 ## Usage
 
 The simulator is started as follows:
