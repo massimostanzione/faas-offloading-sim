@@ -64,6 +64,16 @@ class Node:
     def __repr__ (self):
         return self.name
 
+    def __lt__(self, other):
+        return self.name <  other.name
+
+    def __le__(self,other):
+        return self.name <= other.name
+
+    def __hash__ (self):
+        return hash(self.name)
+
+
 
 
 @dataclass

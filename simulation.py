@@ -282,6 +282,7 @@ class Simulation:
                 return
             f,timeout = event.node.warm_pool.front()
             if timeout < t:
+                self.stats.update_memory_usage(event.node, self.t)
                 event.node.curr_memory += f.memory
                 event.node.warm_pool.pool = event.node.warm_pool.pool[1:]
         else:
@@ -357,6 +358,7 @@ class Simulation:
                 n.warm_pool.remove(f)
                 init_time = 0
             else:
+                self.stats.update_memory_usage(event.node, self.t)
                 assert(n.curr_memory >= f.memory)
                 n.curr_memory -= f.memory
                 self.stats.cold_starts[(f,n)] += 1

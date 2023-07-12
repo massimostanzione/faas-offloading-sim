@@ -6,7 +6,7 @@ import conf
 import optimizer, optimizer2
 from policy import Policy, SchedulerDecision, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS
 
-ADAPTIVE_LOCAL_MEMORY_COEFFICIENT=True
+ADAPTIVE_LOCAL_MEMORY_COEFFICIENT=False
 ADAPTIVE_EDGE_MEMORY_COEFFICIENT=True
 
 class ProbabilisticPolicy(Policy):
