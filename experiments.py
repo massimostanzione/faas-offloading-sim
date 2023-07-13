@@ -72,7 +72,7 @@ def generate_spec (n_functions=5, load_coeff=1.0, dynamic_rate_coeff=1.0, arriva
             arrivals.append({"node": "edge1",
                             "function": f["name"],
                             "rate": rate,
-                            "dynamic_coeff": dynamic_rate_coeff}
+                            "dynamic_coeff": dynamic_rate_coeff
                             })
     else:
         edge_nodes = [n for n in nodes if "edge" in n["name"]]
