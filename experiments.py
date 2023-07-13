@@ -71,7 +71,9 @@ def generate_spec (n_functions=5, load_coeff=1.0, dynamic_rate_coeff=1.0, arriva
             rate = total_load/n_functions/(f["duration_mean"]*f["memory"])
             arrivals.append({"node": "edge1",
                             "function": f["name"],
-                            "rate": rate})
+                            "rate": rate,
+                            "dynamic_coeff": dynamic_rate_coeff}
+                            })
     else:
         edge_nodes = [n for n in nodes if "edge" in n["name"]]
         total_load = 16000
@@ -97,7 +99,8 @@ def experiment_cold_start2(args, config):
     outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
 
     infra = default_infra()
-    temp_spec_file = generate_spec (1, load_coeff=0.1, dynamic_rate_coeff=3.0)
+    temp_spec_file = generate_spec (3, load_coeff=0.1, dynamic_rate_coeff=3.0)
+    config.set(conf.SEC_SIM, conf.RATE_UPDATE_INTERVAL, str(300))
 
     POLICIES = ["probabilistic2", "greedy", "greedy-budget"]
     CS_STRATEGIES = ["pacs", "no", "naive", "naive-per-function", "full-knowledge"]
@@ -181,7 +184,7 @@ def experiment_cold_start(args, config):
     outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
 
     infra = default_infra()
-    temp_spec_file = generate_spec (1, load_coeff=1.0, dynamic_rate_coeff=1.0)
+    temp_spec_file = generate_spec (3, load_coeff=1.0, dynamic_rate_coeff=1.0)
 
     POLICIES = ["probabilistic2", "greedy", "greedy-budget"]
     CS_STRATEGIES = ["pacs", "no", "naive", "naive-per-function", "full-knowledge"]
