@@ -91,13 +91,97 @@ def generate_spec (n_functions=5, load_coeff=1.0, dynamic_rate_coeff=1.0, arriva
     ntemp.flush()
     return ntemp
 
+def experiment_cold_start2(args, config):
+    results = []
+    exp_tag = "coldStartDynRate"
+    outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
+
+    infra = default_infra()
+    temp_spec_file = generate_spec (1, load_coeff=0.1, dynamic_rate_coeff=3.0)
+
+    POLICIES = ["probabilistic2", "greedy", "greedy-budget"]
+    CS_STRATEGIES = ["pacs", "no", "naive", "naive-per-function", "full-knowledge"]
+
+    # Check existing results
+    old_results = None
+    if not args.force:
+        try:
+            old_results = pd.read_csv(outfile)
+        except:
+            pass
+
+    for seed in SEEDS:
+        config.set(conf.SEC_SIM, conf.SEED, str(seed))
+
+        for pol in POLICIES:
+            config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
+
+            for local_cs in CS_STRATEGIES:
+                if local_cs == "full-knowledge" and not "greedy" in pol:
+                    continue
+                config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, local_cs)
+
+                for cloud_cs in CS_STRATEGIES:
+                    if cloud_cs == "full-knowledge" and not "greedy" in pol:
+                        continue
+                    config.set(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, cloud_cs)
+
+                    for edge_cs in CS_STRATEGIES:
+                        if "greedy" in pol and edge_cs != CS_STRATEGIES[0]:
+                            continue
+                        if edge_cs == "full-knowledge" and not "greedy" in pol:
+                            continue
+                        config.set(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, edge_cs)
+
+                        keys = {}
+                        keys["Policy"] = pol
+                        keys["Seed"] = seed
+                        keys["LocalCS"] = local_cs
+                        keys["CloudCS"] = cloud_cs
+                        keys["EdgeCS"] = edge_cs
+
+                        run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
+
+                        # Check if we can skip this run
+                        if old_results is not None and not\
+                                old_results[(old_results.Seed == seed) &\
+                                    (old_results.LocalCS == local_cs) &\
+                                    (old_results.CloudCS == cloud_cs) &\
+                                    (old_results.EdgeCS == edge_cs) &\
+                                    (old_results.Policy == pol)].empty:
+                            print("Skipping conf")
+                            continue
+
+                        stats = _experiment(config, infra, temp_spec_file.name)
+                        with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                            stats.print(of)
+
+                        result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
+                        results.append(result)
+
+                resultsDf = pd.DataFrame(results)
+                if old_results is not None:
+                    resultsDf = pd.concat([old_results, resultsDf])
+                resultsDf.to_csv(outfile, index=False)
+    
+    resultsDf = pd.DataFrame(results)
+    if old_results is not None:
+        resultsDf = pd.concat([old_results, resultsDf])
+    resultsDf.to_csv(outfile, index=False)
+    print(resultsDf.groupby(["Policy", "LocalCS", "CloudCS", "EdgeCS"]).mean())
+
+    temp_spec_file.close()
+
+    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
+        config.write(of)
+
 def experiment_cold_start(args, config):
     results = []
     exp_tag = "coldStart"
     outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
 
     infra = default_infra()
-    temp_spec_file = generate_spec (1, load_coeff=0.1, dynamic_rate_coeff=2.0)
+    temp_spec_file = generate_spec (1, load_coeff=1.0, dynamic_rate_coeff=1.0)
 
     POLICIES = ["probabilistic2", "greedy", "greedy-budget"]
     CS_STRATEGIES = ["pacs", "no", "naive", "naive-per-function", "full-knowledge"]
@@ -262,6 +346,8 @@ if __name__ == "__main__":
         experiment_main_comparison(args, config)
     elif args.experiment.lower() == "c":
         experiment_cold_start(args, config)
+    elif args.experiment.lower() == "c2":
+        experiment_cold_start2(args, config)
     else:
         print("Unknown experiment!")
         exit(1)
