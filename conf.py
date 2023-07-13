@@ -12,6 +12,7 @@ EDGE_NEIGHBORS = "edge-neighbors"
 EDGE_EXPOSED_FRACTION = "edge-exposed-fraction"
 RESP_TIMES_FILE = "resp-times-file"
 VERBOSITY = "verbosity"
+RATE_UPDATE_INTERVAL = "rate-update-interval"
 
 SEC_POLICY = "policy"
 POLICY_NAME = "name"

@@ -68,7 +68,8 @@ def read_spec_file (spec_file_name, infra, config):
             if "trace" in f:
                 arv = TraceArrivalProcess(fun, invoking_classes, f["trace"])
             elif "rate" in f:
-                arv = PoissonArrivalProcess(fun, invoking_classes, float(f["rate"]))
+                dynamic_rate_coeff = float(f["dynamic_coeff"]) if "dynamic_coeff" in f else 0.0
+                arv = PoissonArrivalProcess(fun, invoking_classes, float(f["rate"]), dynamic_rate_coeff=dynamic_rate_coeff)
 
             if not node in node2arrivals:
                 node2arrivals[node] = []

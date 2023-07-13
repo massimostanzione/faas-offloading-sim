@@ -53,7 +53,7 @@ def relevant_stats_dict (stats):
     result["BudgetExcessPerc"] = max(0, (stats.cost-stats.budget)/stats.budget*100)
     return result
 
-def generate_spec (n_functions=5, arrivals_to_single_node=True):
+def generate_spec (n_functions=5, load_coeff=1.0, dynamic_rate_coeff=1.0, arrivals_to_single_node=True):
     ntemp = tempfile.NamedTemporaryFile(mode="w")
     classes = [{'name': 'critical', 'max_resp_time': 0.5, 'utility': 1.0, 'arrival_weight': 1.0}, {'name': 'standard', 'max_resp_time': 0.5, 'utility': 0.01, 'arrival_weight': 7.0}, {'name': 'batch', 'max_resp_time': 99.0, 'utility': 1.0, 'arrival_weight': 1.0}, {'name': 'criticalP', 'max_resp_time': 0.5, 'utility': 1.0, 'penalty': 0.75, 'arrival_weight': 1.0}]
     nodes = [{'name': 'edge1', 'region': 'edge', 'memory': 4096}, {'name': 'edge2', 'region': 'edge', 'memory': 4096}, {'name': 'edge3', 'region': 'edge', 'memory': 4096}, {'name': 'edge4', 'region': 'edge', 'memory': 4096}, {'name': 'edge5', 'region': 'edge', 'memory': 4096}, {'name': 'cloud1', 'region': 'cloud', 'cost': 1e-06, 'speedup': 1.0, 'memory': 128000}]
@@ -83,7 +83,8 @@ def generate_spec (n_functions=5, arrivals_to_single_node=True):
                 rate = load_per_node/n_functions/(f["duration_mean"]*f["memory"])
                 arrivals.append({"node": n["name"],
                                 "function": f["name"],
-                                "rate": rate})
+                                "rate": rate,
+                                 "dynamic_coeff": dynamic_rate_coeff})
 
     spec = {'classes': classes, 'nodes': nodes, 'functions': functions, 'arrivals': arrivals}
     ntemp.write(yaml.dump(spec))
@@ -96,7 +97,7 @@ def experiment_cold_start(args, config):
     outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
 
     infra = default_infra()
-    temp_spec_file = generate_spec (1)
+    temp_spec_file = generate_spec (1, load_coeff=0.1, dynamic_rate_coeff=2.0)
 
     POLICIES = ["probabilistic2", "greedy", "greedy-budget"]
     CS_STRATEGIES = ["pacs", "no", "naive", "naive-per-function", "full-knowledge"]

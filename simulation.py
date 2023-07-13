@@ -46,6 +46,10 @@ class PolicyUpdate(Event):
     pass
 
 @dataclass
+class ArrivalRateUpdate(Event):
+    pass
+
+@dataclass
 class StatPrinter(Event):
     pass
 
@@ -93,7 +97,7 @@ class Simulation:
         ss = SeedSequence(seed)
         n_arrival_processes = sum([len(arrival_procs) for arrival_procs in self.node2arrivals.values()])
         # Spawn off child SeedSequences to pass to child processes.
-        child_seeds = ss.spawn(3 + 2*n_arrival_processes)
+        child_seeds = ss.spawn(3 + 3*n_arrival_processes)
         self.service_rng = default_rng(child_seeds[0])
         self.node_choice_rng = default_rng(child_seeds[1])
         self.policy_rng1 = default_rng(child_seeds[2])
@@ -101,8 +105,8 @@ class Simulation:
         i = 3
         for n,arvs in self.node2arrivals.items():
             for arv in arvs:
-                arv.init_rng(default_rng(child_seeds[i]), default_rng(child_seeds[i+1]))
-                i += 2
+                arv.init_rng(default_rng(child_seeds[i]), default_rng(child_seeds[i+1]), default_rng(child_seeds[i+2]))
+                i += 3
 
         self.max_neighbors = self.config.getint(conf.SEC_SIM, conf.EDGE_NEIGHBORS, fallback=3)
 
@@ -155,6 +159,8 @@ class Simulation:
             self.node2policy[n] = self.new_policy(_policy, n)
 
         self.policy_update_interval = self.config.getfloat(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, fallback=-1)
+        self.rate_update_interval = self.config.getfloat(conf.SEC_SIM, conf.RATE_UPDATE_INTERVAL, fallback=-1)
+        print(self.rate_update_interval)
         self.stats_print_interval = self.config.getfloat(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, fallback=-1)
         self.stats_file = sys.stdout
 
@@ -186,6 +192,8 @@ class Simulation:
 
         if self.policy_update_interval > 0.0:
             self.schedule(self.policy_update_interval, PolicyUpdate())
+        if self.rate_update_interval > 0.0:
+            self.schedule(self.rate_update_interval, ArrivalRateUpdate())
         if self.stats_print_interval > 0.0:
             self.schedule(self.stats_print_interval, StatPrinter())
             stats_print_filename = self.config.get(conf.SEC_SIM, conf.STAT_PRINT_FILE, fallback="")
@@ -241,6 +249,7 @@ class Simulation:
             for item in self.events:
                 if isinstance(item[1], CheckExpiredContainers) \
                    or isinstance(item[1], PolicyUpdate) \
+                   or isinstance(item[1], ArrivalRateUpdate) \
                    or isinstance(item[1], StatPrinter):
                     item[1].canceled = True
             self.external_arrivals_allowed = False
@@ -276,6 +285,12 @@ class Simulation:
             for p in self.node2policy.values():
                 p.update()
             self.schedule(t + self.policy_update_interval, event)
+        elif isinstance(event, ArrivalRateUpdate):
+            for n, arvs in self.node2arrivals.copy().items():
+                for arv in arvs:
+                    if arv.has_dynamic_rate():
+                        arv.update_dynamic_rate()
+            self.schedule(t + self.rate_update_interval, event)
         elif isinstance(event, StatPrinter):
             self.print_periodic_stats()
             self.schedule(t + self.stats_print_interval, event)

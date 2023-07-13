@@ -12,9 +12,10 @@ class ArrivalProcess:
         total_weight = sum([c.arrival_weight for c in classes])
         self.class_probs = [c.arrival_weight/total_weight for c in classes]
 
-    def init_rng (self, class_rng, iat_rng):
+    def init_rng (self, class_rng, iat_rng, rate_rng=None):
         self.class_rng = class_rng
         self.iat_rng = iat_rng
+        self.rate_rng = rate_rng
 
     def next_iat (self):
         raise RuntimeError("Not implemented")
@@ -25,15 +26,36 @@ class ArrivalProcess:
     def close(self):
         pass
 
+    def has_dynamic_rate (self):
+        return False
+
 
 class PoissonArrivalProcess (ArrivalProcess):
 
-    def __init__ (self, function: Function, classes: [QoSClass], rate: float):
+    def __init__ (self, function: Function, classes: [QoSClass], rate: float,
+                  dynamic_rate_coeff: float = 0.0):
         super().__init__(function, classes) 
         self.rate = rate
+        self.dynamic_rate_coeff = dynamic_rate_coeff
+
+        if self.has_dynamic_rate():
+            self._min_rate = rate/self.dynamic_rate_coeff
+            self._max_rate = rate*self.dynamic_rate_coeff
 
     def next_iat (self):
         return self.iat_rng.exponential(1.0/self.rate)
+
+    def has_dynamic_rate (self):
+        return self.dynamic_rate_coeff > 1.0
+
+    def update_dynamic_rate (self):
+        if self.has_dynamic_rate():
+            next_min = max(self._min_rate, self.rate/self.dynamic_rate_coeff)
+            next_max = min(self._max_rate, self.rate*self.dynamic_rate_coeff)
+            next_rate = self.rate_rng.uniform(next_min, next_max)
+            print(f"Rate: {self.rate} -> {next_rate}")
+            self.rate = next_rate
+
 
 class TraceArrivalProcess (ArrivalProcess):
 
