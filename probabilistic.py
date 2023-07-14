@@ -98,7 +98,7 @@ class ProbabilisticPolicy(Policy):
 
             loss = (dropped_offl-prev_dropped_offl)/(arrivals-ext_arrivals) if arrivals-ext_arrivals > 0 else 0
             if loss > 0.0:
-                self.node.peer_exposed_memory_fraction -= self.node.peer_exposed_memory_fraction*loss/2.0
+                self.node.peer_exposed_memory_fraction = max(0.05,self.node.peer_exposed_memory_fraction*loss/2.0)
             else:
                 self.node.peer_exposed_memory_fraction = min(self.node.peer_exposed_memory_fraction*1.1, 1.0)
             #print(f"{self.node}: Loss: {loss} ({dropped_offl-prev_dropped_offl}): {self.node.peer_exposed_memory_fraction:.3f}")
