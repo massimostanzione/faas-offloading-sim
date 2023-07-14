@@ -229,7 +229,7 @@ def experiment_cold_start(args, config):
                         keys["EdgeCS"] = edge_cs
 
                         run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
-                        print(f"Running: {f}")
+                        print(f"Running: {run_string}")
 
                         # Check if we can skip this run
                         if old_results is not None and not\
