@@ -42,6 +42,7 @@ def _experiment (config, infra, spec_file_name):
     classes, functions, node2arrivals  = read_spec_file (spec_file_name, infra, config)
     sim = Simulation(config, infra, functions, classes, node2arrivals)
     final_stats = sim.run()
+    del(sim)
     return final_stats
 
 def relevant_stats_dict (stats):
@@ -245,6 +246,8 @@ def experiment_cold_start(args, config):
 
                         result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
                         results.append(result)
+
+                        del(stats)
 
                 resultsDf = pd.DataFrame(results)
                 if old_results is not None:
