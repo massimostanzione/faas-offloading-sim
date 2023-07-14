@@ -30,6 +30,8 @@ class Stats:
         self.penalty = 0.0
         self._memory_usage_area = {x: 0.0 for x in self.nodes}
         self._memory_usage_t0 = {x: 0.0 for x in self.nodes}
+        self._policy_update_time_sum = {x: 0.0 for x in self.nodes}
+        self._policy_updates = {x: 0 for x in self.nodes}
 
         self.budget = self.sim.config.getfloat(conf.SEC_POLICY, conf.HOURLY_BUDGET, fallback=-1.0)
 
@@ -85,6 +87,14 @@ class Stats:
         del(stats["_memory_usage_area"])
         del(stats["_memory_usage_t0"])
 
+        avg_policy_upd_time = {}
+        for n in self._policy_update_time_sum:
+            if self._policy_updates[n] > 0:
+                avg_policy_upd_time[repr(n)] = self._policy_update_time_sum[n]/self._policy_updates[n]
+        stats["avgPolicyUpdateTime"] = avg_policy_upd_time
+        del(stats["_policy_update_time_sum"])
+        del(stats["_policy_updates"])
+
 
         return stats
     
@@ -92,6 +102,10 @@ class Stats:
         used_mem = node.total_memory-node.curr_memory
         self._memory_usage_area[node] += used_mem*(t-self._memory_usage_t0[node])
         self._memory_usage_t0[node] = t
+
+    def update_policy_upd_time (self, node, t):
+        self._policy_update_time_sum[node] += t
+        self._policy_updates[node] += 1
 
     def print (self, out_file):
         print(json.dumps(self.to_dict(), indent=4, sort_keys=True), file=out_file)

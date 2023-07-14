@@ -1,5 +1,6 @@
 import configparser
 from dataclasses import dataclass, field
+import time
 from heapq import heappop, heappush
 import numpy as np
 from numpy.random import SeedSequence, default_rng
@@ -282,8 +283,10 @@ class Simulation:
         elif isinstance(event, Completion):
             self.handle_completion(event)
         elif isinstance(event, PolicyUpdate):
-            for p in self.node2policy.values():
+            for n,p in self.node2policy.items():
+                upd_t0 = time.time()
                 p.update()
+                self.stats.update_policy_upd_time(n,time.time()-upd_t0)
             self.schedule(t + self.policy_update_interval, event)
         elif isinstance(event, ArrivalRateUpdate):
             for n, arvs in self.node2arrivals.copy().items():
