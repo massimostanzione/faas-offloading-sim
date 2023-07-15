@@ -99,7 +99,6 @@ def experiment_cold_start2(args, config):
     exp_tag = "coldStartDynRate"
     outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
 
-    infra = default_infra()
     temp_spec_file = generate_spec (3, load_coeff=0.1, dynamic_rate_coeff=3.0)
     config.set(conf.SEC_SIM, conf.RATE_UPDATE_INTERVAL, str(300))
 
@@ -156,6 +155,7 @@ def experiment_cold_start2(args, config):
                             print("Skipping conf")
                             continue
 
+                        infra = default_infra()
                         stats = _experiment(config, infra, temp_spec_file.name)
                         with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
                             stats.print(of)
@@ -184,7 +184,6 @@ def experiment_cold_start(args, config):
     exp_tag = "coldStart"
     outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
 
-    infra = default_infra()
     temp_spec_file = generate_spec (3, load_coeff=1.0, dynamic_rate_coeff=1.0)
 
     POLICIES = ["probabilistic2", "greedy", "greedy-budget"]
@@ -241,6 +240,7 @@ def experiment_cold_start(args, config):
                             print("Skipping conf")
                             continue
 
+                        infra = default_infra()
                         stats = _experiment(config, infra, temp_spec_file.name)
                         with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
                             stats.print(of)
@@ -271,7 +271,6 @@ def experiment_main_comparison(args, config):
     exp_tag = "mainComparison"
     outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
 
-    infra = default_infra()
     temp_spec_file = generate_spec (1)
 
     POLICIES = ["random", "basic", "basic-edge", "basic-budget", "probabilistic", "probabilistic2", "greedy", "greedy-min-cost", "greedy-budget"]
@@ -303,6 +302,7 @@ def experiment_main_comparison(args, config):
                 print("Skipping conf")
                 continue
 
+            infra = default_infra()
             stats = _experiment(exp_tag, config, infra, temp_spec_file.name)
             with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
                 stats.print(of)
