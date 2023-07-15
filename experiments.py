@@ -323,7 +323,7 @@ def experiment_main_comparison(args, config):
 
                         temp_spec_file = generate_spec (n_functions=functions)
                         infra = default_infra(edge_cloud_latency=latency)
-                        stats = _experiment(exp_tag, config, infra, temp_spec_file.name)
+                        stats = _experiment(config, infra, temp_spec_file.name)
                         temp_spec_file.close()
                         with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
                             stats.print(of)
