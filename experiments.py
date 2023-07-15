@@ -271,7 +271,11 @@ def experiment_main_comparison(args, config):
     exp_tag = "mainComparison"
     outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
 
-    temp_spec_file = generate_spec (1)
+    config.set(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, "naive-per-function")
+    config.set(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, "pacs")
+    config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "120")
+    config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
+
 
     POLICIES = ["random", "basic", "basic-edge", "basic-budget", "probabilistic", "probabilistic2", "greedy", "greedy-min-cost", "greedy-budget"]
 
@@ -285,36 +289,53 @@ def experiment_main_comparison(args, config):
 
     for seed in SEEDS:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
+        for latency in [0.050, 0.100, 0.200]:
+            for budget in [1,2,10]:
+                config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
+                for functions in range(1,6):
+                    for pol in POLICIES:
+                        config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
 
-        for pol in POLICIES:
-            config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
+                        if "greedy" in pol:
+                            config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, "full-knowledge")
+                        else:
+                            config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, "naive-per-function")
 
-            keys = {}
-            keys["Policy"] = pol
-            keys["Seed"] = seed
 
-            run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
+                        keys = {}
+                        keys["Policy"] = pol
+                        keys["Seed"] = seed
+                        keys["Functions"] = functions
+                        keys["Latency"] = latency
+                        keys["Budget"] = budget
 
-            # Check if we can skip this run
-            if old_results is not None and not\
-                    old_results[(old_results.Seed == seed) &\
-                        (old_results.Policy == pol)].empty:
-                print("Skipping conf")
-                continue
+                        run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
 
-            infra = default_infra()
-            stats = _experiment(exp_tag, config, infra, temp_spec_file.name)
-            with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
-                stats.print(of)
+                        # Check if we can skip this run
+                        if old_results is not None and not\
+                                old_results[(old_results.Seed == seed) &\
+                                    (old_results.Latency == latency) &\
+                                    (old_results.Functions == functions) &\
+                                    (old_results.Budget == budget) &\
+                                    (old_results.Policy == pol)].empty:
+                            print("Skipping conf")
+                            continue
 
-            result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
-            results.append(result)
-            print(result)
+                        temp_spec_file = generate_spec (n_functions=functions)
+                        infra = default_infra(edge_cloud_latency=latency)
+                        stats = _experiment(exp_tag, config, infra, temp_spec_file.name)
+                        temp_spec_file.close()
+                        with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                            stats.print(of)
 
-            resultsDf = pd.DataFrame(results)
-            if old_results is not None:
-                resultsDf = pd.concat([old_results, resultsDf])
-            resultsDf.to_csv(outfile, index=False)
+                        result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
+                        results.append(result)
+                        print(result)
+
+                        resultsDf = pd.DataFrame(results)
+                        if old_results is not None:
+                            resultsDf = pd.concat([old_results, resultsDf])
+                        resultsDf.to_csv(outfile, index=False)
     
     resultsDf = pd.DataFrame(results)
     if old_results is not None:
