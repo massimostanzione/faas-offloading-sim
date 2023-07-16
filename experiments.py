@@ -329,7 +329,7 @@ def experiment_varying_arrivals (args, config):
                             continue
 
                         temp_spec_file = generate_spec (dynamic_rate_coeff=dyn_rate_coeff)
-                        infra = default_infra(edge_cloud_latency=latency)
+                        infra = default_infra()
                         stats = _experiment(config, infra, temp_spec_file.name)
                         temp_spec_file.close()
                         with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
