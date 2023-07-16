@@ -412,7 +412,7 @@ def experiment_main_comparison(args, config, arrivals_to_all_nodes=False):
                             print("Skipping conf")
                             continue
 
-                        temp_spec_file = generate_spec (n_functions=functions)
+                        temp_spec_file = generate_spec (n_functions=functions, arrivals_to_single_node=(not arrivals_to_all_nodes))
                         infra = default_infra(edge_cloud_latency=latency)
                         stats = _experiment(config, infra, temp_spec_file.name)
                         temp_spec_file.close()
