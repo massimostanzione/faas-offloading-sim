@@ -328,7 +328,7 @@ def experiment_varying_arrivals (args, config):
                             print("Skipping conf")
                             continue
 
-                        temp_spec_file = generate_spec (n_functions=functions)
+                        temp_spec_file = generate_spec (dynamic_rate_coeff=dyn_rate_coeff)
                         infra = default_infra(edge_cloud_latency=latency)
                         stats = _experiment(config, infra, temp_spec_file.name)
                         temp_spec_file.close()
