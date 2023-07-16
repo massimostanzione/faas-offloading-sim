@@ -381,7 +381,7 @@ def experiment_main_comparison(args, config, arrivals_to_all_nodes=False):
     for seed in SEEDS:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
         for latency in [0.050, 0.100, 0.200]:
-            for budget in [1,2,10]:
+            for budget in [0.5, 1,2,10]:
                 config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
                 for functions in range(1,6):
                     for pol in POLICIES:
