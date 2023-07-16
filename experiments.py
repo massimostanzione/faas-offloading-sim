@@ -271,7 +271,7 @@ def experiment_main_comparison(args, config):
     exp_tag = "mainComparison"
     outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
 
-    config.set(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, "naive-per-function")
+    config.set(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, "pacs")
     config.set(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, "pacs")
     config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "120")
     config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
