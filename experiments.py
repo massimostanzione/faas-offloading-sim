@@ -94,6 +94,7 @@ def generate_spec (n_functions=5, load_coeff=1.0, dynamic_rate_coeff=1.0, arriva
     ntemp.flush()
     return ntemp
 
+# TODO: for reproducibility, cloud_cost=1e-6
 def experiment_cold_start2(args, config):
     results = []
     exp_tag = "coldStartDynRate"
@@ -179,6 +180,7 @@ def experiment_cold_start2(args, config):
     with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
         config.write(of)
 
+# TODO: for reproducibility, cloud_cost=1e-6
 def experiment_cold_start(args, config):
     results = []
     exp_tag = "coldStart"
@@ -266,9 +268,11 @@ def experiment_cold_start(args, config):
     with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
         config.write(of)
 
-def experiment_main_comparison(args, config):
+def experiment_main_comparison(args, config, arrivals_to_all_nodes=False):
     results = []
     exp_tag = "mainComparison"
+    if arrivals_to_all_nodes:
+        exp_tag = "mainComparisonArvAll"
     outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
 
     config.set(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, "pacs")
@@ -372,6 +376,8 @@ if __name__ == "__main__":
     
     if args.experiment.lower() == "a":
         experiment_main_comparison(args, config)
+    if args.experiment.lower() == "b":
+        experiment_main_comparison(args, config, arrivals_to_all_nodes=True)
     elif args.experiment.lower() == "c":
         experiment_cold_start(args, config)
     elif args.experiment.lower() == "c2":
