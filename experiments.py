@@ -280,7 +280,7 @@ def experiment_varying_arrivals (args, config):
 
 
 
-    POLICIES = ["basic", "probabilistic2", "greedy-budget"]
+    POLICIES = ["basic", "probabilistic2", "greedy-budget", "probabilistic"]
 
     # Check existing results
     old_results = None
@@ -292,7 +292,7 @@ def experiment_varying_arrivals (args, config):
 
     for seed in SEEDS:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
-        for policy_update_interval in [30, 60, 120]:
+        for policy_update_interval in [30, 60, 120, 240]:
             config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, str(policy_update_interval))
             for alpha in [0.3, 0.5, 1.0]: 
                 config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, str(alpha))
@@ -300,7 +300,7 @@ def experiment_varying_arrivals (args, config):
                     for pol in POLICIES:
                         config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
 
-                        if alpha > 0.3 and "greedy" in pol:
+                        if alpha > 0.3 and (not "probabilistic" in pol):
                             continue
 
                         if "greedy" in pol:
