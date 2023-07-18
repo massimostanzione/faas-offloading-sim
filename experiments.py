@@ -621,7 +621,7 @@ def experiment_scalability (args, config):
     exp_tag = "scalability"
     outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
 
-    config.set(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, str("601"))
+    config.set(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, str("400"))
     config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, "naive-per-function")
     config.set(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, "naive-per-function")
     config.set(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, "no")
@@ -640,10 +640,10 @@ def experiment_scalability (args, config):
         except:
             pass
 
-    for seed in SEEDS[:1]:
+    for seed in SEEDS:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
         for n_classes in [1, 2, 4, 6, 8]:
-            for functions in range(2,101,4):
+            for functions in range(2,161,4):
                 for pol in POLICIES:
                     config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
 
