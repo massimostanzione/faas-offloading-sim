@@ -565,8 +565,8 @@ def experiment_scalability (args, config):
 
     for seed in SEEDS[:1]:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
-        for n_classes in [1, 2, 4, 6]:
-            for functions in range(2,51,4):
+        for n_classes in [1, 2, 4, 6, 8]:
+            for functions in range(2,76,4):
                 for pol in POLICIES:
                     config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
 
