@@ -42,7 +42,7 @@ class Policy:
         self.__edge_peers = None
         self.budget = simulation.config.getfloat(conf.SEC_POLICY, conf.HOURLY_BUDGET, fallback=-1.0)
         self.local_budget = self.budget
-        if simulation.config.getbool(conf.SEC_POLICY, conf.SPLIT_BUDGET_AMONG_EDGE_NODES, fallback=False):
+        if simulation.config.getboolean(conf.SEC_POLICY, conf.SPLIT_BUDGET_AMONG_EDGE_NODES, fallback=False):
             nodes = len(simulation.infra.get_edge_nodes())
             self.local_budget = self.budget / nodes
 
