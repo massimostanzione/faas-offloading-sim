@@ -264,7 +264,7 @@ class ProbabilisticPolicy(Policy):
                                                    self.cold_start_prob_local,
                                                    self.cold_start_prob_cloud,
                                                    self.rt_percentile,
-                                                   self.budget, self.local_usable_memory_coeff)
+                                                   self.local_budget, self.local_usable_memory_coeff)
         if new_probs is not None:
             self.probs = new_probs
             #print(f"[{self.node}] Probs: {self.probs}")
@@ -418,7 +418,7 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
                                                    self.cold_start_prob_local,
                                                    self.cold_start_prob_cloud,
                                                    self.cold_start_prob_edge,
-                                                   self.budget,
+                                                   self.local_budget,
                                                    self.local_usable_memory_coeff)
         if new_probs is not None:
             self.probs = new_probs
