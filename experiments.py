@@ -375,11 +375,10 @@ def experiment_varying_arrivals (args, config):
     with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
         config.write(of)
 
-def experiment_main_comparison(args, config, arrivals_to_all_nodes=False):
+def experiment_main_comparison(args, config):
     results = []
     exp_tag = "mainComparison"
-    if arrivals_to_all_nodes:
-        exp_tag = "mainComparisonArvAll"
+    config.set(conf.SEC_POLICY, conf.SPLIT_BUDGET_AMONG_EDGE_NODES, "false")
     outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
 
     config.set(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, "pacs")
@@ -432,7 +431,7 @@ def experiment_main_comparison(args, config, arrivals_to_all_nodes=False):
                             print("Skipping conf")
                             continue
 
-                        temp_spec_file = generate_spec (n_functions=functions, arrivals_to_single_node=(not arrivals_to_all_nodes))
+                        temp_spec_file = generate_spec (n_functions=functions)
                         infra = default_infra(edge_cloud_latency=latency)
                         stats = _experiment(config, infra, temp_spec_file.name)
                         temp_spec_file.close()
@@ -447,6 +446,84 @@ def experiment_main_comparison(args, config, arrivals_to_all_nodes=False):
                         if old_results is not None:
                             resultsDf = pd.concat([old_results, resultsDf])
                         resultsDf.to_csv(outfile, index=False)
+    
+    resultsDf = pd.DataFrame(results)
+    if old_results is not None:
+        resultsDf = pd.concat([old_results, resultsDf])
+    resultsDf.to_csv(outfile, index=False)
+    print(resultsDf.groupby("Policy").mean())
+
+    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
+        config.write(of)
+
+def experiment_arrivals_to_all (args, config):
+    results = []
+    exp_tag = "mainComparisonArvAll"
+    config.set(conf.SEC_POLICY, conf.SPLIT_BUDGET_AMONG_EDGE_NODES, "true")
+    outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
+
+    config.set(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, "pacs")
+    config.set(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, "pacs")
+    config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "120")
+    config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
+
+
+    POLICIES = ["random", "basic", "basic-edge", "basic-budget", "probabilistic", "probabilistic2", "greedy", "greedy-min-cost", "greedy-budget"]
+
+    # Check existing results
+    old_results = None
+    if not args.force:
+        try:
+            old_results = pd.read_csv(outfile)
+        except:
+            pass
+
+    for seed in SEEDS:
+        config.set(conf.SEC_SIM, conf.SEED, str(seed))
+        for latency in [0.050, 0.100, 0.200]:
+            for budget in [1,2,10,20]:
+                config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
+                for pol in POLICIES:
+                    config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
+
+                    if "greedy" in pol:
+                        config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, "full-knowledge")
+                    else:
+                        config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, "naive-per-function")
+
+
+                    keys = {}
+                    keys["Policy"] = pol
+                    keys["Seed"] = seed
+                    keys["Latency"] = latency
+                    keys["Budget"] = budget
+
+                    run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
+
+                    # Check if we can skip this run
+                    if old_results is not None and not\
+                            old_results[(old_results.Seed == seed) &\
+                                (old_results.Latency == latency) &\
+                                (old_results.Budget == budget) &\
+                                (old_results.Policy == pol)].empty:
+                        print("Skipping conf")
+                        continue
+
+                    temp_spec_file = generate_spec (n_functions=5, arrivals_to_single_node=False)
+                    infra = default_infra(edge_cloud_latency=latency)
+                    stats = _experiment(config, infra, temp_spec_file.name)
+                    temp_spec_file.close()
+                    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                        stats.print(of)
+
+                    result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
+                    results.append(result)
+                    print(result)
+
+                    resultsDf = pd.DataFrame(results)
+                    if old_results is not None:
+                        resultsDf = pd.concat([old_results, resultsDf])
+                    resultsDf.to_csv(outfile, index=False)
     
     resultsDf = pd.DataFrame(results)
     if old_results is not None:
@@ -566,7 +643,7 @@ def experiment_scalability (args, config):
     for seed in SEEDS[:1]:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
         for n_classes in [1, 2, 4, 6, 8]:
-            for functions in range(2,76,4):
+            for functions in range(2,101,4):
                 for pol in POLICIES:
                     config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
 
@@ -645,7 +722,7 @@ if __name__ == "__main__":
     if args.experiment.lower() == "a":
         experiment_main_comparison(args, config)
     elif args.experiment.lower() == "b":
-        experiment_main_comparison(args, config, arrivals_to_all_nodes=True)
+        experiment_arrivals_to_all(args, config)
     elif args.experiment.lower() == "c":
         experiment_cold_start(args, config)
     elif args.experiment.lower() == "c2":
