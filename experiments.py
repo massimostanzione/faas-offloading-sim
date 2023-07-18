@@ -88,7 +88,7 @@ def generate_spec (n_functions=5, load_coeff=1.0, dynamic_rate_coeff=1.0, arriva
 
     arrivals = []
     if arrivals_to_single_node:
-        total_load = 8000
+        total_load = 8000*load_coeff
         for f in functions:
             rate = total_load/n_functions/(f["duration_mean"]*f["memory"])
             arrivals.append({"node": "edge1",
@@ -98,7 +98,7 @@ def generate_spec (n_functions=5, load_coeff=1.0, dynamic_rate_coeff=1.0, arriva
                             })
     else:
         edge_nodes = [n for n in nodes if "edge" in n["name"]]
-        total_load = 16000
+        total_load = 16000*load_coeff
         load_per_node = total_load/len(edge_nodes)
         for n in edge_nodes:
             if "cloud" in n:
