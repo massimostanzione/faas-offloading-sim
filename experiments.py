@@ -54,14 +54,35 @@ def relevant_stats_dict (stats):
     result["BudgetExcessPerc"] = max(0, (stats.cost-stats.budget)/stats.budget*100)
     return result
 
-def generate_spec (n_functions=5, load_coeff=1.0, dynamic_rate_coeff=1.0, arrivals_to_single_node=True):
+def generate_spec (n_functions=5, load_coeff=1.0, dynamic_rate_coeff=1.0, arrivals_to_single_node=True,
+                   n_classes=4, cloud_cost=0.00005, cloud_speedup=1.0):
     ntemp = tempfile.NamedTemporaryFile(mode="w")
     classes = [{'name': 'critical', 'max_resp_time': 0.5, 'utility': 1.0, 'arrival_weight': 1.0}, {'name': 'standard', 'max_resp_time': 0.5, 'utility': 0.01, 'arrival_weight': 7.0}, {'name': 'batch', 'max_resp_time': 99.0, 'utility': 1.0, 'arrival_weight': 1.0}, {'name': 'criticalP', 'max_resp_time': 0.5, 'utility': 1.0, 'penalty': 0.75, 'arrival_weight': 1.0}]
-    nodes = [{'name': 'edge1', 'region': 'edge', 'memory': 4096}, {'name': 'edge2', 'region': 'edge', 'memory': 4096}, {'name': 'edge3', 'region': 'edge', 'memory': 4096}, {'name': 'edge4', 'region': 'edge', 'memory': 4096}, {'name': 'edge5', 'region': 'edge', 'memory': 4096}, {'name': 'cloud1', 'region': 'cloud', 'cost': 0.00005, 'speedup': 1.0, 'memory': 128000}]
+    nodes = [{'name': 'edge1', 'region': 'edge', 'memory': 4096}, {'name': 'edge2', 'region': 'edge', 'memory': 4096}, {'name': 'edge3', 'region': 'edge', 'memory': 4096}, {'name': 'edge4', 'region': 'edge', 'memory': 4096}, {'name': 'edge5', 'region': 'edge', 'memory': 4096}, {'name': 'cloud1', 'region': 'cloud', 'cost': cloud_cost, 'speedup': cloud_speedup, 'memory': 128000}]
     functions = [{'name': 'f1', 'memory': 512, 'duration_mean': 0.4, 'duration_scv': 1.0, 'init_mean': 0.5}, {'name': 'f2', 'memory': 512, 'duration_mean': 0.2, 'duration_scv': 1.0, 'init_mean': 0.25}, {'name': 'f3', 'memory': 128, 'duration_mean': 0.3, 'duration_scv': 1.0, 'init_mean': 0.6}, {'name': 'f4', 'memory': 1024, 'duration_mean': 0.25, 'duration_scv': 1.0, 'init_mean': 0.25}, {'name': 'f5', 'memory': 256, 'duration_mean': 0.45, 'duration_scv': 1.0, 'init_mean': 0.5}]
-    
-    functions = functions[:n_functions]
+   
+    #Extend functions list if needed
+    if n_functions > len(functions):
+        i=0
+        while n_functions > len(functions):
+            new_f = functions[i].copy()
+            new_f["name"] = f"f{len(functions)+1}"
+            functions.append(new_f)
+            i+=1
+    else:
+        functions = functions[:n_functions]
     function_names = [f["name"] for f in functions]
+
+    #Extend class list if needed
+    if n_classes > len(classes):
+        i=0
+        while n_classes > len(classes):
+            new_f = classes[i].copy()
+            new_f["name"] = f"c{len(classes)+1}"
+            classes.append(new_f)
+            i+=1
+    else:
+        classes = classes[:n_classes]
 
     total_fun_weight = sum([f["duration_mean"]*f["memory"] for f in functions])
 
@@ -94,13 +115,12 @@ def generate_spec (n_functions=5, load_coeff=1.0, dynamic_rate_coeff=1.0, arriva
     ntemp.flush()
     return ntemp
 
-# TODO: for reproducibility, cloud_cost=1e-6
 def experiment_cold_start2(args, config):
     results = []
     exp_tag = "coldStartDynRate"
     outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
 
-    temp_spec_file = generate_spec (3, load_coeff=0.1, dynamic_rate_coeff=3.0)
+    temp_spec_file = generate_spec (3, load_coeff=0.1, dynamic_rate_coeff=3.0, cloud_cost=0.000001)
     config.set(conf.SEC_SIM, conf.RATE_UPDATE_INTERVAL, str(300))
 
     POLICIES = ["probabilistic2", "greedy", "greedy-budget"]
@@ -434,7 +454,86 @@ def experiment_main_comparison(args, config, arrivals_to_all_nodes=False):
     resultsDf.to_csv(outfile, index=False)
     print(resultsDf.groupby("Policy").mean())
 
-    temp_spec_file.close()
+    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
+        config.write(of)
+
+def experiment_scalability (args, config):
+    results = []
+    exp_tag = "scalability"
+    outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
+
+    config.set(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, str("601"))
+    config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, "naive-per-function")
+    config.set(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, "naive-per-function")
+    config.set(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, "no")
+    config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "120")
+    config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
+    config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, "10")
+
+
+    POLICIES = ["probabilistic", "probabilistic2"]
+
+    # Check existing results
+    old_results = None
+    if not args.force:
+        try:
+            old_results = pd.read_csv(outfile)
+        except:
+            pass
+
+    for seed in SEEDS[:1]:
+        config.set(conf.SEC_SIM, conf.SEED, str(seed))
+        for n_classes in [1, 2, 4, 6]:
+            for functions in range(2,51,4):
+                for pol in POLICIES:
+                    config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
+
+                    keys = {}
+                    keys["Policy"] = pol
+                    keys["Seed"] = seed
+                    keys["Functions"] = functions
+                    keys["Classes"] = n_classes
+
+                    run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
+
+                    # Check if we can skip this run
+                    if old_results is not None and not\
+                            old_results[(old_results.Seed == seed) &\
+                                (old_results.Classes == n_classes) &\
+                                (old_results.Functions == functions) &\
+                                (old_results.Policy == pol)].empty:
+                        print("Skipping conf")
+                        continue
+
+                    temp_spec_file = generate_spec (n_functions=functions, n_classes=n_classes)
+                    infra = default_infra()
+                    stats = _experiment(config, infra, temp_spec_file.name)
+                    temp_spec_file.close()
+                    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                        stats.print(of)
+                    
+                    
+                    
+                    result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
+
+                    update_time = max([
+                        stats._policy_update_time_sum[n]/stats._policy_updates[n] for n in infra.get_nodes()
+                        ])
+                    result["updateTime"] = update_time
+
+                    results.append(result)
+                    print(result)
+
+                    resultsDf = pd.DataFrame(results)
+                    if old_results is not None:
+                        resultsDf = pd.concat([old_results, resultsDf])
+                    resultsDf.to_csv(outfile, index=False)
+    
+    resultsDf = pd.DataFrame(results)
+    if old_results is not None:
+        resultsDf = pd.concat([old_results, resultsDf])
+    resultsDf.to_csv(outfile, index=False)
+    print(resultsDf.groupby("Policy").mean())
 
     with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
         config.write(of)
@@ -463,7 +562,7 @@ if __name__ == "__main__":
     
     if args.experiment.lower() == "a":
         experiment_main_comparison(args, config)
-    if args.experiment.lower() == "b":
+    elif args.experiment.lower() == "b":
         experiment_main_comparison(args, config, arrivals_to_all_nodes=True)
     elif args.experiment.lower() == "c":
         experiment_cold_start(args, config)
@@ -471,6 +570,8 @@ if __name__ == "__main__":
         experiment_cold_start2(args, config)
     elif args.experiment.lower() == "v":
         experiment_varying_arrivals(args, config)
+    elif args.experiment.lower() == "s":
+        experiment_scalability(args, config)
     else:
         print("Unknown experiment!")
         exit(1)
