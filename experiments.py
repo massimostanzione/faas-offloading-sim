@@ -633,7 +633,7 @@ def experiment_simple (args, config):
     config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
 
 
-    POLICIES = ["basic", "basic-edge", "basic-budget", "probabilistic", "probabilistic2", "greedy", "greedy-min-cost", "greedy-budget"]
+    POLICIES = ["basic", "basic-edge", "basic-budget", "probabilistic", "probabilistic2", "greedy", "greedy-min-cost", "greedy-budget", "probabilistic-strict", "probabilistic2-strict"]
 
     # Check existing results
     old_results = None

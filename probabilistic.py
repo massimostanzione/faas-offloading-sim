@@ -13,8 +13,9 @@ class ProbabilisticPolicy(Policy):
 
     # Probability vector: p_e, p_o, p_d
 
-    def __init__(self, simulation, node):
+    def __init__(self, simulation, node, strict_budget_enforce=False):
         super().__init__(simulation, node)
+        self.strict_budget_enforce = strict_budget_enforce
         cloud_region = node.region.default_cloud
         self.cloud = self.simulation.node_choice_rng.choice(self.simulation.infra.get_region_nodes(cloud_region), 1)[0]
 
@@ -69,6 +70,10 @@ class ProbabilisticPolicy(Policy):
                                            p=[probabilities[1] / nolocal_prob, probabilities[2] / nolocal_prob])
             else:
                 decision = SchedulerDecision.OFFLOAD_CLOUD
+
+        if decision == SchedulerDecision.OFFLOAD_CLOUD and self.strict_budget_enforce and\
+                self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
+            return SchedulerDecision.DROP
 
         return decision
 
@@ -276,8 +281,8 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
     # Probability vector: p_L, p_C, p_E, p_D
     # LP Model v2
 
-    def __init__(self, simulation, node):
-        super().__init__(simulation, node)
+    def __init__(self, simulation, node, strict_budget_enforce=False):
+        super().__init__(simulation, node, strict_budget_enforce)
 
         self.aggregated_edge_memory = 0.0
         self.estimated_service_time_edge = {}
@@ -314,13 +319,18 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
             s = sum(probabilities)
             if not s > 0.0:
                 # NOTE: we may add new Cloud offloadings even if p_cloud=0
-                if c.utility > 0.0 and self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
+                if c.utility > 0.0 and self.simulation.stats.cost / self.simulation.t * 3600 < self.budget:
+                    return SchedulerDecision.OFFLOAD_CLOUD
+                else:
                     return SchedulerDecision.DROP
                     self.forced_drop += 1
-                else:
-                    return SchedulerDecision.OFFLOAD_CLOUD
             probabilities = [x/s for x in probabilities]
             return self.rng.choice(self.possible_decisions, p=probabilities)
+        
+        if decision == SchedulerDecision.OFFLOAD_CLOUD and self.strict_budget_enforce and\
+                self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
+            return SchedulerDecision.DROP
+
         return decision
 
     def update_metrics(self):

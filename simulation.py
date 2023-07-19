@@ -129,8 +129,12 @@ class Simulation:
             return policy.CloudPolicy(self, node)
         elif configured_policy == "probabilistic":
             return probabilistic.ProbabilisticPolicy(self, node)
+        elif configured_policy == "probabilistic-strict":
+            return probabilistic.ProbabilisticPolicy(self, node, True)
         elif configured_policy == "probabilistic2":
             return probabilistic.ProbabilisticPolicy2(self, node)
+        elif configured_policy == "probabilistic2-strict":
+            return probabilistic.ProbabilisticPolicy2(self, node, True)
         elif configured_policy == "greedy":
             return policy.GreedyPolicy(self, node)
         elif configured_policy == "greedy-budget":
