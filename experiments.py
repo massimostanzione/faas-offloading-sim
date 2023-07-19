@@ -481,7 +481,8 @@ def experiment_arrivals_to_all (args, config):
     config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
 
 
-    POLICIES = ["random", "basic", "basic-edge", "basic-budget", "probabilistic", "probabilistic2", "greedy", "greedy-min-cost", "greedy-budget"]
+    POLICIES = ["basic", "basic-budget", "probabilistic", "probabilistic2", "greedy", "greedy-budget", "probabilistic-strict",
+                "probabilistic2-strict"]
 
     # Check existing results
     old_results = None
@@ -493,7 +494,7 @@ def experiment_arrivals_to_all (args, config):
 
     for seed in SEEDS:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
-        for latency in [0.050, 0.100, 0.200]:
+        for latency in [0.100]:
             for budget in [1,2,10,20]:
                 config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
                 for pol in POLICIES:
