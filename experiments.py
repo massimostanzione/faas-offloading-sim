@@ -631,7 +631,7 @@ def experiment_simple (args, config):
     config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
 
 
-    POLICIES = ["random", "basic", "basic-edge", "basic-budget", "probabilistic", "probabilistic2", "greedy", "greedy-min-cost", "greedy-budget"]
+    POLICIES = ["basic", "basic-edge", "basic-budget", "probabilistic", "probabilistic2", "greedy", "greedy-min-cost", "greedy-budget"]
 
     # Check existing results
     old_results = None
@@ -645,9 +645,9 @@ def experiment_simple (args, config):
 
     for seed in SEEDS:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
-        for cloud_speedup in [1.0, 1.1, 1.5, 2.0]:
-            for cloud_cost in [0.000001, 0.00001, 0.00005, 0.0001]:
-                for load_coeff in [0.25, 0.5, 1, 2, 4, 8]:
+        for cloud_speedup in [1.0, 1.5, 2.0, 4.0]:
+            for cloud_cost in [0.00001, 0.00005, 0.0001, 0.001]:
+                for load_coeff in [0.5, 1, 2, 4, 8]:
                     for pol in POLICIES:
                         config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
 
@@ -676,8 +676,7 @@ def experiment_simple (args, config):
                             print("Skipping conf")
                             continue
 
-                        temp_spec_file = generate_spec (n_functions=2, n_classes=2, load_coeff=load_coeff,
-                                                        cloud_cost=cloud_cost, cloud_speedup=cloud_speedup)
+                        temp_spec_file = generate_spec (load_coeff=load_coeff, cloud_cost=cloud_cost, cloud_speedup=cloud_speedup)
                         infra = default_infra()
                         stats = _experiment(config, infra, temp_spec_file.name)
                         temp_spec_file.close()
