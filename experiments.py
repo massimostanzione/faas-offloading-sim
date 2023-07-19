@@ -400,7 +400,7 @@ def experiment_main_comparison(args, config):
     config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
 
 
-    POLICIES = ["random", "basic", "basic-edge", "basic-budget", "probabilistic", "probabilistic2", "greedy", "greedy-min-cost", "greedy-budget"]
+    POLICIES = ["random", "basic", "basic-edge", "basic-budget", "probabilistic", "probabilistic2", "greedy", "greedy-min-cost", "greedy-budget", "probabilistic-strict", "probabilistic2-strict"]
 
     # Check existing results
     old_results = None
