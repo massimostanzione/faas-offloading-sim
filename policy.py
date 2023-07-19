@@ -89,6 +89,8 @@ class Policy:
     def pick_edge_node (self, fun, qos):
         # Pick peers based on resource availability
         probs, peers = self._get_edge_peers_probabilities()
+        if len(peers) < 1:
+            return None
         return self.simulation.node_choice_rng.choice(peers, p=probs)
 
 
