@@ -552,6 +552,7 @@ def experiment_edge (args, config):
     exp_tag = "edge"
     outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
 
+    config.set(conf.SEC_SIM, conf.EDGE_EXPOSED_FRACTION, "1.0")
     config.set(conf.SEC_SIM, conf.EDGE_NEIGHBORS, "100")
     config.set(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, "pacs")
     config.set(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, "pacs")
