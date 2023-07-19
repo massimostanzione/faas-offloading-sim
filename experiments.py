@@ -84,6 +84,7 @@ def generate_spec (n_functions=5, load_coeff=1.0, dynamic_rate_coeff=1.0, arriva
     elif n_edges < len(nodes) - 1:
         new_nodes = nodes[:n_edges]
         new_nodes.append(nodes[-1])
+        nodes = new_nodes
 
     #Extend class list if needed
     if n_classes > len(classes):
@@ -569,12 +570,12 @@ def experiment_edge (args, config):
         except:
             pass
 
-    config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, "10")
+    config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, "1")
 
     for seed in SEEDS:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
-        for latency in [0.100, 0.200, 0.300]:
-            for n_edges in [5, 10, 20]:
+        for latency in [0.100, 0.200]:
+            for n_edges in [1, 2, 5, 10, 20]:
                 for pol in POLICIES:
                     config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
 
