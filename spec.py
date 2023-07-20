@@ -79,3 +79,7 @@ def write_spec (outf, n_functions=5, load_coeff=1.0, dynamic_rate_coeff=1.0, arr
     spec = {'classes': classes, 'nodes': nodes, 'functions': functions, 'arrivals': arrivals}
     outf.write(yaml.dump(spec))
     outf.flush()
+
+if __name__ == "__main__":
+    with open("spec.yml", "w") as outf:
+        write_spec(outf, load_coeff=4, cloud_cost=0.001)
