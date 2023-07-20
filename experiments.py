@@ -78,7 +78,7 @@ def generate_spec (n_functions=5, load_coeff=1.0, dynamic_rate_coeff=1.0, arriva
         i=0
         while n_edges > len(nodes) - 1:
             new_f = nodes[0].copy()
-            new_f["name"] = f"ne{i}"
+            new_f["name"] = f"nedge{i}"
             nodes.append(new_f)
             i+=1
     elif n_edges < len(nodes) - 1:
@@ -114,8 +114,6 @@ def generate_spec (n_functions=5, load_coeff=1.0, dynamic_rate_coeff=1.0, arriva
         total_load = 16000*load_coeff
         load_per_node = total_load/len(edge_nodes)
         for n in edge_nodes:
-            if "cloud" in n:
-                continue
             for f in functions:
                 rate = load_per_node/n_functions/(f["duration_mean"]*f["memory"])
                 arrivals.append({"node": n["name"],
@@ -495,7 +493,7 @@ def experiment_arrivals_to_all (args, config):
     for seed in SEEDS:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
         for latency in [0.100]:
-            for budget in [1,2,10,20]:
+            for budget in [0.5,1,2]:
                 config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
                 for pol in POLICIES:
                     config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
