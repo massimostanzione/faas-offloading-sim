@@ -276,6 +276,7 @@ def experiment_varying_arrivals (args, config):
                             keys["Seed"] = seed
                             keys["PolicyUpdInterval"] = policy_update_interval
                             keys["Alpha"] = alpha
+                            keys["Budget"] = budget
                             keys["DynCoeff"] = dyn_rate_coeff
 
                             run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
@@ -284,6 +285,7 @@ def experiment_varying_arrivals (args, config):
                             if old_results is not None and not\
                                     old_results[(old_results.Seed == seed) &\
                                         (old_results.Alpha == alpha) &\
+                                        (old_results.Budget == budget) &\
                                         (old_results.PolicyUpdInterval == policy_update_interval) &\
                                         (old_results.DynCoeff == dyn_rate_coeff) &\
                                         (old_results.Policy == pol)].empty:
