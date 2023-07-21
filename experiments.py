@@ -229,17 +229,16 @@ def experiment_cold_start(args, config):
 
 def experiment_varying_arrivals (args, config):
     results = []
-    exp_tag = "varyingArrivals"
+    exp_tag = "varyingArrivalsNew"
     outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
 
     config.set(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, "pacs")
     config.set(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, "pacs")
-    config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(10))
     config.set(conf.SEC_SIM, conf.RATE_UPDATE_INTERVAL, str(60))
 
 
 
-    POLICIES = ["basic", "probabilistic2", "greedy-budget", "probabilistic"]
+    POLICIES = ["basic-budget", "probabilistic2", "greedy-budget", "probabilistic2-strict"]
 
     # Check existing results
     old_results = None
@@ -251,57 +250,61 @@ def experiment_varying_arrivals (args, config):
 
     for seed in SEEDS:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
-        for policy_update_interval in [30, 60, 120, 240]:
-            config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, str(policy_update_interval))
-            for alpha in [0.3, 0.5, 1.0]: 
-                config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, str(alpha))
-                for dyn_rate_coeff in [2,5,10]:
-                    for pol in POLICIES:
-                        config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
+        for budget in [1,5,10]:
+            config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
+            for policy_update_interval in [60, 120]:
+                config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, str(policy_update_interval))
+                for alpha in [0.3, 0.5, 1.0]: 
+                    config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, str(alpha))
+                    for dyn_rate_coeff in [2,5,10]:
+                        for pol in POLICIES:
+                            config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
 
-                        if alpha > 0.3 and (not "probabilistic" in pol):
-                            continue
+                            if alpha > 0.3 and (not "probabilistic" in pol):
+                                continue
+                            if policy_update_interval != 120 and (not "probabilistic" in pol):
+                                continue
 
-                        if "greedy" in pol:
-                            config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, "full-knowledge")
-                        else:
-                            config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, "naive-per-function")
+                            if "greedy" in pol:
+                                config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, "full-knowledge")
+                            else:
+                                config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, "naive-per-function")
 
 
-                        keys = {}
-                        keys["Policy"] = pol
-                        keys["Seed"] = seed
-                        keys["PolicyUpdInterval"] = policy_update_interval
-                        keys["Alpha"] = alpha
-                        keys["DynCoeff"] = dyn_rate_coeff
+                            keys = {}
+                            keys["Policy"] = pol
+                            keys["Seed"] = seed
+                            keys["PolicyUpdInterval"] = policy_update_interval
+                            keys["Alpha"] = alpha
+                            keys["DynCoeff"] = dyn_rate_coeff
 
-                        run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
+                            run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
 
-                        # Check if we can skip this run
-                        if old_results is not None and not\
-                                old_results[(old_results.Seed == seed) &\
-                                    (old_results.Alpha == alpha) &\
-                                    (old_results.PolicyUpdInterval == policy_update_interval) &\
-                                    (old_results.DynCoeff == dyn_rate_coeff) &\
-                                    (old_results.Policy == pol)].empty:
-                            print("Skipping conf")
-                            continue
+                            # Check if we can skip this run
+                            if old_results is not None and not\
+                                    old_results[(old_results.Seed == seed) &\
+                                        (old_results.Alpha == alpha) &\
+                                        (old_results.PolicyUpdInterval == policy_update_interval) &\
+                                        (old_results.DynCoeff == dyn_rate_coeff) &\
+                                        (old_results.Policy == pol)].empty:
+                                print("Skipping conf")
+                                continue
 
-                        temp_spec_file = generate_temp_spec (dynamic_rate_coeff=dyn_rate_coeff)
-                        infra = default_infra()
-                        stats = _experiment(config, infra, temp_spec_file.name)
-                        temp_spec_file.close()
-                        with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
-                            stats.print(of)
+                            temp_spec_file = generate_temp_spec (dynamic_rate_coeff=dyn_rate_coeff)
+                            infra = default_infra()
+                            stats = _experiment(config, infra, temp_spec_file.name)
+                            temp_spec_file.close()
+                            with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                                stats.print(of)
 
-                        result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
-                        results.append(result)
-                        print(result)
+                            result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
+                            results.append(result)
+                            print(result)
 
-                        resultsDf = pd.DataFrame(results)
-                        if old_results is not None:
-                            resultsDf = pd.concat([old_results, resultsDf])
-                        resultsDf.to_csv(outfile, index=False)
+                            resultsDf = pd.DataFrame(results)
+                            if old_results is not None:
+                                resultsDf = pd.concat([old_results, resultsDf])
+                            resultsDf.to_csv(outfile, index=False)
     
     resultsDf = pd.DataFrame(results)
     if old_results is not None:
