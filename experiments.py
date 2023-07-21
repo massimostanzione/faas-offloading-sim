@@ -248,15 +248,15 @@ def experiment_varying_arrivals (args, config):
         except:
             pass
 
-    for seed in SEEDS:
-        config.set(conf.SEC_SIM, conf.SEED, str(seed))
-        for budget in [1,5,10]:
-            config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
-            for policy_update_interval in [60, 120]:
-                config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, str(policy_update_interval))
-                for alpha in [0.3, 0.5, 1.0]: 
-                    config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, str(alpha))
-                    for dyn_rate_coeff in [2,5,10]:
+    for dyn_rate_coeff in [5,10,2]:
+        for seed in SEEDS:
+            config.set(conf.SEC_SIM, conf.SEED, str(seed))
+            for budget in [1,5,10]:
+                config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
+                for policy_update_interval in [60, 120]:
+                    config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, str(policy_update_interval))
+                    for alpha in [0.3, 0.5, 1.0]: 
+                        config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, str(alpha))
                         for pol in POLICIES:
                             config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
 
