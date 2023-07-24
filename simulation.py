@@ -135,6 +135,9 @@ class Simulation:
             return probabilistic.ProbabilisticPolicy2(self, node)
         elif configured_policy == "probabilistic2-strict":
             return probabilistic.ProbabilisticPolicy2(self, node, True)
+        elif configured_policy == "probabilistic2-strictAlt":
+            self.config.set(conf.SEC_POLICY, conf.PROHIBIT_ANY_SECOND_OFFLOADING, "false")
+            return probabilistic.ProbabilisticPolicy2(self, node, True)
         elif configured_policy == "greedy":
             return policy.GreedyPolicy(self, node)
         elif configured_policy == "greedy-budget":
