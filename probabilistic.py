@@ -289,7 +289,7 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
         self.edge_rtt = 0.0
         self.cold_start_prob_edge = {}
         self.prohibit_any_2nd_offloading = simulation.config.getboolean(conf.SEC_POLICY, conf.PROHIBIT_ANY_SECOND_OFFLOADING,
-                                                                  fallback="true")
+                                                                  fallback="false")
         print(self.prohibit_any_2nd_offloading)
 
 
@@ -302,8 +302,7 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
         # If the request has already been offloaded, cannot offload again
         if len(offloaded_from) > 0: 
             probabilities[SchedulerDecision.OFFLOAD_EDGE.value-1] = 0
-            if self.prohibit_any_2nd_offloading:
-                probabilities[SchedulerDecision.OFFLOAD_CLOUD.value-1] = 0
+            probabilities[SchedulerDecision.OFFLOAD_CLOUD.value-1] = 0
             s = sum(probabilities)
             if not s > 0.0:
                 probabilities = [0 for x in probabilities]
@@ -323,7 +322,9 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
             s = sum(probabilities)
             if not s > 0.0:
                 # NOTE: we may add new Cloud offloadings even if p_cloud=0
-                if c.utility > 0.0 and self.simulation.stats.cost / self.simulation.t * 3600 < self.budget:
+                if c.utility > 0.0 and \
+                        self.simulation.stats.cost / self.simulation.t * 3600 < self.budget \
+                        and (not self.prohibit_any_2nd_offloading or len(offloaded_from) == 0):
                     return SchedulerDecision.OFFLOAD_CLOUD
                 else:
                     return SchedulerDecision.DROP
