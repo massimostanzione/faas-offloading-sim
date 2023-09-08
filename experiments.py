@@ -413,7 +413,7 @@ def experiment_arrivals_to_all (args, config):
 
 
     POLICIES = ["basic", "basic-budget", "probabilistic", "probabilistic2", "greedy", "greedy-budget", "probabilistic-strict",
-                "probabilistic2-strict", "probabilistic2-strictAlt"]
+                "probabilistic2-strict", "probabilistic2-strictAlt", "probabilistic2Alt"]
 
     # Check existing results
     old_results = None
