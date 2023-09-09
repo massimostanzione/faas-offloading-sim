@@ -1,5 +1,6 @@
 from dataclasses import dataclass,field
 from enum import Enum
+from stateful import KeyValueStore
 
 class ContainerPool:
 
@@ -60,6 +61,7 @@ class Node:
         self.custom_sched_policy = custom_sched_policy
 
         self.warm_pool = ContainerPool()
+        self.kv_store = {}
 
     def __repr__ (self):
         return self.name
