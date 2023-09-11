@@ -97,7 +97,11 @@ Specific scripts can be used to run single experiments, e.g.:
 
 	python experiment_policies.py
 
-**Work in progress**: to process the JSON produced in `stats.txt` by a single
-run:
+## Stateful
 
-	python utils/process_stats_json.py
+Each node stores key-value pairs. The `kv_store` field of the FaaS Node
+associates each key with the size (in bytes) of the corresponding value.
+
+The `KeyLocator` class and the `key_locator` object defined in `stateful.py` 
+provide each node the ability to discover which node stores a certain key.
+
