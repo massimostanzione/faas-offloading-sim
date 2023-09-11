@@ -1,6 +1,5 @@
 from dataclasses import dataclass,field
 from enum import Enum
-from stateful import KeyValueStore
 
 class ContainerPool:
 
@@ -108,6 +107,7 @@ class Function:
     serviceSCV: float = 1.0
     initMean: float = 0.500
     inputSizeMean: float = 100
+    accessed_keys: [] = field(default_factory=lambda: [])
 
     def __repr__ (self):
         return self.name

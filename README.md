@@ -105,3 +105,20 @@ associates each key with the size (in bytes) of the corresponding value.
 The `KeyLocator` class and the `key_locator` object defined in `stateful.py` 
 provide each node the ability to discover which node stores a certain key.
 
+You can specify the list of keys accessed by a function in the spec file.
+Each key can be associated with a probability (default 1.0) of being accessed at each
+function invocation and the size of the corresponding value (default 100 bytes).
+Example:
+
+```
+functions:
+  - name: f1
+    memory: 1024
+    duration_mean: 0.240
+    duration_scv: 1.0
+    keys:
+      - key: a
+        probability: 0.3
+      - key: b
+        size: 400
+```

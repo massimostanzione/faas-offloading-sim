@@ -1,4 +1,3 @@
-key_locator = KeyLocator()
 
 class KeyLocator:
     
@@ -7,3 +6,5 @@ class KeyLocator:
 
     def update_key_location (self, key, node):
         self.mapping[key] = node
+
+key_locator = KeyLocator()
