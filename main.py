@@ -3,6 +3,7 @@ import yaml
 
 import faas
 import conf
+import stateful
 from arrivals import PoissonArrivalProcess, TraceArrivalProcess
 from simulation import Simulation
 from infrastructure import *
@@ -56,11 +57,9 @@ def read_spec_file (spec_file_name, infra, config):
             for ks in keys_spec:
                 key = ks["key"]
                 p = float(ks.get("probability", "1.0"))
-                s = float(ks.get("size", "100"))
-                assert(s > 0.0)
                 assert(p <= 1.0)
                 assert(p >= 0.0)
-                keys.append((key, p, s))
+                keys.append((key, p))
 
             fun = faas.Function(fname, memory, serviceMean=duration_mean, serviceSCV=duration_scv, initMean=init_mean, inputSizeMean=input_mean, accessed_keys=keys)
             function_names[fname] = fun
@@ -105,7 +104,6 @@ def init_simulation (config):
     # Read spec file
     spec_file_name = config.get(conf.SEC_SIM, conf.SPEC_FILE, fallback=None)
     classes, functions, node2arrivals  = read_spec_file (spec_file_name, infra, config)
-
 
     sim = Simulation(config, infra, functions, classes, node2arrivals)
     return sim

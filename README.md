@@ -107,7 +107,7 @@ provide each node the ability to discover which node stores a certain key.
 
 You can specify the list of keys accessed by a function in the spec file.
 Each key can be associated with a probability (default 1.0) of being accessed at each
-function invocation and the size of the corresponding value (default 100 bytes).
+function invocation.
 Example:
 
 ```
@@ -120,5 +120,8 @@ functions:
       - key: a
         probability: 0.3
       - key: b
-        size: 400
 ```
+
+### Open issues
+
+ - different distributions for the value size?

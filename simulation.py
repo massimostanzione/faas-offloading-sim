@@ -12,6 +12,7 @@ from policy import SchedulerDecision
 import policy
 import probabilistic
 from faas import *
+import stateful
 from arrivals import ArrivalProcess
 from infrastructure import *
 from statistics import Stats
@@ -98,12 +99,13 @@ class Simulation:
         ss = SeedSequence(seed)
         n_arrival_processes = sum([len(arrival_procs) for arrival_procs in self.node2arrivals.values()])
         # Spawn off child SeedSequences to pass to child processes.
-        child_seeds = ss.spawn(3 + 3*n_arrival_processes)
+        child_seeds = ss.spawn(4 + 3*n_arrival_processes)
         self.service_rng = default_rng(child_seeds[0])
         self.node_choice_rng = default_rng(child_seeds[1])
         self.policy_rng1 = default_rng(child_seeds[2])
+        self.keys_rng = default_rng(child_seeds[3])
 
-        i = 3
+        i = 4
         for n,arvs in self.node2arrivals.items():
             for arv in arvs:
                 arv.init_rng(default_rng(child_seeds[i]), default_rng(child_seeds[i+1]), default_rng(child_seeds[i+2]))
@@ -200,6 +202,10 @@ class Simulation:
             # No arrivals
             print("No arrivals configured.")
             exit(1)
+
+        # Initialize state placement
+        stateful.init_key_placement (self.functions, self.infra, self.keys_rng)
+
 
         if self.policy_update_interval > 0.0:
             self.schedule(self.policy_update_interval, PolicyUpdate())
@@ -382,8 +388,7 @@ class Simulation:
         sched_decision = node_policy.schedule(f,c,event.offloaded_from)
 
         if sched_decision == SchedulerDecision.EXEC:
-            speedup = n.speedup
-            duration = self.service_rng.gamma(1.0/f.serviceSCV, f.serviceMean*f.serviceSCV/speedup) 
+            duration = self.next_function_duration(f, n)
             # check warm or cold
             if f in n.warm_pool:
                 n.warm_pool.remove(f)
@@ -421,3 +426,20 @@ class Simulation:
         if external:
             self.__schedule_next_arrival(n, arv_proc)
 
+    def next_function_duration (self, f: Function, n: Node):
+        # execution time
+        duration = self.service_rng.gamma(1.0/f.serviceSCV, f.serviceMean*f.serviceSCV/n.speedup) 
+        # we add the time to access state
+        for k,prob in f.accessed_keys:
+            # check if it is accessed 
+            if self.keys_rng.random() <= prob:
+                # check if the key is on the node
+                if k in n.kv_store:
+                    print(f"{f} accessed {k} locally")
+                else:
+                    remote_node = stateful.key_locator.get_node(k)
+                    # TODO bandwidth
+                    extra_latency = self.infra.get_latency(n, remote_node)*2
+                    duration += extra_latency
+                    print(f"{f} accessed {k} from {remote_node}. Extra lat: {extra_latency}")
+        return duration
