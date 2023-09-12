@@ -36,9 +36,40 @@ class KeyMigrationPolicy():
     def __init__ (self, simulation, rng):
         self.simulation = simulation
         self.rng = rng
+        self.__last_arrivals = None
+        self.__last_update = 0
+        self.arrival_rates = {}
+        self.arrival_rate_alpha = 0.33
 
     def migrate(self):
         pass
+
+    def update_metrics (self):
+        stats = self.simulation.stats
+
+        if self.__last_arrivals is not None:
+            arrival_rates = {}
+            for f in self.simulation.functions:
+                for n in self.simulation.infra.get_nodes():
+                    new_arrivals = 0
+                    for c in self.simulation.classes:
+                        new_arrivals += stats.arrivals[(f, c, n)] - self.__last_arrivals[(f, c, n)]
+                    new_rate = new_arrivals / (self.simulation.t - self.__last_update)
+                    self.arrival_rates[(f, n)] = self.arrival_rate_alpha * new_rate + \
+                                             (1.0 - self.arrival_rate_alpha) * self.arrival_rates[(f, n)]
+        else:
+            for f in self.simulation.functions:
+                for n in self.simulation.infra.get_nodes():
+                    arrivals = 0
+                    for c in self.simulation.classes:
+                        arrivals += stats.arrivals[(f, c, n)]
+                    self.arrival_rates[(f, n)] = arrivals / self.simulation.t
+        print(self.arrival_rates)
+
+        self.__last_arrivals = stats.arrivals.copy()
+        self.__last_update = self.simulation.t
+
+
 
 class RandomKeyMigrationPolicy(KeyMigrationPolicy):
 

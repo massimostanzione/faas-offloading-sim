@@ -309,9 +309,12 @@ class Simulation:
                 upd_t0 = time.time()
                 p.update()
                 self.stats.update_policy_upd_time(n,time.time()-upd_t0)
+
             # Migrate keys
             if self.key_migration_policy is not None:
+                self.key_migration_policy.update_metrics()
                 self.key_migration_policy.migrate()
+
             self.schedule(t + self.policy_update_interval, event)
         elif isinstance(event, ArrivalRateUpdate):
             for n, arvs in self.node2arrivals.copy().items():
