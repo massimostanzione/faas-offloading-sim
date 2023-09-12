@@ -99,13 +99,14 @@ class Simulation:
         ss = SeedSequence(seed)
         n_arrival_processes = sum([len(arrival_procs) for arrival_procs in self.node2arrivals.values()])
         # Spawn off child SeedSequences to pass to child processes.
-        child_seeds = ss.spawn(4 + 3*n_arrival_processes)
+        child_seeds = ss.spawn(5 + 3*n_arrival_processes)
         self.service_rng = default_rng(child_seeds[0])
         self.node_choice_rng = default_rng(child_seeds[1])
         self.policy_rng1 = default_rng(child_seeds[2])
         self.keys_rng = default_rng(child_seeds[3])
+        self.keys_policy_rng = default_rng(child_seeds[4])
 
-        i = 4
+        i = 5
         for n,arvs in self.node2arrivals.items():
             for arv in arvs:
                 arv.init_rng(default_rng(child_seeds[i]), default_rng(child_seeds[i+1]), default_rng(child_seeds[i+2]))
@@ -170,6 +171,11 @@ class Simulation:
         for n in self.infra.get_cloud_nodes():
             _policy = n.custom_sched_policy if n.custom_sched_policy is not None else "cloud"
             self.node2policy[n] = self.new_policy(_policy, n)
+
+        self.key_migration_policy = None
+        stateful_policy_name = self.config.get(conf.SEC_STATEFUL, conf.POLICY_NAME, fallback="none")
+        if stateful_policy_name == "random":
+            self.key_migration_policy = stateful.RandomKeyMigrationPolicy(self, self.keys_policy_rng)
 
         self.policy_update_interval = self.config.getfloat(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, fallback=-1)
         self.rate_update_interval = self.config.getfloat(conf.SEC_SIM, conf.RATE_UPDATE_INTERVAL, fallback=-1)
@@ -303,6 +309,9 @@ class Simulation:
                 upd_t0 = time.time()
                 p.update()
                 self.stats.update_policy_upd_time(n,time.time()-upd_t0)
+            # Migrate keys
+            if self.key_migration_policy is not None:
+                self.key_migration_policy.migrate()
             self.schedule(t + self.policy_update_interval, event)
         elif isinstance(event, ArrivalRateUpdate):
             for n, arvs in self.node2arrivals.copy().items():

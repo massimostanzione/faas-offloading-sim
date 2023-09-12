@@ -25,6 +25,8 @@ HOURLY_BUDGET = "budget"
 SPLIT_BUDGET_AMONG_EDGE_NODES = "split-budget-edge"
 PROHIBIT_ANY_SECOND_OFFLOADING = "prohibit-any-second-offloading"
 
+SEC_STATEFUL = "stateful"
+
 import configparser
 
 def parse_config_file(config_file):
