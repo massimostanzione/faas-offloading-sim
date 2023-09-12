@@ -22,6 +22,8 @@ def init_key_placement (functions, infra, rng):
                 print(f"Placed {k} in {cloud_node}")
 
 def move_key (k, src_node, dest_node):
+    if src_node == dest_node:
+        return
     dest_node.kv_store[k] = src_node.kv_store[k]
     del(src_node.kv_store[k])
     key_locator.update_key_location(k, dest_node)

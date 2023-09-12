@@ -450,8 +450,11 @@ class Simulation:
                     print(f"{f} accessed {k} locally")
                 else:
                     remote_node = stateful.key_locator.get_node(k)
-                    # TODO bandwidth
+                    assert(k in remote_node.kv_store)
+                    value_size = remote_node.kv_store[k]
                     extra_latency = self.infra.get_latency(n, remote_node)*2
+                    # bandwidth
+                    extra_latency += value_size/(self.infra.get_bandwidth(n, remote_node)*125000)
                     duration += extra_latency
                     print(f"{f} accessed {k} from {remote_node}. Extra lat: {extra_latency}")
         return duration
