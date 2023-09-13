@@ -152,6 +152,8 @@ class Simulation:
             return policy.GreedyPolicyWithCostMinimization(self, node)
         elif configured_policy == "random":
             return probabilistic.RandomPolicy(self, node)
+        elif configured_policy == "state-aware":
+            return stateful.StateAwareOffloadingPolicy(self, node)
         else:
             raise RuntimeError(f"Unknown policy: {configured_policy}")
 

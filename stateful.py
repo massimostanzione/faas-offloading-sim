@@ -91,4 +91,36 @@ class RandomKeyMigrationPolicy(KeyMigrationPolicy):
 
     
 
+# -------------------------------------------------------------------------
+import policy as offloading_policy
 
+class StateAwareOffloadingPolicy(offloading_policy.GreedyPolicy):
+
+    def __init__(self, simulation, node):
+        super().__init__(simulation, node)
+        assert(self.local_cold_start_estimation != offloading_policy.ColdStartEstimation.FULL_KNOWLEDGE)
+        assert(self.cloud_cold_start_estimation != offloading_policy.ColdStartEstimation.FULL_KNOWLEDGE)
+
+    def _estimate_latency (self, f, c):
+        latency_local = self.estimated_service_time.get(f, 0) + \
+                        self.cold_start_prob.get((f, self.node), 1) * \
+                        self.simulation.init_time[(f,self.node)]
+
+        latency_cloud = self.estimated_service_time_cloud.get(f, 0) +\
+                2 * self.simulation.infra.get_latency(self.node, self.cloud) + \
+                        self.cold_start_prob.get((f, self.cloud), 1) * self.simulation.init_time[(f,self.cloud)] +\
+                        f.inputSizeMean*8/1000/1000/self.simulation.infra.get_bandwidth(self.node, self.cloud)
+        return (latency_local, latency_cloud)
+
+    def schedule(self, f, c, offloaded_from):
+        latency_local, latency_cloud = self._estimate_latency(f,c)
+
+        if self.can_execute_locally(f) and latency_local < latency_cloud:
+            sched_decision = offloading_policy.SchedulerDecision.EXEC
+        else:
+            sched_decision = offloading_policy.SchedulerDecision.OFFLOAD_CLOUD
+
+        return sched_decision
+
+    def update(self):
+        super().update()
