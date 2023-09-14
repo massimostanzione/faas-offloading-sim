@@ -98,29 +98,60 @@ class StateAwareOffloadingPolicy(offloading_policy.GreedyPolicy):
 
     def __init__(self, simulation, node):
         super().__init__(simulation, node)
-        assert(self.local_cold_start_estimation != offloading_policy.ColdStartEstimation.FULL_KNOWLEDGE)
-        assert(self.cloud_cold_start_estimation != offloading_policy.ColdStartEstimation.FULL_KNOWLEDGE)
-
-    def _estimate_latency (self, f, c):
-        latency_local = self.estimated_service_time.get(f, 0) + \
-                        self.cold_start_prob.get((f, self.node), 1) * \
-                        self.simulation.init_time[(f,self.node)]
-
-        latency_cloud = self.estimated_service_time_cloud.get(f, 0) +\
-                2 * self.simulation.infra.get_latency(self.node, self.cloud) + \
-                        self.cold_start_prob.get((f, self.cloud), 1) * self.simulation.init_time[(f,self.cloud)] +\
-                        f.inputSizeMean*8/1000/1000/self.simulation.infra.get_bandwidth(self.node, self.cloud)
-        return (latency_local, latency_cloud)
+        self.latency_estimation_cache = {}
 
     def schedule(self, f, c, offloaded_from):
-        latency_local, latency_cloud = self._estimate_latency(f,c)
+        remote_nodes = set([self.cloud])
+        # Add all the nodes storing keys for the function
+        for k,_ in f.accessed_keys:
+            remote_nodes.add(key_locator.get_node(k))
 
-        if self.can_execute_locally(f) and latency_local < latency_cloud:
-            sched_decision = offloading_policy.SchedulerDecision.EXEC
+        # XXX: We do not consider cold start here
+
+        if not self.can_execute_locally(f):
+            exp_latency_local = float("inf")
         else:
-            sched_decision = offloading_policy.SchedulerDecision.OFFLOAD_CLOUD
+            duration = f.serviceMean/self.node.speedup
+            exp_latency_local = duration 
 
-        return sched_decision
+            for k,p in f.accessed_keys:
+                if not k in self.node.kv_store:
+                    key_node = key_locator.get_node(k)
+                    value_size = key_node.kv_store[k]
+                    extra_latency = self.simulation.infra.get_latency(self.node, key_node)*2 +\
+                           value_size/(self.simulation.infra.get_bandwidth(self.node, key_node)*125000)
+                    exp_latency_local += p*extra_latency
+        
+        if len(offloaded_from) > 2:
+            if self.can_execute_locally(f):
+                return offloading_policy.SchedulerDecision.EXEC, None
+            else:
+                return offloading_policy.SchedulerDecision.DROP, None
 
-    def update(self):
-        super().update()
+        if f in self.latency_estimation_cache:
+            best_node, best_lat = self.latency_estimation_cache[f]
+        else:
+            exp_latency = {}
+            for remote_node in remote_nodes:
+                rtt = 2*self.simulation.infra.get_latency(self.node, remote_node)
+                bw = self.simulation.infra.get_bandwidth(self.node, remote_node)
+                duration = f.serviceMean/remote_node.speedup
+                # Offloading time:
+                l = duration + rtt + f.inputSizeMean*8/1000/1000/bw
+                # Key access time:
+                for k,p in f.accessed_keys:
+                    if not k in remote_node.kv_store:
+                        key_node = key_locator.get_node(k)
+                        value_size = key_node.kv_store[k]
+                        extra_latency = self.simulation.infra.get_latency(remote_node, key_node)*2 +\
+                            value_size/(self.simulation.infra.get_bandwidth(remote_node, key_node)*125000)
+                        l += p*extra_latency
+                exp_latency[remote_node] = l
+
+            best_node, best_lat = sorted(exp_latency.items(), key=lambda x: x[1])[0]
+            self.latency_estimation_cache[f] = (best_node, best_lat)
+
+        if exp_latency_local < best_lat:
+            return offloading_policy.SchedulerDecision.EXEC, None
+        else:
+            return (offloading_policy.SchedulerDecision.OFFLOAD_EDGE, best_node)

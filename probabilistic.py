@@ -62,7 +62,7 @@ class ProbabilisticPolicy(Policy):
 
             # check if we can afford a Cloud offloading
             if self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
-                return SchedulerDecision.DROP
+                return (SchedulerDecision.DROP, None)
 
             nolocal_prob = sum(probabilities[1:])
             if nolocal_prob > 0.0:
@@ -73,9 +73,9 @@ class ProbabilisticPolicy(Policy):
 
         if decision == SchedulerDecision.OFFLOAD_CLOUD and self.strict_budget_enforce and\
                 self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
-            return SchedulerDecision.DROP
+            return (SchedulerDecision.DROP, None)
 
-        return decision
+        return (decision, None)
 
     def update(self):
 
@@ -325,18 +325,18 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
                 if c.utility > 0.0 and \
                         self.simulation.stats.cost / self.simulation.t * 3600 < self.budget \
                         and (not self.prohibit_any_2nd_offloading or len(offloaded_from) == 0):
-                    return SchedulerDecision.OFFLOAD_CLOUD
+                    return (SchedulerDecision.OFFLOAD_CLOUD, None)
                 else:
-                    return SchedulerDecision.DROP
+                    return (SchedulerDecision.DROP, None)
                     self.forced_drop += 1
             probabilities = [x/s for x in probabilities]
-            return self.rng.choice(self.possible_decisions, p=probabilities)
+            return (self.rng.choice(self.possible_decisions, p=probabilities), None)
         
         if decision == SchedulerDecision.OFFLOAD_CLOUD and self.strict_budget_enforce and\
                 self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
-            return SchedulerDecision.DROP
+            return (SchedulerDecision.DROP, None)
 
-        return decision
+        return (decision, None)
 
     def update_metrics(self):
         super().update_metrics()
@@ -452,7 +452,7 @@ class RandomPolicy(Policy):
 
         if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
             return self.rng.choice([SchedulerDecision.DROP, SchedulerDecision.OFFLOAD_CLOUD, SchedulerDecision.OFFLOAD_EDGE])
-        return decision
+        return (decision, None)
 
     def update(self):
         pass

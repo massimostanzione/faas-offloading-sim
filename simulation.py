@@ -316,6 +316,9 @@ class Simulation:
             if self.key_migration_policy is not None:
                 self.key_migration_policy.update_metrics()
                 self.key_migration_policy.migrate()
+                for p in self.node2policy.values():
+                    if isinstance(p, stateful.StateAwareOffloadingPolicy):
+                        p.latency_estimation_cache = {}
 
             self.schedule(t + self.policy_update_interval, event)
         elif isinstance(event, ArrivalRateUpdate):
@@ -399,7 +402,7 @@ class Simulation:
             self.stats.ext_arrivals[(f,c,n)] += 1
 
         # Policy
-        sched_decision = node_policy.schedule(f,c,event.offloaded_from)
+        sched_decision, target_node = node_policy.schedule(f,c,event.offloaded_from)
 
         if sched_decision == SchedulerDecision.EXEC:
             duration = self.next_function_duration(f, n)
@@ -420,7 +423,10 @@ class Simulation:
             if event.offloaded_from is not None and len(event.offloaded_from) > 0:
                 self.stats.dropped_offloaded[(f,c,n)] += 1
         elif sched_decision == SchedulerDecision.OFFLOAD_CLOUD:
-            remote_node = self.infra.get_cloud_nodes()[0] # TODO pick a Cloud node
+            if target_node is not None:
+                remote_node = target_node
+            else:
+                remote_node = self.infra.get_cloud_nodes()[0] # TODO pick a Cloud node
             if remote_node is None:
                 # drop
                 self.stats.dropped_reqs[(f,c,n)] += 1
@@ -428,7 +434,10 @@ class Simulation:
                 self.stats.offloaded[(f,c,n)] += 1
                 self.do_offload(event, remote_node)  
         elif sched_decision == SchedulerDecision.OFFLOAD_EDGE:
-            remote_node = node_policy.pick_edge_node(f,c)
+            if target_node is not None:
+                remote_node = target_node
+            else:
+                remote_node = node_policy.pick_edge_node(f,c)
             if remote_node is None:
                 # drop
                 self.stats.dropped_reqs[(f,c,n)] += 1
