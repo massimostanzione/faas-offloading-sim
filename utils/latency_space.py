@@ -1,13 +1,23 @@
 import math
-import random
+from numpy.random import default_rng
+from faas import Node
+
+from infrastructure import Infrastructure
+
+vivaldi_error_update_factor = 0.5
+vivaldi_update_factor = 0.25
 
 class Point:
+    initial_error = 1
     def __init__(self, coordinates: list = []) -> None:
         self.coordinates = coordinates
+        self.error = Point.initial_error
+        self.num_updates = 0
 
 class Space:
-    def __init__(self, dimensionality) -> None:
+    def __init__(self, dimensionality, rng = default_rng(1024)) -> None:
         self.dimensionality = dimensionality
+        self.rng = rng
 
     def new_point(self, coordinates: list = []) -> Point:
         if len(coordinates) != self.dimensionality:
@@ -46,27 +56,102 @@ class Space:
             distance += (a.coordinates[i] - b.coordinates[i]) ** 2
         return math.sqrt(distance)
 
+    def unit_vector(self, a:Point, b:Point) -> list:
+        if a == None or a == None:
+          return None
+        s_sum = 0
+        versor = [0] * self.dimensionality
+        for i in range(self.dimensionality):
+            versor[i] = a.coordinates[i] - b.coordinates[i]
+            s_sum += abs(versor[i])
+        if s_sum == 0:
+            for i in range(self.dimensionality):
+              versor[i] = self.rng.random()
+              s_sum += versor[i]
+        for i in range(self.dimensionality):
+            versor[i] = versor[i] / s_sum
+        return versor
+
+class NetworkCoordinateSystem:
+    def __init__(self, infra:Infrastructure, space: Space, rng = default_rng(1024)) -> None:
+        self.infra = infra
+        self.space = space
+        self.coordinates = {}
+        self.rng = rng
+        self.__initialize_ncs()
+
+    def __initialize_ncs(self) -> None:
+        for node in self.infra.get_nodes():
+          # Generate random coordinates for nodes
+          random_coordinates = self.rng.random(size=self.space.dimensionality)
+          self.coordinates[node] = self.space.new_point(random_coordinates)
+        # It is okay to update ncs here, since we are not dynamically moving nodes 
+        self.update_ncs()
+        
+    def get_coordinates(self, node : Node) -> Point:
+        return self.coordinates.get(node)
+    
+    def get_nearest_node(self, position : Point) -> Node: 
+        # TODO implement this function 
+        return self.infra.get_nodes()[0]
+   
+    def __update_i(self, point_i: Point, other: Point, rtt:float) -> bool:
+        # Vivaldi algorithm
+        if rtt < 0 or rtt > 5 * 60 * 1000:
+            return False
+        
+        if point_i.error + other.error == 0:
+            return False
+
+        # Sample weight balances local and remote error. (1)
+        w = point_i.error  / (other.error + point_i.error)
+        
+        # Compute relative error of this sample. (2)
+        estimated_latency = self.space.distance(point_i, other)
+        es = abs(rtt - estimated_latency) / rtt
+
+        # Update weighted moving average of local error. (3)
+        new_error = es * vivaldi_error_update_factor * w + point_i.error * (1 - vivaldi_error_update_factor * w)
+        
+        # Update local coordinates. (4)
+        delta = vivaldi_update_factor * w
+        force_direction_on_i  = self.space.unit_vector(point_i, other)
+        for i in range(len(force_direction_on_i)):
+            point_i.coordinates[i] = delta * (rtt - estimated_latency) * force_direction_on_i[i]
+
+        # Update point additional information
+        point_i.error = new_error
+        point_i.num_updates += 1
+
+    def update_ncs(self) -> None:
+        error = 0
+        last_error = Point.initial_error
+        convergence = 0.1
+        while abs(last_error - error) > convergence:
+            last_error = error
+            error = 0
+            for node_i in self.infra.get_nodes():
+              coord_i = self.coordinates[node_i]
+              for node_j in self.infra.get_nodes():
+                if node_i == node_j:
+                    continue
+                coord_j = self.coordinates[node_j]
+                rtt = self.infra.get_latency(node_i, node_j)
+                self.__update_i(coord_i, coord_j, rtt)
+              error += coord_i.error
+            error /= len(self.infra.get_nodes())
+        print(f"Network coordinate system update (average error: {error})")
+        
 
 class Force:
-    def __init__(self, space: Space, ) -> None:
+    def __init__(self, space: Space) -> None:
         super().__init__()
         self.space = space
         self.versor = [0] * space.dimensionality
         self.magnitude = 0
     
-    def _compute_versor(self, a: Point, b: Point) -> []:
-        s_sum = 0
-        versor = [0] * self.space.dimensionality
-        for i in range(self.space.dimensionality):
-            versor[i] = b.coordinates[i] - a.coordinates[i]
-            s_sum += abs(versor[i])
-        if s_sum == 0:
-            for i in range(self.space.dimensionality):
-              versor[i] = random.uniform(0, 1)
-              s_sum += versor[i]
-        for i in range(self.space.dimensionality):
-            versor[i] = versor[i] / s_sum
-        return versor
+    def _compute_versor(self, a: Point, b: Point) -> list:
+        return self.space.unit_vector(b, a)
     
     def _compute_magnitude(self, a: Point, b: Point, datarate: float) -> float:
         return self.space.distance(a, b) * datarate
@@ -139,7 +224,7 @@ class GradientEstimate(Force):
         for i in range(len(gradient_component)):
             self.gradient[i] += gradient_component[i] * datarate
 
-    def __get_versor(self, step: float = 1.0) -> []:
+    def __get_versor(self, step: float = 1.0) -> list:
         ''' Alg 2, step x u(vect{f}) '''
         sum = 0
         versor = [0] * len(self.gradient)
@@ -161,7 +246,9 @@ class GradientEstimate(Force):
             new_point.coordinates[i] = curr.coordinates[i] + versor[i]
         return new_point
 
-    def compute_utilization_component(self, curr:Point, other:Point, datarate: float) -> float:
-        distance = self.space.distance(curr, other)
-        return distance * datarate
+    def compute_utilization_component(self, curr:Point, other_points:[(Node, Point, float)]) -> float:
+        distance = 0
+        for (_, other_point, datarate) in other_points:
+            distance += datarate * self.space.distance(curr, other_point)
+        return distance
     

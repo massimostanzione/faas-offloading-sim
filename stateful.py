@@ -1,4 +1,7 @@
 
+from utils.latency_space import GradientEstimate, NetworkCoordinateSystem, Space
+
+
 class KeyLocator:
     
     def __init__ (self):
@@ -118,7 +121,65 @@ class RandomKeyMigrationPolicy(KeyMigrationPolicy):
                 move_key(key, n, dest)
 
 
-    
+class GradientBasedMigrationPolicy(KeyMigrationPolicy):
+    def __init__(self, simulation, rng):
+        super().__init__(simulation, rng)
+        self.space = Space(2)
+        self.ncs = NetworkCoordinateSystem(self.simulation.infra, self.space, self.rng)
+
+    def migrate(self):
+        keys = {} 
+        for ((key, _, node), count) in self.data_access_rates.items():
+            if count == 0:
+                continue
+            key_node = key_locator.get_node(key)
+            node_coord = self.ncs.get_coordinates(node)
+            if key not in keys:
+                keys[key] = [(node, node_coord, count)]
+            else:
+                keys[key].append((node, node_coord, count))
+
+        # TODO: continue from here; code review
+        delta_threshold = 0.1
+        for (key, list_of_npc) in keys.items():
+            key_node = key_locator.get_node(key)
+            key_coord = self.ncs.get_coordinates(key_node)
+
+            # Compute step value
+            step = 0.1
+            for (node, node_coord, count) in list_of_npc:
+                key_node_dist = self.space.distance(key_coord, node_coord)
+                if key_node_dist > step:
+                    step = key_node_dist
+            
+            delta = 1 
+            candidate_node = key_node
+            last_utilization = None
+
+            while delta > delta_threshold and step > 0.00001:
+                ge = GradientEstimate(self.space)
+                for (node, node_coord, count) in list_of_npc:
+                    # FIXME: using count instead of real datarate (the same for every pair of nodes)
+                    ge.add(key_coord, node_coord, count)
+                
+                if not last_utilization:
+                    last_utilization = ge.compute_utilization_component(key_coord, list_of_npc)
+                
+                next_key_coord = ge.new_point_position(key_coord, step)
+                next_utilization = ge.compute_utilization_component(next_key_coord, list_of_npc)
+
+                if next_utilization < last_utilization:
+                    delta = next_utilization - last_utilization
+                    last_utilization = next_utilization
+                    key_coord = next_key_coord
+                    candidate_node = self.ncs.get_nearest_node(next_key_coord)
+                else: 
+                    step = step / 2.0
+
+            if candidate_node != key_node:
+                print(f"Moving {key} {key_node}->{candidate_node}")
+                move_key(key, key_node, candidate_node)
+
 
 # -------------------------------------------------------------------------
 import policy as offloading_policy
