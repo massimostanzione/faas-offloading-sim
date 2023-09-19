@@ -11,6 +11,11 @@ class Stats:
         self.nodes = infra.get_nodes()
         fun_classes = [(f,c) for f in functions for c in classes]
         fcn = [(f,c,n) for f in functions for c in classes for n in self.nodes]
+        
+        keys = set()
+        for f in functions:
+            for k,_ in f.accessed_keys:
+                keys.add(k)
 
         self.arrivals = {x: 0 for x in fcn}
         self.ext_arrivals = {x: 0 for x in fcn}
@@ -28,6 +33,7 @@ class Stats:
         self.utility = 0.0
         self.utility_detail = {x: 0.0 for x in fcn}
         self.penalty = 0.0
+        self.data_access_count = {(k,f,n): 0 for k in keys for f in functions for n in self.nodes}
         self._memory_usage_area = {x: 0.0 for x in self.nodes}
         self._memory_usage_t0 = {x: 0.0 for x in self.nodes}
         self._policy_update_time_sum = {x: 0.0 for x in self.nodes}

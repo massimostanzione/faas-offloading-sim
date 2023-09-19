@@ -468,4 +468,5 @@ class Simulation:
                     extra_latency += value_size/(self.infra.get_bandwidth(n, remote_node)*125000)
                     duration += extra_latency
                     print(f"{f} accessed {k} from {remote_node}. Extra lat: {extra_latency}")
+                self.stats.data_access_count[(k,f,n)] += 1
         return duration

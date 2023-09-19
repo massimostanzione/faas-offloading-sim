@@ -38,10 +38,19 @@ class KeyMigrationPolicy():
     def __init__ (self, simulation, rng):
         self.simulation = simulation
         self.rng = rng
-        self.__last_arrivals = None
+        self.rate_update_alpha = 0.33
         self.__last_update = 0
+
         self.arrival_rates = {}
-        self.arrival_rate_alpha = 0.33
+        self.__last_arrivals = None
+
+        self.data_access_rates = {}
+        self.__last_data_access = None
+
+        self.all_keys = set()
+        for f in simulation.functions:
+            for k,_ in f.accessed_keys:
+                self.all_keys.add(k)
 
     def migrate(self):
         pass
@@ -49,6 +58,7 @@ class KeyMigrationPolicy():
     def update_metrics (self):
         stats = self.simulation.stats
 
+        # Estimate arrival rates based on arrival count
         if self.__last_arrivals is not None:
             arrival_rates = {}
             for f in self.simulation.functions:
@@ -57,8 +67,8 @@ class KeyMigrationPolicy():
                     for c in self.simulation.classes:
                         new_arrivals += stats.arrivals[(f, c, n)] - self.__last_arrivals[(f, c, n)]
                     new_rate = new_arrivals / (self.simulation.t - self.__last_update)
-                    self.arrival_rates[(f, n)] = self.arrival_rate_alpha * new_rate + \
-                                             (1.0 - self.arrival_rate_alpha) * self.arrival_rates[(f, n)]
+                    self.arrival_rates[(f, n)] = self.rate_update_alpha * new_rate + \
+                                             (1.0 - self.rate_update_alpha) * self.arrival_rates[(f, n)]
         else:
             for f in self.simulation.functions:
                 for n in self.simulation.infra.get_nodes():
@@ -66,9 +76,28 @@ class KeyMigrationPolicy():
                     for c in self.simulation.classes:
                         arrivals += stats.arrivals[(f, c, n)]
                     self.arrival_rates[(f, n)] = arrivals / self.simulation.t
-        print(self.arrival_rates)
+
+        # Estimate data access rates based on data access count
+        if self.__last_data_access is not None:
+            data_access_rates = {}
+            for k in self.all_keys:
+                for f in self.simulation.functions:
+                    for n in self.simulation.infra.get_nodes():
+                        new_arrivals = stats.data_access_count[(k, f, n)] - self.__last_data_access[(k, f, n)]
+                        new_rate = new_arrivals / (self.simulation.t - self.__last_update)
+                        self.data_access_rates[(k, f, n)] = self.rate_update_alpha * new_rate + \
+                                                (1.0 - self.rate_update_alpha) * self.data_access_rates[(k, f, n)]
+        else:
+            for k in self.all_keys:
+                for f in self.simulation.functions:
+                    for n in self.simulation.infra.get_nodes():
+                        arrivals = stats.data_access_count[(k, f, n)]
+                        self.data_access_rates[(k, f, n)] = arrivals / self.simulation.t
+
+        print(self.data_access_rates) # TODO
 
         self.__last_arrivals = stats.arrivals.copy()
+        self.__last_data_access = stats.data_access_count.copy()
         self.__last_update = self.simulation.t
 
 
