@@ -139,7 +139,6 @@ class GradientBasedMigrationPolicy(KeyMigrationPolicy):
             else:
                 keys[key].append((node, node_coord, count))
 
-        # TODO: continue from here; code review
         delta_threshold = 0.1
         for (key, list_of_npc) in keys.items():
             key_node = key_locator.get_node(key)
@@ -177,7 +176,7 @@ class GradientBasedMigrationPolicy(KeyMigrationPolicy):
                     step = step / 2.0
 
             if candidate_node != key_node:
-                print(f"Moving {key} {key_node}->{candidate_node}")
+                print(f"Moving {key}: {key_node}->{candidate_node}")
                 move_key(key, key_node, candidate_node)
 
 

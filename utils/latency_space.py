@@ -92,8 +92,15 @@ class NetworkCoordinateSystem:
         return self.coordinates.get(node)
     
     def get_nearest_node(self, position : Point) -> Node: 
-        # TODO implement this function 
-        return self.infra.get_nodes()[0]
+        min_distance = float("inf")
+        min_node = None
+        for node in self.infra.get_nodes():
+            node_coord = self.coordinates[node]
+            distance = self.space.distance(position, node_coord)
+            if min_distance > distance: 
+                min_distance = distance
+                min_node = node
+        return min_node
    
     def __update_i(self, point_i: Point, other: Point, rtt:float) -> bool:
         # Vivaldi algorithm
