@@ -154,6 +154,8 @@ class Simulation:
             return probabilistic.RandomPolicy(self, node)
         elif configured_policy == "state-aware":
             return stateful.StateAwareOffloadingPolicy(self, node)
+        elif configured_policy == "state-aware-always-offload":
+            return stateful.AlwaysOffloadStatefulPolicy(self, node)
         else:
             raise RuntimeError(f"Unknown policy: {configured_policy}")
 

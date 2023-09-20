@@ -183,6 +183,40 @@ class GradientBasedMigrationPolicy(KeyMigrationPolicy):
 # -------------------------------------------------------------------------
 import policy as offloading_policy
 
+class AlwaysOffloadStatefulPolicy(offloading_policy.Policy):
+
+    def __init__(self, simulation, node):
+        super().__init__(simulation, node)
+
+    def schedule(self, f, c, offloaded_from):
+        if len(offloaded_from) > 2:
+            if self.can_execute_locally(f):
+                return offloading_policy.SchedulerDecision.EXEC, None
+            else:
+                return offloading_policy.SchedulerDecision.DROP, None
+
+        remote_nodes = {}
+        # Add all the nodes storing keys for the function
+        for k,p in f.accessed_keys:
+            key_node = key_locator.get_node(k)
+            value_size = key_node.kv_store[k]
+            remote_nodes[key_node] = remote_nodes.get(key_node,0) + p*value_size
+
+        # pick node with maximum expected data to retrieve
+        sorted_nodes = sorted(remote_nodes.items(), key=lambda x: x[1], reverse=True)
+        best_node = sorted_nodes[0][0]
+
+        if best_node == self.node and not self.can_execute_locally(f):
+            if len(sorted_nodes > 1):
+                best_node = sorted_nodes[1][0]
+            else:
+                return offloading_policy.SchedulerDecision.DROP, None
+        elif best_node == self.node:
+            return offloading_policy.SchedulerDecision.EXEC, None
+
+        
+        return (offloading_policy.SchedulerDecision.OFFLOAD_EDGE, best_node)
+
 class StateAwareOffloadingPolicy(offloading_policy.GreedyPolicy):
 
     def __init__(self, simulation, node):
