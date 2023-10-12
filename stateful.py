@@ -240,6 +240,41 @@ class SpringBasedMigrationPolicy(KeyMigrationPolicy):
                 print(f"Moving {key}: {key_node}->{candidate_node}")
                 move_key(key, key_node, candidate_node)
 
+class SimpleGreedyMigrationPolicy(KeyMigrationPolicy):
+    '''
+        Always move key to functions with higher count * latency value, 
+        aiming to reduce latency of the most active function for each 
+        key.
+    '''
+    def __init__(self, simulation, rng):
+        super().__init__(simulation, rng)
+
+    def migrate(self):
+        keys = {} 
+        for ((key, _, node), count) in self.data_access_rates.items():
+            if count == 0:
+                continue
+            key_node = key_locator.get_node(key)
+            if key not in keys:
+                keys[key] = [(node, count)]
+            else:
+                keys[key].append((node, count))
+
+        for (key, list_of_nc) in keys.items():
+            key_node = key_locator.get_node(key)
+            scores = []
+
+            for (node, count) in list_of_nc:
+                node_score = self.simulation.infra.get_latency(key_node, node)
+                node_score = node_score * count
+                scores.append((node, node_score))
+            scores = sorted(scores, reverse=True, key = lambda x: x[1])
+            best_node = scores[0][0]
+
+            if best_node != None and best_node != key_node:
+                print(f"Moving {key}: {key_node}->{best_node}")
+                move_key(key, key_node, best_node)
+
 # -------------------------------------------------------------------------
 import policy as offloading_policy
 
