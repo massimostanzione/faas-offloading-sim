@@ -1,5 +1,5 @@
 
-from utils.latency_space import GradientEstimate, NetworkCoordinateSystem, Space
+from utils.latency_space import GradientEstimate, NetworkCoordinateSystem, Point, Space, SpringForce
 
 
 class KeyLocator:
@@ -122,9 +122,17 @@ class RandomKeyMigrationPolicy(KeyMigrationPolicy):
 
 
 class GradientBasedMigrationPolicy(KeyMigrationPolicy):
+    '''
+        GradientBasedMigrationPolicy implements the placement algorithm described in: 
+            Rizou et al., "Solving the multi-operator placement problem in large-scale 
+            operator networks.", ICCCN'10. 
+    '''
+    utilization_delta_threshold = 0.1
+    min_gradient_update_step = 0.00001
+    
     def __init__(self, simulation, rng):
         super().__init__(simulation, rng)
-        self.space = Space(2)
+        self.space = Space(3)
         self.ncs = NetworkCoordinateSystem(self.simulation.infra, self.space, self.rng)
 
     def migrate(self):
@@ -139,34 +147,35 @@ class GradientBasedMigrationPolicy(KeyMigrationPolicy):
             else:
                 keys[key].append((node, node_coord, count))
 
-        delta_threshold = 0.1
         for (key, list_of_npc) in keys.items():
             key_node = key_locator.get_node(key)
             key_coord = self.ncs.get_coordinates(key_node)
 
-            # Compute step value
-            step = 0.1
+            # Compute step value (alg. 2, line 3)
+            step = GradientBasedMigrationPolicy.min_gradient_update_step
             for (node, node_coord, count) in list_of_npc:
                 key_node_dist = self.space.distance(key_coord, node_coord)
                 if key_node_dist > step:
                     step = key_node_dist
             
-            delta = 1 
+            delta = GradientBasedMigrationPolicy.utilization_delta_threshold + 1 
             candidate_node = key_node
             last_utilization = None
 
-            while delta > delta_threshold and step > 0.00001:
+            while delta > GradientBasedMigrationPolicy.utilization_delta_threshold and step > GradientBasedMigrationPolicy.min_gradient_update_step:
+                # Compute gradient of network usage (alg 2, line 5)
                 ge = GradientEstimate(self.space)
                 for (node, node_coord, count) in list_of_npc:
-                    # FIXME: using count instead of real datarate (the same for every pair of nodes)
+                    # Note: we are using count instead of the exchanged datarate 
+                    # (this should be count * key_value_size, but we avoid unneeded computation)
                     ge.add(key_coord, node_coord, count)
                 
                 if not last_utilization:
                     last_utilization = ge.compute_utilization_component(key_coord, list_of_npc)
                 
+                # Check if key migration improves network usage (line 6)
                 next_key_coord = ge.new_point_position(key_coord, step)
                 next_utilization = ge.compute_utilization_component(next_key_coord, list_of_npc)
-
                 if next_utilization < last_utilization:
                     delta = next_utilization - last_utilization
                     last_utilization = next_utilization
@@ -175,10 +184,61 @@ class GradientBasedMigrationPolicy(KeyMigrationPolicy):
                 else: 
                     step = step / 2.0
 
-            if candidate_node != key_node:
+            if candidate_node != None and candidate_node != key_node:
                 print(f"Moving {key}: {key_node}->{candidate_node}")
                 move_key(key, key_node, candidate_node)
 
+
+class SpringBasedMigrationPolicy(KeyMigrationPolicy):
+    '''
+        SpringBasedMigrationPolicy implements the placement algorithm described in: 
+            Pietzuch et al., "Network-Aware Operator Placement for Stream-Processing 
+            Systems.", ICDE'06. 
+    '''
+    force_threshold = 1     # value used in the authors' paper
+    delta = 0.1             # value used in the authors' paper
+
+    def __init__(self, simulation, rng):
+        super().__init__(simulation, rng)
+        self.space = Space(3)
+        self.ncs = NetworkCoordinateSystem(self.simulation.infra, self.space, self.rng)
+
+    def migrate(self):
+        keys = {} 
+        for ((key, _, node), count) in self.data_access_rates.items():
+            if count == 0:
+                continue
+            key_node = key_locator.get_node(key)
+            node_coord = self.ncs.get_coordinates(node)
+            if key not in keys:
+                keys[key] = [(node, node_coord, count)]
+            else:
+                keys[key].append((node, node_coord, count))
+
+        for (key, list_of_npc) in keys.items():
+            key_node = key_locator.get_node(key)
+            key_coord = self.ncs.get_coordinates(key_node)
+            _key_coord = Point(key_coord.coordinates.copy())
+
+            force_abs = SpringBasedMigrationPolicy.force_threshold + 1 
+            candidate_node = key_node
+            guard = 10000
+            while force_abs > SpringBasedMigrationPolicy.force_threshold and guard > 0:
+                guard -= 1
+                # Compute gradient of network usage (alg 2, line 5)
+                f = SpringForce(self.space)
+                for (node, node_coord, count) in list_of_npc:
+                    # Note: we are using count instead of the exchanged datarate 
+                    # (this should be count * key_value_size, but we avoid unneeded computation)
+                    f.add(_key_coord, node_coord, count)
+                _key_coord = f.move_point(_key_coord, SpringBasedMigrationPolicy.delta)
+                force_abs = f.magnitude()
+            
+            candidate_node = self.ncs.get_nearest_node(_key_coord)
+
+            if candidate_node != None and candidate_node != key_node:
+                print(f"Moving {key}: {key_node}->{candidate_node}")
+                move_key(key, key_node, candidate_node)
 
 # -------------------------------------------------------------------------
 import policy as offloading_policy
