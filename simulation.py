@@ -168,6 +168,8 @@ class Simulation:
             return stateful.SpringBasedMigrationPolicy(self, self.keys_policy_rng)
         elif stateful_policy_name == "greedy":
             return stateful.SimpleGreedyMigrationPolicy(self, self.keys_policy_rng)
+        elif stateful_policy_name == "ilp":
+            return stateful.ILPBasedMigrationPolicy(self, self.keys_policy_rng)
         else:
             raise RuntimeError(f"Unknown state migration policy: {stateful_policy_name}")
 

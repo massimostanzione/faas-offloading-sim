@@ -1,6 +1,6 @@
 
 from utils.latency_space import GradientEstimate, NetworkCoordinateSystem, Point, Space, SpringForce
-
+from optimizer import solve
 
 class KeyLocator:
     
@@ -254,7 +254,6 @@ class SimpleGreedyMigrationPolicy(KeyMigrationPolicy):
         for ((key, _, node), count) in self.data_access_rates.items():
             if count == 0:
                 continue
-            key_node = key_locator.get_node(key)
             if key not in keys:
                 keys[key] = [(node, count)]
             else:
@@ -274,6 +273,146 @@ class SimpleGreedyMigrationPolicy(KeyMigrationPolicy):
             if best_node != None and best_node != key_node:
                 print(f"Moving {key}: {key_node}->{best_node}")
                 move_key(key, key_node, best_node)
+
+class ILPBasedMigrationPolicy(KeyMigrationPolicy):
+    '''
+        TODO
+    '''
+    def __init__(self, simulation, rng):
+        super().__init__(simulation, rng)
+
+    def __solve_opt_problem(self, keys): 
+        import pulp as pl
+
+        # TODO: where to place these weights? 
+        W_ACCESS = 0.5
+        W_MIGRATION = 0.5
+
+        VERBOSE = self.simulation.verbosity
+        nodes = self.simulation.infra.get_nodes()
+
+        # Problem (minimization)
+        prob = pl.LpProblem("MigrationProblem", pl.LpMinimize)
+        # Placement
+        x = pl.LpVariable.dicts("x", (keys, nodes), 0, None, pl.LpBinary)
+        # Migration
+        y = pl.LpVariable.dicts("y", (keys, nodes, nodes), 0, None, pl.LpBinary)
+
+        # Defining the average time f on i spend to access k on j
+        t_data_fi_kjs = {}
+        t_data_k_max = {}
+        for (key, list_of_nfr) in keys.items():
+            key_node = key_locator.get_node(key)
+            value_size = key_node.kv_store[key]
+            t_data_k_max[key] = 0
+            for (i_node, f, access_rate) in list_of_nfr:
+                for j_node in nodes: 
+                    d_ij = self.simulation.infra.get_latency(i_node, j_node)
+                    bw_ij = self.simulation.infra.get_bandwidth(i_node, j_node)
+                    # TODO: use probability not directly the access rate
+                    t_data_fi_kjs[(key, j_node)] = access_rate * (2 * d_ij + value_size / bw_ij)
+                    if t_data_fi_kjs[(key, j_node)] > t_data_k_max[key]:
+                        t_data_k_max[key] = t_data_fi_kjs[(key, j_node)]
+
+        # Defining the key k migration time from i to j
+        t_migr_kijs = {}
+        t_migr_k_max = {}
+        for (key, list_of_nfr) in keys.items():
+            key_node = key_locator.get_node(key)
+            value_size = key_node.kv_store[key]
+            t_migr_k_max[key] = 0
+            for i_node in nodes: 
+                for j_node in nodes: 
+                    if i_node == j_node:
+                        t_migr_kijs[(key, i_node, j_node)] = 0
+                    else:
+                        d_ij = self.simulation.infra.get_latency(i_node, j_node)
+                        bw_ij = self.simulation.infra.get_bandwidth(i_node, j_node)
+                        t_migr_kijs[(key, i_node, j_node)] = (2 * d_ij + value_size / bw_ij)
+                        if t_migr_kijs[(key, i_node, j_node)] > t_migr_k_max[key]:
+                            t_migr_k_max[key] = t_migr_kijs[(key, i_node, j_node)]
+        
+        # Objective function (minimization problem)
+        prob += W_ACCESS * pl.lpSum([x[k][j] * t_data_fi_kjs[(k,j)] / t_data_k_max[k] for j in nodes for k in keys]) + \
+            W_MIGRATION * pl.lpSum([y[k][i][j] * t_migr_kijs[(k,i,j)] / t_migr_k_max[k] for i in nodes for j in nodes for k in keys]), \
+            "Min avg t_access and t_migr"
+        
+        # Defining symbols x_bar representing the previous allocation 
+        x_bar_kis = {}
+        for (k, list_of_nfr) in keys.items():
+            node = key_locator.mapping[k]
+            for i in nodes: 
+                x_bar_kis[(k,i)] = 1 if i == node else 0
+
+        # Collecting value size for each key
+        l_ks = {}
+        for key in keys:
+            # TODO: check unit of size in kv_store
+            l_k = key_locator.get_node(key).kv_store[key] / 1024 
+            l_ks[key] = l_k
+
+        # Adding constraints: define y_k,i,j
+        for (k, _) in keys.items():
+            for i in nodes: 
+                for j in nodes: 
+                    prob += y[k][i][j] <= x_bar_kis[(k,i)], f"eq_6__{i},{j}"
+                    prob += y[k][i][j] <= x[k][j], f"eq_7__{i},{j}"
+                    prob += y[k][i][j] >= (x_bar_kis[(k,i)] + x[k][j] - 1), f"eq_8__{i},{j}"
+
+        # Adding constraints: available memory to allocate k on j 
+        for j in nodes: 
+            prob += pl.lpSum([l_ks[k] * x[k][j] for k in keys]) <= j.curr_memory, f"eq_9__{j}"
+        
+        # Adding constraints: select a single node to host k 
+        for k in keys: 
+            prob += pl.lpSum([x[k][j] for j in nodes]) == 1, f"eq_10__{f}"
+        
+        # Solving the problem 
+        if VERBOSE:
+            prob.writeLP("/tmp/problem.lp")
+        status = solve(prob)
+        obj = pl.value(prob.objective)
+
+        # TODO: review logging messages
+        if VERBOSE:
+            print(f" Problem solved. {status} solution found.")
+            print(f" > objective function: {obj}")
+        if obj is None:
+            print(f"WARNING: objective is None")
+            return None
+
+        # Exporting results
+        allocation = { }
+        # migration =  { }
+        for k in keys: 
+            for j in nodes: 
+                if pl.value(x[k][j]) == 1.0:
+                    allocation[k] = j
+                # for i in nodes: 
+                #     if pl.value(y[k][i][j]) == 1.0:
+                #         migration[(k,i)] = j 
+
+        return allocation 
+
+    def migrate(self):
+        keys = {} 
+        for ((key, func, node), access_rate) in self.data_access_rates.items():
+            if access_rate == 0:
+                continue
+            if key not in keys:
+                keys[key] = [(node, func, access_rate)]
+            else:
+                keys[key].append((node, func, access_rate))
+
+        key2node = self.__solve_opt_problem(keys)
+        for key in keys:
+            key_node = key_locator.get_node(key)
+            best_node = key2node[key]
+
+            if best_node != None and best_node != key_node:
+                print(f"Moving {key}: {key_node}->{best_node}")
+                move_key(key, key_node, best_node)
+        
 
 # -------------------------------------------------------------------------
 import policy as offloading_policy
