@@ -274,14 +274,14 @@ class SimpleGreedyMigrationPolicy(KeyMigrationPolicy):
                 print(f"Moving {key}: {key_node}->{best_node}")
                 move_key(key, key_node, best_node)
 
-class ILPBasedMigrationPolicy(KeyMigrationPolicy):
+class ILPMinDataAccessTimeMigrationPolicy(KeyMigrationPolicy):
     '''
         TODO
     '''
     def __init__(self, simulation, rng):
         super().__init__(simulation, rng)
 
-    def __solve_opt_problem(self, keys): 
+    def _solve_opt_problem(self, keys): 
         import pulp as pl
 
         # TODO: where to place these weights? 
@@ -386,6 +386,7 @@ class ILPBasedMigrationPolicy(KeyMigrationPolicy):
         # migration =  { }
         for k in keys: 
             for j in nodes: 
+                print(f"{pl.value(x[k][j])}")
                 if pl.value(x[k][j]) == 1.0:
                     allocation[k] = j
                 # for i in nodes: 
@@ -404,7 +405,7 @@ class ILPBasedMigrationPolicy(KeyMigrationPolicy):
             else:
                 keys[key].append((node, func, access_rate))
 
-        key2node = self.__solve_opt_problem(keys)
+        key2node = self._solve_opt_problem(keys)
         for key in keys:
             key_node = key_locator.get_node(key)
             best_node = key2node[key]
@@ -413,6 +414,166 @@ class ILPBasedMigrationPolicy(KeyMigrationPolicy):
                 print(f"Moving {key}: {key_node}->{best_node}")
                 move_key(key, key_node, best_node)
         
+
+class ILPBoundedDataAccessTimeMigrationPolicy(ILPMinDataAccessTimeMigrationPolicy):
+    '''
+        TODO
+    '''
+    def __init__(self, simulation, rng):
+        super().__init__(simulation, rng)
+
+    def _solve_opt_problem(self, keys): 
+        import pulp as pl
+
+        # TODO: where to place these weights? 
+        W_SLO_VIOLATION_PENALTY = 0.5
+        W_MIGRATION = 0.5
+        PENALTY_F = 1.0
+
+        VERBOSE = self.simulation.verbosity
+        nodes = self.simulation.infra.get_nodes()
+
+        functions = []
+        for (key, list_of_nfr) in keys.items():
+            for (i_node, f, access_rate) in list_of_nfr:
+                if f not in functions:
+                    functions.append(f)
+
+        # Problem (minimization)
+        prob = pl.LpProblem("MigrationProblem", pl.LpMinimize)
+        # Placement
+        x = pl.LpVariable.dicts("x", (keys, nodes), 0, None, pl.LpBinary)
+        # Migration
+        y = pl.LpVariable.dicts("y", (keys, nodes, nodes), 0, None, pl.LpBinary)
+        deltaFK = pl.LpVariable.dicts("deltaFK", (functions, keys), 0, None, pl.LpContinuous)
+        zFK = pl.LpVariable.dicts("zFK", (functions, keys), 0, None, pl.LpContinuous)
+        deltaF = pl.LpVariable.dicts("deltaF", (functions), 0, None, pl.LpContinuous)
+
+        # Defining the average time f on i spend to access k on j
+        t_data_fi_kjs = {}
+        t_data_k_max = {}
+        for (key, list_of_nfr) in keys.items():
+            key_node = key_locator.get_node(key)
+            value_size = key_node.kv_store[key]
+            t_data_k_max[key] = 0
+            for (i_node, f, access_rate) in list_of_nfr:
+                for j_node in nodes: 
+                    if i_node == j_node:
+                        t_data_fi_kjs[(key, j_node)] = 1.0
+                        continue
+                    d_ij = self.simulation.infra.get_latency(i_node, j_node)
+                    bw_ij = self.simulation.infra.get_bandwidth(i_node, j_node)
+                    # TODO: use probability not directly the access rate
+                    t_data_fi_kjs[(key, j_node)] = access_rate * (2 * d_ij + value_size / bw_ij)
+                    if t_data_fi_kjs[(key, j_node)] > t_data_k_max[key]:
+                        t_data_k_max[key] = t_data_fi_kjs[(key, j_node)]
+
+        # Defining the key k migration time from i to j
+        t_migr_kijs = {}
+        t_migr_k_max = {}
+        for (key, list_of_nfr) in keys.items():
+            key_node = key_locator.get_node(key)
+            value_size = key_node.kv_store[key]
+            t_migr_k_max[key] = 0
+            for i_node in nodes: 
+                for j_node in nodes: 
+                    if i_node == j_node:
+                        t_migr_kijs[(key, i_node, j_node)] = 0
+                    else:
+                        d_ij = self.simulation.infra.get_latency(i_node, j_node)
+                        bw_ij = self.simulation.infra.get_bandwidth(i_node, j_node)
+                        t_migr_kijs[(key, i_node, j_node)] = (2 * d_ij + value_size / bw_ij)
+                        if t_migr_kijs[(key, i_node, j_node)] > t_migr_k_max[key]:
+                            t_migr_k_max[key] = t_migr_kijs[(key, i_node, j_node)]
+        
+
+        # Objective function (minimization problem)
+        prob += W_SLO_VIOLATION_PENALTY * pl.lpSum([deltaF[f] * PENALTY_F for f in functions]) + \
+            W_MIGRATION * pl.lpSum([y[k][i][j] * t_migr_kijs[(k,i,j)] / t_migr_k_max[k] for i in nodes for j in nodes for k in keys]) + \
+            pl.lpSum([zFK[f][k] for f in functions for k in keys]), \
+            "Min SLO violation penalty and t_migr"
+        
+        # Defining symbols x_bar representing the previous allocation 
+        x_bar_kis = {}
+        for (k, list_of_nfr) in keys.items():
+            node = key_locator.mapping[k]
+            for i in nodes: 
+                x_bar_kis[(k,i)] = 1 if i == node else 0
+
+        # Collecting value size for each key
+        l_ks = {}
+        for key in keys:
+            # TODO: check unit of size in kv_store
+            l_k = key_locator.get_node(key).kv_store[key] / 1024 
+            l_ks[key] = l_k
+
+        # Adding constraints: define y_k,i,j
+        for (k, _) in keys.items():
+            for i in nodes: 
+                for j in nodes: 
+                    prob += y[k][i][j] <= x_bar_kis[(k,i)], f"eq_6__{k},{i},{j}"
+                    prob += y[k][i][j] <= x[k][j], f"eq_7__{k},{i},{j}"
+                    prob += y[k][i][j] >= x_bar_kis[(k,i)] + x[k][j] - 1, f"eq_8__{k},{i},{j}"
+
+        # Adding constraints: available memory to allocate k on j 
+        for j in nodes: 
+            prob += pl.lpSum([l_ks[k] * x[k][j] for k in keys]) <= j.curr_memory, f"eq_9__{j}"
+        
+        # Adding constraints: select a single node to host k 
+        for k in keys: 
+            prob += pl.lpSum([x[k][j] for j in nodes]) == 1, f"eq_10__{k}"
+
+        # Defining deltaFK variables 
+        for f in functions: 
+            if f.max_data_access_time is None:
+                continue 
+            for k in keys: 
+                prob += pl.lpSum([x[k][j] * t_data_fi_kjs[(k,j)] for j in nodes]) + zFK[f][k] - deltaFK[f][k] == f.max_data_access_time, f"eq_19__{f},{k}"
+
+        # Defining deltaF variables 
+        for f in functions: 
+            if f.max_data_access_time is None:
+                prob += deltaF[f] == 0, f"eq_20__{f},_"
+            else: 
+                for k in keys: 
+                    prob += deltaF[f] >= deltaFK[f][k], f"eq_20__{f},{k}"
+
+        # Solving the problem 
+        if VERBOSE:
+            prob.writeLP("/tmp/problem.lp")
+        status = solve(prob)
+        obj = pl.value(prob.objective)
+
+        # TODO: review logging messages
+        if VERBOSE:
+            print(f" Problem solved. {status} solution found.")
+            print(f" > objective function: {obj}")
+        if obj is None:
+            print(f"WARNING: objective is None")
+            return None
+
+        # Exporting results
+        allocation = { }
+        _migration =  { }
+        for k in keys: 
+            for j in nodes: 
+                if pl.value(x[k][j]) == 1.0:
+                    allocation[k] = j
+                for i in nodes: 
+                    if pl.value(y[k][i][j]) == 1.0:
+                        _migration[(k,i)] = j 
+
+        _deltaF = {}
+        _deltaFK = {}
+        _zFK = {}
+        for f in functions: 
+            _deltaF[f] = pl.value(deltaF[f])
+            for k in keys: 
+                _deltaFK[(f,k)] = pl.value(deltaFK[f][k])
+                _zFK[(f,k)] = pl.value(zFK[f][k])
+                
+        return allocation 
+
 
 # -------------------------------------------------------------------------
 import policy as offloading_policy

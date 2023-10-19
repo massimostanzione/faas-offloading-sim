@@ -53,6 +53,7 @@ def read_spec_file (spec_file_name, infra, config):
             init_mean = f["init_mean"] if "init_mean" in f else 0.500
             input_mean = f["input_mean"] if "input_mean" in f else 1024
             keys_spec = f["keys"] if "keys" in f else []
+            max_data_access_time = f["max_data_access_time"] if "max_data_access_time" in f else None 
             keys=[]
             for ks in keys_spec:
                 key = ks["key"]
@@ -61,7 +62,7 @@ def read_spec_file (spec_file_name, infra, config):
                 assert(p >= 0.0)
                 keys.append((key, p))
 
-            fun = faas.Function(fname, memory, serviceMean=duration_mean, serviceSCV=duration_scv, initMean=init_mean, inputSizeMean=input_mean, accessed_keys=keys)
+            fun = faas.Function(fname, memory, serviceMean=duration_mean, serviceSCV=duration_scv, initMean=init_mean, inputSizeMean=input_mean, accessed_keys=keys, max_data_access_time=max_data_access_time)
             function_names[fname] = fun
             functions.append(fun)
 

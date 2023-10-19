@@ -108,7 +108,8 @@ class Function:
     initMean: float = 0.500
     inputSizeMean: float = 100
     accessed_keys: [] = field(default_factory=lambda: [])
-
+    max_data_access_time: float = None 
+    
     def __repr__ (self):
         return self.name
 
