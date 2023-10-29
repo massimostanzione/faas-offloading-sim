@@ -628,9 +628,11 @@ class StateAwareOffloadingPolicy(offloading_policy.GreedyPolicy):
 
         if not self.can_execute_locally(f):
             exp_latency_local = float("inf")
+            data_latency_local = exp_latency_local
         else:
             duration = f.serviceMean/self.node.speedup
             exp_latency_local = duration 
+            data_latency_local = 0
 
             for k,p in f.accessed_keys:
                 if not k in self.node.kv_store:
@@ -638,7 +640,8 @@ class StateAwareOffloadingPolicy(offloading_policy.GreedyPolicy):
                     value_size = key_node.kv_store[k]
                     extra_latency = self.simulation.infra.get_latency(self.node, key_node)*2 +\
                            value_size/(self.simulation.infra.get_bandwidth(self.node, key_node)*125000)
-                    exp_latency_local += p*extra_latency
+                    data_latency_local += p*extra_latency
+            exp_latency_local += data_latency_local
         
         if len(offloaded_from) > 2:
             if self.can_execute_locally(f):
@@ -647,9 +650,9 @@ class StateAwareOffloadingPolicy(offloading_policy.GreedyPolicy):
                 return offloading_policy.SchedulerDecision.DROP, None
 
         if f in self.latency_estimation_cache:
-            best_node, best_lat = self.latency_estimation_cache[f]
+            best_node, best_lat, best_data_lat = self.latency_estimation_cache[f]
         else:
-            exp_latency = {}
+            exp_latency = {} # node: (total_latency, data_latency)
             for remote_node in remote_nodes:
                 rtt = 2*self.simulation.infra.get_latency(self.node, remote_node)
                 bw = self.simulation.infra.get_bandwidth(self.node, remote_node)
@@ -657,18 +660,20 @@ class StateAwareOffloadingPolicy(offloading_policy.GreedyPolicy):
                 # Offloading time:
                 l = duration + rtt + f.inputSizeMean*8/1000/1000/bw
                 # Key access time:
+                d = 0
                 for k,p in f.accessed_keys:
                     if not k in remote_node.kv_store:
                         key_node = key_locator.get_node(k)
                         value_size = key_node.kv_store[k]
                         extra_latency = self.simulation.infra.get_latency(remote_node, key_node)*2 +\
                             value_size/(self.simulation.infra.get_bandwidth(remote_node, key_node)*125000)
-                        l += p*extra_latency
-                exp_latency[remote_node] = l
+                        d += p*extra_latency
+                exp_latency[remote_node] = (l + d, d)
+            
+            best_node, (best_lat, best_data_lat) = sorted(exp_latency.items(), key=lambda x: x[1][0])[0]
+            self.latency_estimation_cache[f] = (best_node, best_lat, best_data_lat)
 
-            best_node, best_lat = sorted(exp_latency.items(), key=lambda x: x[1])[0]
-            self.latency_estimation_cache[f] = (best_node, best_lat)
-
+        # TODO: check SLO
         if exp_latency_local < best_lat:
             return offloading_policy.SchedulerDecision.EXEC, None
         else:
