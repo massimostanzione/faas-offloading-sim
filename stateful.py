@@ -608,9 +608,14 @@ class AlwaysOffloadStatefulPolicy(offloading_policy.Policy):
                 return offloading_policy.SchedulerDecision.DROP, None
         elif best_node == self.node:
             return offloading_policy.SchedulerDecision.EXEC, None
-
         
         return (offloading_policy.SchedulerDecision.OFFLOAD_EDGE, best_node)
+
+class LatencyEstimation:
+
+    def __init__ (self, total=0.0, data_latency=0.0):
+        self.total = total
+        self.data_latency = data_latency
 
 class StateAwareOffloadingPolicy(offloading_policy.GreedyPolicy):
 
@@ -626,13 +631,18 @@ class StateAwareOffloadingPolicy(offloading_policy.GreedyPolicy):
 
         # XXX: We do not consider cold start here
 
+        if len(offloaded_from) > 2:
+            if self.can_execute_locally(f):
+                return offloading_policy.SchedulerDecision.EXEC, None
+            else:
+                return offloading_policy.SchedulerDecision.DROP, None
+
         if not self.can_execute_locally(f):
-            exp_latency_local = float("inf")
-            data_latency_local = exp_latency_local
+            latency_local = LatencyEstimation(float("inf"), float("inf"))
         else:
             duration = f.serviceMean/self.node.speedup
-            exp_latency_local = duration 
-            data_latency_local = 0
+            latency_local = LatencyEstimation()
+            latency_local.total = duration 
 
             for k,p in f.accessed_keys:
                 if not k in self.node.kv_store:
@@ -640,19 +650,13 @@ class StateAwareOffloadingPolicy(offloading_policy.GreedyPolicy):
                     value_size = key_node.kv_store[k]
                     extra_latency = self.simulation.infra.get_latency(self.node, key_node)*2 +\
                            value_size/(self.simulation.infra.get_bandwidth(self.node, key_node)*125000)
-                    data_latency_local += p*extra_latency
-            exp_latency_local += data_latency_local
-        
-        if len(offloaded_from) > 2:
-            if self.can_execute_locally(f):
-                return offloading_policy.SchedulerDecision.EXEC, None
-            else:
-                return offloading_policy.SchedulerDecision.DROP, None
+                    latency_local.data_latency += p*extra_latency
+            latency_local.total += latency_local.data_latency
 
         if f in self.latency_estimation_cache:
-            best_node, best_lat, best_data_lat = self.latency_estimation_cache[f]
+            best_node, best_latency = self.latency_estimation_cache[f]
         else:
-            exp_latency = {} # node: (total_latency, data_latency)
+            exp_latency = {} 
             for remote_node in remote_nodes:
                 rtt = 2*self.simulation.infra.get_latency(self.node, remote_node)
                 bw = self.simulation.infra.get_bandwidth(self.node, remote_node)
@@ -668,13 +672,21 @@ class StateAwareOffloadingPolicy(offloading_policy.GreedyPolicy):
                         extra_latency = self.simulation.infra.get_latency(remote_node, key_node)*2 +\
                             value_size/(self.simulation.infra.get_bandwidth(remote_node, key_node)*125000)
                         d += p*extra_latency
-                exp_latency[remote_node] = (l + d, d)
+                if f.max_data_access_time is None or d <= f.max_data_access_time:
+                    exp_latency[remote_node] = LatencyEstimation(total=l+d, data_latency=d)
             
-            best_node, (best_lat, best_data_lat) = sorted(exp_latency.items(), key=lambda x: x[1][0])[0]
-            self.latency_estimation_cache[f] = (best_node, best_lat, best_data_lat)
+            if len(exp_latency) > 0:
+                best_node, best_latency = sorted(exp_latency.items(), key=lambda x: x[1].total)[0]
+            else:
+                best_node = None
+                best_latency = LatencyEstimation(float("inf"), float("inf"))
+            self.latency_estimation_cache[f] = (best_node, best_latency)
 
-        # TODO: check SLO
-        if exp_latency_local < best_lat:
+        remote_admissible = best_node is not None
+        local_admissible = f.max_data_access_time is None or local_latency.data_latency <= f.max_data_access_time
+        if not remote_admissible and not local_admissible:
+            return offloading_policy.SchedulerDecision.DROP, None
+        elif latency_local.total < best_latency.total:
             return offloading_policy.SchedulerDecision.EXEC, None
         else:
             return (offloading_policy.SchedulerDecision.OFFLOAD_EDGE, best_node)
