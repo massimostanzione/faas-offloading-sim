@@ -159,7 +159,9 @@ class Simulation:
             raise RuntimeError(f"Unknown policy: {configured_policy}")
 
     def new_state_migration_policy(self, stateful_policy_name: str):
-        if stateful_policy_name == "random":
+        if stateful_policy_name == "none":
+            return None
+        elif stateful_policy_name == "random":
             return stateful.RandomKeyMigrationPolicy(self, self.keys_policy_rng)
         elif stateful_policy_name == "gradient-discent":
             return stateful.GradientBasedMigrationPolicy(self, self.keys_policy_rng)
