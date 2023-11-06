@@ -34,6 +34,9 @@ class Stats:
         self.utility_detail = {x: 0.0 for x in fcn}
         self.penalty = 0.0
         self.data_access_count = {(k,f,n): 0 for k in keys for f in functions for n in self.nodes}
+        self.data_access_violations = {f: 0 for f in functions}
+        self.data_migrations_count = 0
+        self.data_migrated_bytes = 0.0
         self._memory_usage_area = {x: 0.0 for x in self.nodes}
         self._memory_usage_t0 = {x: 0.0 for x in self.nodes}
         self._policy_update_time_sum = {x: 0.0 for x in self.nodes}
@@ -49,7 +52,7 @@ class Stats:
             if t is float or t is int:
                 # no change required
                 stats[metric] = raw[metric]
-            if t is dict:
+            elif t is dict:
                 # replace with a new dict, w reformatted keys
                 new_metric = {repr(x): raw[metric][x] for x in raw[metric]}
                 stats[metric] = new_metric
@@ -101,6 +104,7 @@ class Stats:
         del(stats["_policy_update_time_sum"])
         del(stats["_policy_updates"])
 
+        del(stats["data_access_count"]) 
 
         return stats
     

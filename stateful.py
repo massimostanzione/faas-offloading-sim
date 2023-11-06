@@ -1,6 +1,6 @@
-
 from utils.latency_space import GradientEstimate, NetworkCoordinateSystem, Point, Space, SpringForce
 from optimizer import solve
+
 
 class KeyLocator:
     
@@ -24,18 +24,13 @@ def init_key_placement (functions, infra, rng):
     i = 0
     for k in all_keys:
         m=rng.choice(size_means, size=1)
-        size = rng.gamma(shape=m/10000,scale=10000)
+        size = int(rng.gamma(shape=m/10000,scale=10000))
         cloud_nodes[i].kv_store[k] = size
         key_locator.update_key_location(k, cloud_nodes[i])
         print(f"Placed {k} in {cloud_nodes[i]} with size {size}")
         i = (i + 1) % len(cloud_nodes)
 
-def move_key (k, src_node, dest_node):
-    if src_node == dest_node:
-        return
-    dest_node.kv_store[k] = src_node.kv_store[k]
-    del(src_node.kv_store[k])
-    key_locator.update_key_location(k, dest_node)
+
 
 key_locator = KeyLocator()
 
@@ -124,7 +119,7 @@ class RandomKeyMigrationPolicy(KeyMigrationPolicy):
             for key in keys:
                 dest = self.rng.choice(nodes)
                 print(f"Moving {key} {n}->{dest}")
-                move_key(key, n, dest)
+                self.simulation.move_key(key, n, dest)
 
 
 class GradientBasedMigrationPolicy(KeyMigrationPolicy):
@@ -192,7 +187,7 @@ class GradientBasedMigrationPolicy(KeyMigrationPolicy):
 
             if candidate_node != None and candidate_node != key_node:
                 print(f"Moving {key}: {key_node}->{candidate_node}")
-                move_key(key, key_node, candidate_node)
+                self.simulation.move_key(key, key_node, candidate_node)
 
 
 class SpringBasedMigrationPolicy(KeyMigrationPolicy):
@@ -244,7 +239,7 @@ class SpringBasedMigrationPolicy(KeyMigrationPolicy):
 
             if candidate_node != None and candidate_node != key_node:
                 print(f"Moving {key}: {key_node}->{candidate_node}")
-                move_key(key, key_node, candidate_node)
+                self.simulation.move_key(key, key_node, candidate_node)
 
 class SimpleGreedyMigrationPolicy(KeyMigrationPolicy):
     '''
@@ -278,7 +273,7 @@ class SimpleGreedyMigrationPolicy(KeyMigrationPolicy):
 
             if best_node != None and best_node != key_node:
                 print(f"Moving {key}: {key_node}->{best_node}")
-                move_key(key, key_node, best_node)
+                self.simulation.move_key(key, key_node, best_node)
 
 class ILPMinDataAccessTimeMigrationPolicy(KeyMigrationPolicy):
     '''
@@ -418,7 +413,7 @@ class ILPMinDataAccessTimeMigrationPolicy(KeyMigrationPolicy):
 
             if best_node != None and best_node != key_node:
                 print(f"Moving {key}: {key_node}->{best_node}")
-                move_key(key, key_node, best_node)
+                self.simulation.move_key(key, key_node, best_node)
         
 
 class ILPBoundedDataAccessTimeMigrationPolicy(ILPMinDataAccessTimeMigrationPolicy):

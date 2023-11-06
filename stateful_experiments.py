@@ -130,23 +130,31 @@ def generate_latencies (infra, rng):
         for e2 in enodes:
             if e1 == e2:
                 continue
-            infra.latency[(e1,e2)] = rng.uniform(1,20)/1000
+            infra.latency[(e1,e2)] = float(rng.uniform(1,20))/1000
     for c1 in cnodes:
         for c2 in cnodes:
             if c1 == c2:
                 continue
-            infra.latency[(c1,c2)] = rng.uniform(1,10)/1000
+            infra.latency[(c1,c2)] = float(rng.uniform(1,10))/1000
     for e in enodes:
         for c in cnodes:
-            infra.latency[(e,c)] = rng.uniform(10,100)/1000
+            infra.latency[(e,c)] = float(rng.uniform(10,100))/1000
 
 def _experiment (config, seed_sequence, infra, spec_file_name):
     classes, functions, node2arrivals  = read_spec_file (spec_file_name, infra, config)
     generate_latencies(infra, default_rng(seed_sequence.spawn(1)[0]))
+
+    RESPTIMES_FILENAME= "/tmp/resptimes.csv"
+    config.set(conf.SEC_SIM, conf.RESP_TIMES_FILE, RESPTIMES_FILENAME)
     sim = Simulation(config, seed_sequence, infra, functions, classes, node2arrivals)
     final_stats = sim.run()
     del(sim)
-    return final_stats
+
+
+    # Retrieve response times
+    df = pd.read_csv(RESPTIMES_FILENAME)
+
+    return final_stats, df
 
 def relevant_stats_dict (stats):
     result = {}
@@ -155,6 +163,9 @@ def relevant_stats_dict (stats):
     result["NetUtility"] = stats.utility-stats.penalty
     result["Cost"] = stats.cost
     result["BudgetExcessPerc"] = max(0, (stats.cost-stats.budget)/stats.budget*100)
+    result["DataAccessViolations"] = stats.data_access_violations
+    result["DataMigrations"] = stats.data_migrations_count
+    result["DataMigratedBytes"] = stats.data_migrated_bytes
     return result
 
 
@@ -170,8 +181,7 @@ def experiment_simple (args, config):
     config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
 
 
-    POLICIES = ["basic", "basic-edge", "basic-budget", "probabilistic2", "greedy-budget",  "probabilistic2-strict",
-                "probabilistic2Alt", "probabilistic2-strictAlt"]
+    POLICIES = ["basic"]
 
     # Check existing results
     old_results = None
@@ -187,9 +197,9 @@ def experiment_simple (args, config):
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
         seed_sequence = SeedSequence(seed)
 
-        for cloud_speedup in [1.0, 2.0, 4.0]:
-            for cloud_cost in [0.00001, 0.0001, 0.001]:
-                for load_coeff in [0.5, 1, 2, 4]:
+        for cloud_speedup in [1.0]:
+            for cloud_cost in [0.00001]:
+                for load_coeff in [0.5]:
                     for pol in POLICIES:
                         config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
 
@@ -220,10 +230,11 @@ def experiment_simple (args, config):
 
                         temp_spec_file = generate_temp_spec (seed_sequence, load_coeff=load_coeff, zipf_key_popularity=True)
                         infra = default_infra()
-                        stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
+                        stats, resptimes = _experiment(config, seed_sequence, infra, temp_spec_file.name)
                         temp_spec_file.close()
                         with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
                             stats.print(of)
+                        resptimes.to_csv(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}_rt.csv"), index=False)
 
                         result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
                         results.append(result)

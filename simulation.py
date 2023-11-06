@@ -13,6 +13,7 @@ import policy
 import probabilistic
 from faas import *
 import stateful
+from stateful import key_locator
 from arrivals import ArrivalProcess
 from infrastructure import *
 from statistics import Stats
@@ -64,6 +65,7 @@ class Completion(Event):
     cold: bool
     exec_time: float
     offloaded_from: [Node] = None
+    data_access_time: float = 0.0
 
 
 OFFLOADING_OVERHEAD = 0.005
@@ -208,7 +210,7 @@ class Simulation:
         rt_print_filename = self.config.get(conf.SEC_SIM, conf.RESP_TIMES_FILE, fallback="")
         if len(rt_print_filename) > 0:
             self.resp_times_file = open(rt_print_filename, "w")
-            print(f"Function,Class,Node,Offloaded,Cold,RT", file=self.resp_times_file)
+            print(f"Function,Class,Node,Offloaded,Cold,DataAccess,RT", file=self.resp_times_file)
         else:
             self.resp_times_file = None
 
@@ -270,6 +272,16 @@ class Simulation:
         return self.stats
 
 
+    def move_key (self, k, src_node, dest_node):
+        if src_node == dest_node:
+            return
+        dest_node.kv_store[k] = src_node.kv_store[k]
+        del(src_node.kv_store[k])
+        key_locator.update_key_location(k, dest_node)
+
+        moved_bytes = dest_node.kv_store[k]
+        self.stats.data_migrations_count += 1
+        self.stats.data_migrated_bytes += moved_bytes
     
     def __schedule_next_arrival(self, node, arrival_proc):
         if not self.external_arrivals_allowed:
@@ -366,6 +378,7 @@ class Simulation:
         c = event.qos_class
         n = event.node
         duration = event.exec_time
+        dat = event.data_access_time
         #print(f"Completed {f}-{c}: {rt}")
 
         # Account for the time needed to send back the result
@@ -393,7 +406,7 @@ class Simulation:
             self.stats.cost += duration * f.memory/1024 * n.cost
 
         if self.resp_times_file is not None:
-            print(f"{f},{c},{n},{event.offloaded_from != None and len(event.offloaded_from) > 0},{event.cold},{rt}", file=self.resp_times_file)
+            print(f"{f},{c},{n},{event.offloaded_from != None and len(event.offloaded_from) > 0},{event.cold},{dat},{rt}", file=self.resp_times_file)
 
         n.warm_pool.append((f, self.t + self.expiration_timeout))
         if self.external_arrivals_allowed:
@@ -424,7 +437,7 @@ class Simulation:
         sched_decision, target_node = node_policy.schedule(f,c,event.offloaded_from)
 
         if sched_decision == SchedulerDecision.EXEC:
-            duration = self.next_function_duration(f, n)
+            duration, data_access_time = self.next_function_duration(f, n)
             # check warm or cold
             if f in n.warm_pool:
                 n.warm_pool.remove(f)
@@ -436,7 +449,7 @@ class Simulation:
                 self.stats.cold_starts[(f,n)] += 1
                 init_time = self.init_time[(f,n)]
             arrival_time = self.t if event.original_arrival_time is None else event.original_arrival_time
-            self.schedule(self.t + init_time + duration, Completion(arrival_time, f,c, n, init_time > 0, duration, event.offloaded_from))
+            self.schedule(float(self.t + init_time + duration), Completion(arrival_time, f,c, n, init_time > 0, duration, event.offloaded_from, data_access_time))
         elif sched_decision == SchedulerDecision.DROP:
             self.stats.dropped_reqs[(f,c,n)] += 1
             if event.offloaded_from is not None and len(event.offloaded_from) > 0:
@@ -470,22 +483,20 @@ class Simulation:
 
     def next_function_duration (self, f: Function, n: Node):
         # execution time
-        duration = self.service_rng.gamma(1.0/f.serviceSCV, f.serviceMean*f.serviceSCV/n.speedup) 
+        duration = float(self.service_rng.gamma(1.0/f.serviceSCV, f.serviceMean*f.serviceSCV/n.speedup) )
+        data_access_time = 0
         # we add the time to access state
         for k,prob in f.accessed_keys:
             # check if it is accessed 
             if self.keys_rng.random() <= prob:
                 # check if the key is on the node
-                if k in n.kv_store:
-                    print(f"{f} accessed {k} locally")
-                else:
+                if k not in n.kv_store:
                     remote_node = stateful.key_locator.get_node(k)
                     assert(k in remote_node.kv_store)
                     value_size = remote_node.kv_store[k]
                     extra_latency = self.infra.get_latency(n, remote_node)*2
                     # bandwidth
                     extra_latency += value_size/(self.infra.get_bandwidth(n, remote_node)*125000)
-                    duration += extra_latency
-                    print(f"{f} accessed {k} from {remote_node}. Extra lat: {extra_latency}")
+                    data_access_time += extra_latency
                 self.stats.data_access_count[(k,f,n)] += 1
-        return duration
+        return float(duration + data_access_time), float(data_access_time)
