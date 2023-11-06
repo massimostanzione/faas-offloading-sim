@@ -14,15 +14,21 @@ class KeyLocator:
         return self.mapping[key]
 
 def init_key_placement (functions, infra, rng):
+    size_means=[10*1000, 1*1000*1000]
     # Place all the keys in the cloud
-    cloud_node = infra.get_cloud_nodes()[0]
+    cloud_nodes = infra.get_cloud_nodes()
+    all_keys = set()
     for f in functions:
         for k,_ in f.accessed_keys:
-            if not k in cloud_node.kv_store:
-                size = rng.uniform(10, 1000000) # TODO
-                cloud_node.kv_store[k] = size
-                key_locator.update_key_location(k, cloud_node)
-                print(f"Placed {k} in {cloud_node}")
+            all_keys.add(k)
+    i = 0
+    for k in all_keys:
+        m=rng.choice(size_means, size=1)
+        size = rng.gamma(shape=m/10000,scale=10000)
+        cloud_nodes[i].kv_store[k] = size
+        key_locator.update_key_location(k, cloud_nodes[i])
+        print(f"Placed {k} in {cloud_nodes[i]} with size {size}")
+        i = (i + 1) % len(cloud_nodes)
 
 def move_key (k, src_node, dest_node):
     if src_node == dest_node:
@@ -97,7 +103,7 @@ class KeyMigrationPolicy():
                         arrivals = stats.data_access_count[(k, f, n)]
                         self.data_access_rates[(k, f, n)] = arrivals / self.simulation.t
 
-        print(self.data_access_rates) # TODO
+        #print(self.data_access_rates) # TODO
 
         self.__last_arrivals = stats.arrivals.copy()
         self.__last_data_access = stats.data_access_count.copy()
@@ -690,3 +696,20 @@ class StateAwareOffloadingPolicy(offloading_policy.GreedyPolicy):
             return offloading_policy.SchedulerDecision.EXEC, None
         else:
             return (offloading_policy.SchedulerDecision.OFFLOAD_EDGE, best_node)
+
+class RandomStatefulOffloadingPolicy(StateAwareOffloadingPolicy):
+
+    def __init__(self, simulation, node):
+        super().__init__(simulation, node)
+        self.rng = self.simulation.policy_rng1
+
+    def schedule(self, f, c, offloaded_from):
+        if self.rng.uniform(0,1) > 0.5:
+            return super().schedule(f,c,offloaded_from)
+        else:
+            if self.can_execute_locally(f):
+                return (SchedulerDecision.EXEC, None)
+            else:
+                return (SchedulerDecision.OFFLOAD_CLOUD, None)
+
+

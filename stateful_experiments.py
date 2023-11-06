@@ -3,8 +3,10 @@ import os
 import argparse
 import pandas as pd
 from numpy.random import SeedSequence, default_rng
+from scipy.stats import zipfian
+import yaml
+import tempfile
 
-from spec import generate_temp_spec
 import faas
 import conf
 from arrivals import PoissonArrivalProcess, TraceArrivalProcess
@@ -18,6 +20,89 @@ DEFAULT_DURATION = 3600
 SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
 
 
+# Returns an open NamedTemporaryFile
+# arrivals "single", "edge", "all"
+def generate_temp_spec (seed_sequence, load_coeff=1.0, arrivals_mode="single", max_data_access_time=99, zipf_key_popularity=True):
+    outf = tempfile.NamedTemporaryFile(mode="w")
+
+    n_edges = 5
+    n_cloud = 5
+    nodes = []
+
+    for i in range(n_edges):
+        n = {}
+        n["name"] = f"edge_{i+1}"
+        n["region"] = "edge"
+        n["memory"] = 4096
+        nodes.append(n)
+    for i in range(n_cloud):
+        n = {}
+        n["name"] = f"cloud_{i+1}"
+        n["region"] = "cloud"
+        n["memory"] = 64000
+        n["cloud_cost"] = 0.0
+        nodes.append(n)
+
+    classes = [{'name': 'standard', 'max_resp_time': 99.0, 'utility': 0.01, 'arrival_weight': 1.0}]
+
+    functions = [{'name': 'f1', 'memory': 512, 'duration_mean': 0.4, 'duration_scv': 1.0, 'init_mean': 0.5}, {'name': 'f2', 'memory': 512, 'duration_mean': 0.2, 'duration_scv': 1.0, 'init_mean': 0.25}, {'name': 'f3', 'memory': 128, 'duration_mean': 0.3, 'duration_scv': 1.0, 'init_mean': 0.6}, {'name': 'f4', 'memory': 1024, 'duration_mean': 0.25, 'duration_scv': 1.0, 'init_mean': 0.25}, {'name': 'f5', 'memory': 256, 'duration_mean': 0.45, 'duration_scv': 1.0, 'init_mean': 0.5}]
+
+    key_rng = default_rng(seed_sequence.spawn(1)[0])
+    KEYS_PER_FUNCTION = 5
+    for f in functions:
+        f["max_data_access_time"] = max_data_access_time
+        # Accessed keys in (k1, k2, ..., k100)
+        f["keys"] = []
+        if not zipf_key_popularity:
+            keys = rng.integers(0, 100, size=KEYS_PER_FUNCTION)
+        else:
+            keys = zipfian.rvs(1, 101, size=KEYS_PER_FUNCTION, random_state=key_rng)-1
+        for k in keys:
+            prob = key_rng.choice([0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 1.0], size=1)
+            f["keys"].append({"key": f"k{k}", "probability": float(prob)})
+   
+
+    total_fun_weight = sum([f["duration_mean"]*f["memory"] for f in functions])
+
+    arrivals = []
+    if arrivals_mode == "single":
+        total_load = 8000*load_coeff
+        for f in functions:
+            rate = total_load/len(functions)/(f["duration_mean"]*f["memory"])
+            arrivals.append({"node": "edge_1",
+                            "function": f["name"],
+                            "rate": rate,
+                            "dynamic_coeff": 1.0
+                            })
+    elif arrivals_mode == "edge":
+        edge_nodes = [n for n in nodes if "edge" in n["name"]]
+        total_load = 16000*load_coeff
+        load_per_node = total_load/len(edge_nodes)
+        for n in edge_nodes:
+            for f in functions:
+                rate = load_per_node/len(functions)/(f["duration_mean"]*f["memory"])
+                arrivals.append({"node": n["name"],
+                                "function": f["name"],
+                                "rate": rate,
+                                 "dynamic_coeff": 1.0})
+    elif arrivals_mode == "all":
+        total_load = 32000*load_coeff
+        load_per_node = total_load/len(nodes)
+        for n in nodes:
+            for f in functions:
+                rate = load_per_node/len(functions)/(f["duration_mean"]*f["memory"])
+                arrivals.append({"node": n["name"],
+                                "function": f["name"],
+                                "rate": rate,
+                                 "dynamic_coeff": 1.0})
+
+    spec = {'classes': classes, 'nodes': nodes, 'functions': functions, 'arrivals': arrivals}
+    outf.write(yaml.dump(spec))
+    outf.flush()
+    print(yaml.dump(spec))
+    return outf
+
+
 def print_results (results, filename=None):
     for line in results:
         print(line)
@@ -26,23 +111,38 @@ def print_results (results, filename=None):
             for line in results:
                 print(line,file=of)
 
-def default_infra(edge_cloud_latency=0.100):
+def default_infra():
     # Regions
     reg_cloud = Region("cloud")
     reg_edge = Region("edge", reg_cloud)
     regions = [reg_edge, reg_cloud]
     # Latency
-    latencies = {(reg_edge,reg_cloud): edge_cloud_latency, (reg_edge,reg_edge): 0.005}
+    latencies = {}
     bandwidth_mbps = {(reg_edge,reg_edge): 100.0, (reg_cloud,reg_cloud): 1000.0,\
-            (reg_edge,reg_cloud): 10.0}
+            (reg_edge,reg_cloud): 100.0}
     # Infrastructure
     return Infrastructure(regions, latencies, bandwidth_mbps)
 
-def _experiment (config, infra, spec_file_name):
-    seed = config.getint(conf.SEC_SIM, conf.SEED, fallback=1)
-    seed_sequence = SeedSequence(seed)
+def generate_latencies (infra, rng):
+    enodes = infra.get_edge_nodes()
+    cnodes = infra.get_cloud_nodes()
+    for e1 in enodes:
+        for e2 in enodes:
+            if e1 == e2:
+                continue
+            infra.latency[(e1,e2)] = rng.uniform(1,20)/1000
+    for c1 in cnodes:
+        for c2 in cnodes:
+            if c1 == c2:
+                continue
+            infra.latency[(c1,c2)] = rng.uniform(1,10)/1000
+    for e in enodes:
+        for c in cnodes:
+            infra.latency[(e,c)] = rng.uniform(10,100)/1000
 
+def _experiment (config, seed_sequence, infra, spec_file_name):
     classes, functions, node2arrivals  = read_spec_file (spec_file_name, infra, config)
+    generate_latencies(infra, default_rng(seed_sequence.spawn(1)[0]))
     sim = Simulation(config, seed_sequence, infra, functions, classes, node2arrivals)
     final_stats = sim.run()
     del(sim)
@@ -62,6 +162,7 @@ def experiment_simple (args, config):
     results = []
     exp_tag = "simple"
     outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
+
 
     config.set(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, "pacs")
     config.set(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, "pacs")
@@ -84,6 +185,8 @@ def experiment_simple (args, config):
 
     for seed in SEEDS:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
+        seed_sequence = SeedSequence(seed)
+
         for cloud_speedup in [1.0, 2.0, 4.0]:
             for cloud_cost in [0.00001, 0.0001, 0.001]:
                 for load_coeff in [0.5, 1, 2, 4]:
@@ -115,9 +218,9 @@ def experiment_simple (args, config):
                             print("Skipping conf")
                             continue
 
-                        temp_spec_file = generate_temp_spec (load_coeff=load_coeff, cloud_cost=cloud_cost, cloud_speedup=cloud_speedup)
+                        temp_spec_file = generate_temp_spec (seed_sequence, load_coeff=load_coeff, zipf_key_popularity=True)
                         infra = default_infra()
-                        stats = _experiment(config, infra, temp_spec_file.name)
+                        stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
                         temp_spec_file.close()
                         with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
                             stats.print(of)
