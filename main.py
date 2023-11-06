@@ -5,6 +5,7 @@ import faas
 import conf
 import stateful
 from arrivals import PoissonArrivalProcess, TraceArrivalProcess
+from numpy.random import SeedSequence, default_rng
 from simulation import Simulation
 from infrastructure import *
 
@@ -91,6 +92,9 @@ def read_spec_file (spec_file_name, infra, config):
 
 
 def init_simulation (config):
+    seed = config.getint(conf.SEC_SIM, conf.SEED, fallback=1)
+    seed_sequence = SeedSequence(seed)
+
     # Regions
     reg_cloud = Region("cloud")
     reg_edge = Region("edge", reg_cloud)
@@ -106,7 +110,7 @@ def init_simulation (config):
     spec_file_name = config.get(conf.SEC_SIM, conf.SPEC_FILE, fallback=None)
     classes, functions, node2arrivals  = read_spec_file (spec_file_name, infra, config)
 
-    sim = Simulation(config, infra, functions, classes, node2arrivals)
+    sim = Simulation(config, seed_sequence, infra, functions, classes, node2arrivals)
     return sim
 
 def main():

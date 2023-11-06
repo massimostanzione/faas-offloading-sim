@@ -75,6 +75,7 @@ ARRIVAL_TRACE_PERIOD = 60.0
 class Simulation:
 
     config: configparser.ConfigParser
+    seed_sequence: SeedSequence
     infra: Infrastructure
     functions: [Function]
     classes: [QoSClass]
@@ -95,11 +96,9 @@ class Simulation:
         self.verbosity = self.config.getint(conf.SEC_SIM, conf.VERBOSITY, fallback=0)
 
         # Seeds
-        seed = self.config.getint(conf.SEC_SIM, conf.SEED, fallback=1)
-        ss = SeedSequence(seed)
         n_arrival_processes = sum([len(arrival_procs) for arrival_procs in self.node2arrivals.values()])
         # Spawn off child SeedSequences to pass to child processes.
-        child_seeds = ss.spawn(5 + 3*n_arrival_processes)
+        child_seeds = self.seed_sequence.spawn(5 + 3*n_arrival_processes)
         self.service_rng = default_rng(child_seeds[0])
         self.node_choice_rng = default_rng(child_seeds[1])
         self.policy_rng1 = default_rng(child_seeds[2])
