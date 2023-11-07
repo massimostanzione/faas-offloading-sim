@@ -603,7 +603,7 @@ class AlwaysOffloadStatefulPolicy(offloading_policy.Policy):
         best_node = sorted_nodes[0][0]
 
         if best_node == self.node and not self.can_execute_locally(f):
-            if len(sorted_nodes > 1):
+            if len(sorted_nodes) > 1:
                 best_node = sorted_nodes[1][0]
             else:
                 return offloading_policy.SchedulerDecision.DROP, None

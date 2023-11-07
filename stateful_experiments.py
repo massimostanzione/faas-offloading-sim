@@ -16,7 +16,7 @@ from main import read_spec_file
 
 DEFAULT_CONFIG_FILE = "config.ini"
 DEFAULT_OUT_DIR = "results"
-DEFAULT_DURATION = 36
+DEFAULT_DURATION = 3600
 SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
 
 
@@ -163,9 +163,11 @@ def relevant_stats_dict (stats):
     result["NetUtility"] = stats.utility-stats.penalty
     result["Cost"] = stats.cost
     result["BudgetExcessPerc"] = max(0, (stats.cost-stats.budget)/stats.budget*100)
-    result["DataAccessViolations"] = stats.data_access_violations
     result["DataMigrations"] = stats.data_migrations_count
     result["DataMigratedBytes"] = stats.data_migrated_bytes
+    for f in stats.data_access_violations:
+        result[f"DataAccessViolations-{f}"] = stats.data_access_violations[f]
+    result["DataAccessViolations"] = sum(stats.data_access_violations.values())
     return result
 
 
@@ -249,7 +251,7 @@ def experiment_main (args, config):
     if old_results is not None:
         resultsDf = pd.concat([old_results, resultsDf])
     resultsDf.to_csv(outfile, index=False)
-    print(resultsDf.groupby("Policy").mean())
+    print(resultsDf.groupby("OffloadingPolicy").mean())
 
     with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
         config.write(of)
