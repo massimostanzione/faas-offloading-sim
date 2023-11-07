@@ -169,19 +169,22 @@ def relevant_stats_dict (stats):
     return result
 
 
-def experiment_simple (args, config):
+def experiment_main (args, config):
     results = []
-    exp_tag = "simple"
+    exp_tag = "main"
     outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
 
 
-    config.set(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, "pacs")
-    config.set(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, "pacs")
+    config.set(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, "naive")
+    config.set(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, "naive")
+    config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, "naive")
     config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "120")
     config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
+    config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, "999")
 
 
-    POLICIES = ["basic"]
+    OFFLOADING_POLICIES = ["basic", "random-stateful", "state-aware", "state-aware-always-offload"]
+    MIGRATION_POLICIES = ["greedy", "random", "none", "ilp"]
 
     # Check existing results
     old_results = None
@@ -191,59 +194,53 @@ def experiment_simple (args, config):
         except:
             pass
 
-    config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, "1")
+    # TODO: zipf vs uniform
+    # TODO: different workloads settings
 
     for seed in SEEDS:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
         seed_sequence = SeedSequence(seed)
 
-        for cloud_speedup in [1.0]:
-            for cloud_cost in [0.00001]:
-                for load_coeff in [0.5]:
-                    for pol in POLICIES:
-                        config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
+        for mig_pol in MIGRATION_POLICIES:
+            config.set(conf.SEC_STATEFUL, conf.POLICY_NAME, mig_pol)
+            for pol in OFFLOADING_POLICIES:
+                config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
 
-                        if "greedy" in pol:
-                            config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, "full-knowledge")
-                        else:
-                            config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, "naive-per-function")
+                for load_coeff in [0.5, 1.0, 2.0]:
 
+                    keys = {}
+                    keys["Load"] = load_coeff
+                    keys["OffloadingPolicy"] = pol
+                    keys["MigrationPolicy"] = mig_pol
+                    keys["Seed"] = seed
 
-                        keys = {}
-                        keys["Policy"] = pol
-                        keys["Seed"] = seed
-                        keys["CloudCost"] = cloud_cost
-                        keys["CloudSpeedup"] = cloud_speedup
-                        keys["Load"] = load_coeff
+                    run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
 
-                        run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
+                    # Check if we can skip this run
+                    if old_results is not None and not\
+                            old_results[(old_results.Seed == seed) &\
+                                (old_results.OffloadingPolicy == pol) &\
+                                (old_results.Load == load_coeff) &\
+                                (old_results.MigrationPolicy == mig_pol)].empty:
+                        print("Skipping conf")
+                        continue
 
-                        # Check if we can skip this run
-                        if old_results is not None and not\
-                                old_results[(old_results.Seed == seed) &\
-                                    (old_results.CloudSpeedup == cloud_speedup) &\
-                                    (old_results.CloudCost == cloud_cost) &\
-                                    (old_results.Load == load_coeff) &\
-                                    (old_results.Policy == pol)].empty:
-                            print("Skipping conf")
-                            continue
+                    temp_spec_file = generate_temp_spec (seed_sequence, load_coeff=load_coeff, zipf_key_popularity=True)
+                    infra = default_infra()
+                    stats, resptimes = _experiment(config, seed_sequence, infra, temp_spec_file.name)
+                    temp_spec_file.close()
+                    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                        stats.print(of)
+                    resptimes.to_csv(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}_rt.csv"), index=False)
 
-                        temp_spec_file = generate_temp_spec (seed_sequence, load_coeff=load_coeff, zipf_key_popularity=True)
-                        infra = default_infra()
-                        stats, resptimes = _experiment(config, seed_sequence, infra, temp_spec_file.name)
-                        temp_spec_file.close()
-                        with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
-                            stats.print(of)
-                        resptimes.to_csv(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}_rt.csv"), index=False)
+                    result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
+                    results.append(result)
+                    print(result)
 
-                        result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
-                        results.append(result)
-                        print(result)
-
-                        resultsDf = pd.DataFrame(results)
-                        if old_results is not None:
-                            resultsDf = pd.concat([old_results, resultsDf])
-                        resultsDf.to_csv(outfile, index=False)
+                    resultsDf = pd.DataFrame(results)
+                    if old_results is not None:
+                        resultsDf = pd.concat([old_results, resultsDf])
+                    resultsDf.to_csv(outfile, index=False)
     
     resultsDf = pd.DataFrame(results)
     if old_results is not None:
