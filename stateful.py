@@ -618,6 +618,9 @@ class LatencyEstimation:
         self.total = total
         self.data_latency = data_latency
 
+    def __repr__ (self):
+        return f"{self.total} ({self.data_latency})"
+
 class StateAwareOffloadingPolicy(offloading_policy.GreedyPolicy):
 
     def __init__(self, simulation, node):
@@ -685,9 +688,14 @@ class StateAwareOffloadingPolicy(offloading_policy.GreedyPolicy):
 
         remote_admissible = best_node is not None
         local_admissible = f.max_data_access_time is None or latency_local.data_latency <= f.max_data_access_time
-        if not remote_admissible and not local_admissible:
+        
+        #print(f"{local_admissible}-{remote_admissible}: best{best_node}({best_latency}) - local:{latency_local.total}")
+
+        if not remote_admissible and local_admissible:
+            return offloading_policy.SchedulerDecision.EXEC, None
+        elif not remote_admissible:
             return offloading_policy.SchedulerDecision.DROP, None
-        elif latency_local.total < best_latency.total:
+        elif local_admissible and latency_local.total < best_latency.total:
             return offloading_policy.SchedulerDecision.EXEC, None
         else:
             return (offloading_policy.SchedulerDecision.OFFLOAD_EDGE, best_node)
