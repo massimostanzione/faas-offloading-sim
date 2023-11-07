@@ -273,7 +273,7 @@ if __name__ == "__main__":
         SEEDS = [int(args.seed)]
     
     if args.experiment.lower() == "a":
-        experiment_simple(args, config)
+        experiment_main(args, config)
     else:
         print("Unknown experiment!")
         exit(1)
