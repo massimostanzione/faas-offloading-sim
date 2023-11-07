@@ -16,7 +16,7 @@ from main import read_spec_file
 
 DEFAULT_CONFIG_FILE = "config.ini"
 DEFAULT_OUT_DIR = "results"
-DEFAULT_DURATION = 3600
+DEFAULT_DURATION = 36
 SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
 
 
@@ -201,46 +201,49 @@ def experiment_main (args, config):
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
         seed_sequence = SeedSequence(seed)
 
-        for mig_pol in MIGRATION_POLICIES:
-            config.set(conf.SEC_STATEFUL, conf.POLICY_NAME, mig_pol)
-            for pol in OFFLOADING_POLICIES:
-                config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
+        for max_dat in [0.050, 0.100, 0.200, 1]:
+            for mig_pol in MIGRATION_POLICIES:
+                config.set(conf.SEC_STATEFUL, conf.POLICY_NAME, mig_pol)
+                for pol in OFFLOADING_POLICIES:
+                    config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
 
-                for load_coeff in [0.5, 1.0, 2.0]:
+                    for load_coeff in [0.5, 1.0, 2.0]:
 
-                    keys = {}
-                    keys["Load"] = load_coeff
-                    keys["OffloadingPolicy"] = pol
-                    keys["MigrationPolicy"] = mig_pol
-                    keys["Seed"] = seed
+                        keys = {}
+                        keys["Load"] = load_coeff
+                        keys["MaxDataAccessTime"] = max_dat
+                        keys["OffloadingPolicy"] = pol
+                        keys["MigrationPolicy"] = mig_pol
+                        keys["Seed"] = seed
 
-                    run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
+                        run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
 
-                    # Check if we can skip this run
-                    if old_results is not None and not\
-                            old_results[(old_results.Seed == seed) &\
-                                (old_results.OffloadingPolicy == pol) &\
-                                (old_results.Load == load_coeff) &\
-                                (old_results.MigrationPolicy == mig_pol)].empty:
-                        print("Skipping conf")
-                        continue
+                        # Check if we can skip this run
+                        if old_results is not None and not\
+                                old_results[(old_results.Seed == seed) &\
+                                    (old_results.OffloadingPolicy == pol) &\
+                                    (old_results.Load == load_coeff) &\
+                                    (old_results.MaxDataAccessTime == max_dat) &\
+                                    (old_results.MigrationPolicy == mig_pol)].empty:
+                            print("Skipping conf")
+                            continue
 
-                    temp_spec_file = generate_temp_spec (seed_sequence, load_coeff=load_coeff, zipf_key_popularity=True)
-                    infra = default_infra()
-                    stats, resptimes = _experiment(config, seed_sequence, infra, temp_spec_file.name)
-                    temp_spec_file.close()
-                    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
-                        stats.print(of)
-                    resptimes.to_csv(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}_rt.csv"), index=False)
+                        temp_spec_file = generate_temp_spec (seed_sequence, max_data_access_time=max_dat, load_coeff=load_coeff, zipf_key_popularity=True)
+                        infra = default_infra()
+                        stats, resptimes = _experiment(config, seed_sequence, infra, temp_spec_file.name)
+                        temp_spec_file.close()
+                        with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                            stats.print(of)
+                        resptimes.to_csv(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}_rt.csv"), index=False)
 
-                    result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
-                    results.append(result)
-                    print(result)
+                        result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
+                        results.append(result)
+                        print(result)
 
-                    resultsDf = pd.DataFrame(results)
-                    if old_results is not None:
-                        resultsDf = pd.concat([old_results, resultsDf])
-                    resultsDf.to_csv(outfile, index=False)
+                        resultsDf = pd.DataFrame(results)
+                        if old_results is not None:
+                            resultsDf = pd.concat([old_results, resultsDf])
+                        resultsDf.to_csv(outfile, index=False)
     
     resultsDf = pd.DataFrame(results)
     if old_results is not None:

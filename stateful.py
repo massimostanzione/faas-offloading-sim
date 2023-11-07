@@ -684,7 +684,7 @@ class StateAwareOffloadingPolicy(offloading_policy.GreedyPolicy):
             self.latency_estimation_cache[f] = (best_node, best_latency)
 
         remote_admissible = best_node is not None
-        local_admissible = f.max_data_access_time is None or local_latency.data_latency <= f.max_data_access_time
+        local_admissible = f.max_data_access_time is None or latency_local.data_latency <= f.max_data_access_time
         if not remote_admissible and not local_admissible:
             return offloading_policy.SchedulerDecision.DROP, None
         elif latency_local.total < best_latency.total:
@@ -703,8 +703,8 @@ class RandomStatefulOffloadingPolicy(StateAwareOffloadingPolicy):
             return super().schedule(f,c,offloaded_from)
         else:
             if self.can_execute_locally(f):
-                return (SchedulerDecision.EXEC, None)
+                return (offloading_policy.SchedulerDecision.EXEC, None)
             else:
-                return (SchedulerDecision.OFFLOAD_CLOUD, None)
+                return (offloading_policy.SchedulerDecision.OFFLOAD_CLOUD, None)
 
 
