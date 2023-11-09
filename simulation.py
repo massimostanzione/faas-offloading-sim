@@ -345,11 +345,13 @@ class Simulation:
 
             # Migrate keys
             if self.key_migration_policy is not None:
+                upd_t0 = time.time()
                 self.key_migration_policy.update_metrics()
                 self.key_migration_policy.migrate()
                 for p in self.node2policy.values():
                     if isinstance(p, stateful.StateAwareOffloadingPolicy):
                         p.latency_estimation_cache = {}
+                self.stats.update_mig_policy_upd_time(time.time()-upd_t0)
 
             self.schedule(t + self.policy_update_interval, event)
         elif isinstance(event, ArrivalRateUpdate):
@@ -461,7 +463,12 @@ class Simulation:
             if target_node is not None:
                 remote_node = target_node
             else:
-                remote_node = self.infra.get_cloud_nodes()[0] # TODO pick a Cloud node
+                # Pick the closest cloud node
+                nodes_w_lat = [(_n,self.infra.get_latency(n,_n)) for _n in self.infra.get_cloud_nodes()]
+                if len(nodes_w_lat) < 1:
+                    remote_node = None
+                else:
+                    remote_node = sorted(nodes_w_lat, key=lambda x: x[1])[0][0]
             if remote_node is None:
                 # drop
                 self.stats.dropped_reqs[(f,c,n)] += 1

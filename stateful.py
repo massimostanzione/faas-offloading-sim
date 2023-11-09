@@ -118,7 +118,7 @@ class RandomKeyMigrationPolicy(KeyMigrationPolicy):
             keys = list(n.kv_store.keys())
             for key in keys:
                 dest = self.rng.choice(nodes)
-                print(f"Moving {key} {n}->{dest}")
+                #print(f"Moving {key} {n}->{dest}")
                 self.simulation.move_key(key, n, dest)
 
 
@@ -186,7 +186,7 @@ class GradientBasedMigrationPolicy(KeyMigrationPolicy):
                     step = step / 2.0
 
             if candidate_node != None and candidate_node != key_node:
-                print(f"Moving {key}: {key_node}->{candidate_node}")
+                #print(f"Moving {key}: {key_node}->{candidate_node}")
                 self.simulation.move_key(key, key_node, candidate_node)
 
 
@@ -238,7 +238,7 @@ class SpringBasedMigrationPolicy(KeyMigrationPolicy):
             candidate_node = self.ncs.get_nearest_node(_key_coord)
 
             if candidate_node != None and candidate_node != key_node:
-                print(f"Moving {key}: {key_node}->{candidate_node}")
+                #print(f"Moving {key}: {key_node}->{candidate_node}")
                 self.simulation.move_key(key, key_node, candidate_node)
 
 class SimpleGreedyMigrationPolicy(KeyMigrationPolicy):
@@ -272,7 +272,7 @@ class SimpleGreedyMigrationPolicy(KeyMigrationPolicy):
             best_node = scores[0][0]
 
             if best_node != None and best_node != key_node:
-                print(f"Moving {key}: {key_node}->{best_node}")
+                #print(f"Moving {key}: {key_node}->{best_node}")
                 self.simulation.move_key(key, key_node, best_node)
 
 class ILPMinDataAccessTimeMigrationPolicy(KeyMigrationPolicy):
@@ -412,7 +412,7 @@ class ILPMinDataAccessTimeMigrationPolicy(KeyMigrationPolicy):
             best_node = key2node[key]
 
             if best_node != None and best_node != key_node:
-                print(f"Moving {key}: {key_node}->{best_node}")
+                #print(f"Moving {key}: {key_node}->{best_node}")
                 self.simulation.move_key(key, key_node, best_node)
         
 

@@ -3,6 +3,7 @@ import os
 import argparse
 import pandas as pd
 from numpy.random import SeedSequence, default_rng
+import numpy as np
 from scipy.stats import zipfian
 import yaml
 import tempfile
@@ -18,11 +19,12 @@ DEFAULT_CONFIG_FILE = "config.ini"
 DEFAULT_OUT_DIR = "results"
 DEFAULT_DURATION = 3600
 SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
+PERCENTILES=np.array([1,5,10,25,50,75,90,95,99])/100.0
 
 
 # Returns an open NamedTemporaryFile
 # arrivals "single", "edge", "all"
-def generate_temp_spec (seed_sequence, load_coeff=1.0, arrivals_mode="single", max_data_access_time=99, zipf_key_popularity=True):
+def generate_temp_spec (seed_sequence, load_coeff=1.0, arrivals_mode="single", max_data_access_time=99, zipf_key_popularity=True, edge_memory=4096):
     outf = tempfile.NamedTemporaryFile(mode="w")
 
     n_edges = 5
@@ -33,7 +35,7 @@ def generate_temp_spec (seed_sequence, load_coeff=1.0, arrivals_mode="single", m
         n = {}
         n["name"] = f"edge_{i+1}"
         n["region"] = "edge"
-        n["memory"] = 4096
+        n["memory"] = edge_memory
         nodes.append(n)
     for i in range(n_cloud):
         n = {}
@@ -54,7 +56,7 @@ def generate_temp_spec (seed_sequence, load_coeff=1.0, arrivals_mode="single", m
         # Accessed keys in (k1, k2, ..., k100)
         f["keys"] = []
         if not zipf_key_popularity:
-            keys = rng.integers(0, 100, size=KEYS_PER_FUNCTION)
+            keys = key_rng.integers(0, 100, size=KEYS_PER_FUNCTION)
         else:
             keys = zipfian.rvs(1, 101, size=KEYS_PER_FUNCTION, random_state=key_rng)-1
         for k in keys:
@@ -144,17 +146,19 @@ def _experiment (config, seed_sequence, infra, spec_file_name):
     classes, functions, node2arrivals  = read_spec_file (spec_file_name, infra, config)
     generate_latencies(infra, default_rng(seed_sequence.spawn(1)[0]))
 
-    RESPTIMES_FILENAME= "/tmp/resptimes.csv"
-    config.set(conf.SEC_SIM, conf.RESP_TIMES_FILE, RESPTIMES_FILENAME)
-    sim = Simulation(config, seed_sequence, infra, functions, classes, node2arrivals)
-    final_stats = sim.run()
-    del(sim)
+    with tempfile.NamedTemporaryFile() as rtf:
+        config.set(conf.SEC_SIM, conf.RESP_TIMES_FILE, rtf.name)
+        sim = Simulation(config, seed_sequence, infra, functions, classes, node2arrivals)
+        final_stats = sim.run()
+        del(sim)
 
+        # Retrieve response times
+        df = pd.read_csv(rtf.name)
+        # Compute percentiles
+        rt_p = {f"RT-{k}": v for k,v in df.RT.quantile(PERCENTILES).items()}
+        dat_p = {f"DAT-{k}": v for k,v in df.DataAccess.quantile(PERCENTILES).items()}
 
-    # Retrieve response times
-    df = pd.read_csv(RESPTIMES_FILENAME)
-
-    return final_stats, df
+    return final_stats, df, rt_p, dat_p
 
 def relevant_stats_dict (stats):
     result = {}
@@ -162,12 +166,33 @@ def relevant_stats_dict (stats):
     result["Penalty"] = stats.penalty
     result["NetUtility"] = stats.utility-stats.penalty
     result["Cost"] = stats.cost
-    result["BudgetExcessPerc"] = max(0, (stats.cost-stats.budget)/stats.budget*100)
     result["DataMigrations"] = stats.data_migrations_count
     result["DataMigratedBytes"] = stats.data_migrated_bytes
+    result["MigPolicyExecTime"] = stats._mig_policy_update_time_sum/stats._mig_policy_updates if stats._mig_policy_updates > 0 else 0
     for f in stats.data_access_violations:
         result[f"DataAccessViolations-{f}"] = stats.data_access_violations[f]
+    for f in stats.data_access_violations:
+        completions = 0
+        for _f,_c,_n in stats.completions:
+            if _f == f:
+                completions += stats.completions[(f,_c,_n)]
+        result[f"Completions-{f}"] = completions
     result["DataAccessViolations"] = sum(stats.data_access_violations.values())
+    result["Completions"] = sum(stats.completions.values())
+
+    # TODO: Assuming single class here!
+    compls={}
+    for f,c,n in stats.completions:
+        val = stats.completions[(f,c,n)]
+        result[f"Compl-{n}-{f}"] = val
+        compls[n] = compls.get(n,0) + val
+    for n,val in compls.items():
+        result[f"Compl-{n}"] = val
+
+    for n in stats._memory_usage_t0:
+        result[f"avgMemUtil-{n}"] = stats._memory_usage_area[n]/stats.sim.t/n.total_memory
+
+
     return result
 
 
@@ -196,56 +221,64 @@ def experiment_main (args, config):
         except:
             pass
 
-    # TODO: zipf vs uniform
     # TODO: different workloads settings
 
-    for seed in SEEDS:
-        config.set(conf.SEC_SIM, conf.SEED, str(seed))
-        seed_sequence = SeedSequence(seed)
+    for zipf_popularity in [True,False]:
+        for edge_memory in [4096, 16384]:
+            for workload_scenario in ["single", "edge", "all"]:
+                for seed in SEEDS:
+                    config.set(conf.SEC_SIM, conf.SEED, str(seed))
+                    seed_sequence = SeedSequence(seed)
 
-        for max_dat in [0.050, 0.100, 0.200, 1]:
-            for mig_pol in MIGRATION_POLICIES:
-                config.set(conf.SEC_STATEFUL, conf.POLICY_NAME, mig_pol)
-                for pol in OFFLOADING_POLICIES:
-                    config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
+                    for max_dat in [0.100, 0.200, 1]:
+                        for mig_pol in MIGRATION_POLICIES:
+                            config.set(conf.SEC_STATEFUL, conf.POLICY_NAME, mig_pol)
+                            for pol in OFFLOADING_POLICIES:
+                                config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
 
-                    for load_coeff in [0.5, 1.0, 2.0]:
+                                for load_coeff in [1.0]:
 
-                        keys = {}
-                        keys["Load"] = load_coeff
-                        keys["MaxDataAccessTime"] = max_dat
-                        keys["OffloadingPolicy"] = pol
-                        keys["MigrationPolicy"] = mig_pol
-                        keys["Seed"] = seed
+                                    keys = {}
+                                    keys["Load"] = load_coeff
+                                    keys["EdgeMem"] = edge_memory
+                                    keys["ZipfPopularity"] = zipf_popularity
+                                    keys["WorkloadScenario"] = workload_scenario
+                                    keys["MaxDataAccessTime"] = max_dat
+                                    keys["OffloadingPolicy"] = pol
+                                    keys["MigrationPolicy"] = mig_pol
+                                    keys["Seed"] = seed
 
-                        run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
+                                    run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
 
-                        # Check if we can skip this run
-                        if old_results is not None and not\
-                                old_results[(old_results.Seed == seed) &\
-                                    (old_results.OffloadingPolicy == pol) &\
-                                    (old_results.Load == load_coeff) &\
-                                    (old_results.MaxDataAccessTime == max_dat) &\
-                                    (old_results.MigrationPolicy == mig_pol)].empty:
-                            print("Skipping conf")
-                            continue
+                                    # Check if we can skip this run
+                                    if old_results is not None and not\
+                                            old_results[(old_results.Seed == seed) &\
+                                                (old_results.OffloadingPolicy == pol) &\
+                                                (old_results.Load == load_coeff) &\
+                                                (old_results.EdgeMem == edge_memory) &\
+                                                (old_results.WorkloadScenario == workload_scenario) &\
+                                                (old_results.ZipfPopularity == zipf_popularity) &\
+                                                (old_results.MaxDataAccessTime == max_dat) &\
+                                                (old_results.MigrationPolicy == mig_pol)].empty:
+                                        print("Skipping conf") 
+                                        continue 
+                                    temp_spec_file = generate_temp_spec (seed_sequence, max_data_access_time=max_dat, load_coeff=load_coeff, zipf_key_popularity=zipf_popularity, arrivals_mode=workload_scenario, edge_memory=edge_memory)
+                                    infra = default_infra()
+                                    stats, resptimes, resptimes_perc, dat_perc = _experiment(config, seed_sequence, infra, temp_spec_file.name)
+                                    temp_spec_file.close()
+                                    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                                        stats.print(of)
+                                    #resptimes.to_csv(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}_rt.csv"), index=False)
 
-                        temp_spec_file = generate_temp_spec (seed_sequence, max_data_access_time=max_dat, load_coeff=load_coeff, zipf_key_popularity=True)
-                        infra = default_infra()
-                        stats, resptimes = _experiment(config, seed_sequence, infra, temp_spec_file.name)
-                        temp_spec_file.close()
-                        with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
-                            stats.print(of)
-                        resptimes.to_csv(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}_rt.csv"), index=False)
+                                    result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()) +\
+                                            list(resptimes_perc.items()) + list(dat_perc.items()))
+                                    results.append(result)
+                                    print(result)
 
-                        result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
-                        results.append(result)
-                        print(result)
-
-                        resultsDf = pd.DataFrame(results)
-                        if old_results is not None:
-                            resultsDf = pd.concat([old_results, resultsDf])
-                        resultsDf.to_csv(outfile, index=False)
+                                    resultsDf = pd.DataFrame(results)
+                                    if old_results is not None:
+                                        resultsDf = pd.concat([old_results, resultsDf])
+                                    resultsDf.to_csv(outfile, index=False)
     
     resultsDf = pd.DataFrame(results)
     if old_results is not None:

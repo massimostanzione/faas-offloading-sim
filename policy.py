@@ -147,8 +147,12 @@ class GreedyPolicy(Policy):
         self.local_cold_start_estimation = ColdStartEstimation.from_string(self.simulation.config.get(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))
         self.cloud_cold_start_estimation = ColdStartEstimation.from_string(self.simulation.config.get(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))
 
-        cloud_region = node.region.default_cloud
-        self.cloud = self.simulation.node_choice_rng.choice(self.simulation.infra.get_region_nodes(cloud_region), 1)[0]
+        # OLD: cloud_region = node.region.default_cloud
+        #self.cloud = self.simulation.node_choice_rng.choice(self.simulation.infra.get_region_nodes(cloud_region), 1)[0]
+
+        # Pick the closest cloud node
+        nodes_w_lat = [(_n,simulation.infra.get_latency(node,_n)) for _n in simulation.infra.get_cloud_nodes()]
+        self.cloud = sorted(nodes_w_lat, key=lambda x: x[1])[0][0]
 
     def _estimate_latency (self, f, c):
         if self.local_cold_start_estimation == ColdStartEstimation.FULL_KNOWLEDGE:
@@ -281,9 +285,9 @@ class GreedyPolicyWithCostMinimization(GreedyPolicy):
 
     def __init__ (self, simulation, node):
         super().__init__(simulation, node)
-        cloud_region = node.region.default_cloud
-        assert(cloud_region is not None)
-        self.cloud = self.simulation.node_choice_rng.choice(self.simulation.infra.get_region_nodes(cloud_region), 1)[0]
+        # Pick the closest cloud node
+        nodes_w_lat = [(_n,simulation.infra.get_latency(node,_n)) for _n in simulation.infra.get_cloud_nodes()]
+        self.cloud = sorted(nodes_w_lat, key=lambda x: x[1])[0][0]
 
     def schedule(self, f, c, offloaded_from):
         if self.local_cold_start_estimation == ColdStartEstimation.FULL_KNOWLEDGE:
