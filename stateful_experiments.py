@@ -87,6 +87,19 @@ def generate_temp_spec (seed_sequence, load_coeff=1.0, arrivals_mode="single", m
                                 "function": f["name"],
                                 "rate": rate,
                                  "dynamic_coeff": 1.0})
+    elif arrivals_mode == "edge-alt":
+        edge_nodes = [n for n in nodes if "edge" in n["name"]]
+        total_load = 16000*load_coeff
+        load_per_func = total_load/len(functions)
+        i_edge=0
+        for f in functions:
+            n = edge_nodes[i_edge]
+            i_edge = (i_edge+1)%len(edge_nodes)
+            rate = load_per_func/(f["duration_mean"]*f["memory"])
+            arrivals.append({"node": n["name"],
+                            "function": f["name"],
+                            "rate": rate,
+                                "dynamic_coeff": 1.0})
     elif arrivals_mode == "all":
         total_load = 32000*load_coeff
         load_per_node = total_load/len(nodes)
@@ -211,7 +224,7 @@ def experiment_main (args, config):
 
 
     OFFLOADING_POLICIES = ["basic", "random-stateful", "state-aware", "state-aware-always-offload"]
-    MIGRATION_POLICIES = ["greedy", "random", "none", "ilp"]
+    MIGRATION_POLICIES = ["none", "random", "greedy", "ilp"]
 
     # Check existing results
     old_results = None
@@ -224,8 +237,8 @@ def experiment_main (args, config):
     # TODO: different workloads settings
 
     for zipf_popularity in [True,False]:
-        for edge_memory in [4096, 16384]:
-            for workload_scenario in ["single", "edge", "all"]:
+        for edge_memory in [4096]:
+            for workload_scenario in ["edge-alt", "edge"]:
                 for seed in SEEDS:
                     config.set(conf.SEC_SIM, conf.SEED, str(seed))
                     seed_sequence = SeedSequence(seed)
