@@ -118,8 +118,9 @@ class Simulation:
         # Other params
         self.init_time = {}
         for node in self.infra.get_nodes():
-            for fun in self.functions:
-                self.init_time[(fun,node)] = fun.initMean/node.speedup
+            if node.speedup > 0:
+                for fun in self.functions:
+                    self.init_time[(fun,node)] = fun.initMean/node.speedup
 
 
     def new_policy (self, configured_policy, node):

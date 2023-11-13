@@ -88,20 +88,25 @@ class Infrastructure:
         nodes = []
         for r in self.regions:
             if not r.is_cloud():
-                nodes.extend(self.region_nodes[r])
+                # Ignore nodes not enabled for processing
+                reg_nodes = [n for n in self.region_nodes[r] if n.total_memory > 0]
+                nodes.extend(reg_nodes)
         return nodes
 
     def get_cloud_nodes (self):
         nodes = []
         for r in self.regions:
             if r.is_cloud():
-                nodes.extend(self.region_nodes[r])
+                # Ignore nodes not enabled for processing
+                reg_nodes = [n for n in self.region_nodes[r] if n.total_memory > 0]
+                nodes.extend(reg_nodes)
         return nodes
 
-    def get_nodes (self):
+    def get_nodes (self, ignore_non_processing=True):
         nodes = []
         for r in self.regions:
-            nodes.extend(self.region_nodes[r])
+            reg_nodes = [n for n in self.region_nodes[r] if n.total_memory*n.speedup > 0 or ignore_non_processing==False]
+            nodes.extend(reg_nodes)
         return nodes
 
     def get_region_nodes (self, reg):

@@ -24,7 +24,7 @@ PERCENTILES=np.array([1,5,10,25,50,75,90,95,99])/100.0
 
 # Returns an open NamedTemporaryFile
 # arrivals "single", "edge", "all"
-def generate_temp_spec (seed_sequence, load_coeff=1.0, arrivals_mode="single", max_data_access_time=99, zipf_key_popularity=True, edge_memory=4096):
+def generate_temp_spec (seed_sequence, load_coeff=1.0, arrivals_mode="single", max_data_access_time=99, zipf_key_popularity=True, edge_memory=4096, external_data_store=False):
     outf = tempfile.NamedTemporaryFile(mode="w")
 
     n_edges = 5
@@ -111,6 +111,14 @@ def generate_temp_spec (seed_sequence, load_coeff=1.0, arrivals_mode="single", m
                                 "rate": rate,
                                  "dynamic_coeff": 1.0})
 
+    if external_data_store:
+        n = {}
+        n["name"] = f"datastore"
+        n["region"] = "cloud"
+        n["memory"] = 0
+        n["speedup"] = 0
+        nodes.append(n)
+
     spec = {'classes': classes, 'nodes': nodes, 'functions': functions, 'arrivals': arrivals}
     outf.write(yaml.dump(spec))
     outf.flush()
@@ -154,6 +162,19 @@ def generate_latencies (infra, rng):
     for e in enodes:
         for c in cnodes:
             infra.latency[(e,c)] = float(rng.uniform(10,100))/1000
+
+    nodes = infra.get_nodes(ignore_non_processing=False)
+    datastore = None
+    for n in nodes:
+        if n.name == "datastore":
+            datastore = n
+            break
+    if datastore is not None:
+        for e in enodes:
+            infra.latency[(e,datastore)] = float(rng.uniform(10,100))/1000
+        for c in cnodes:
+            infra.latency[(c,datastore)] = float(rng.uniform(1,15))/1000
+
 
 def _experiment (config, seed_sequence, infra, spec_file_name):
     classes, functions, node2arrivals  = read_spec_file (spec_file_name, infra, config)
@@ -208,6 +229,96 @@ def relevant_stats_dict (stats):
 
     return result
 
+def experiment_datastore (args, config):
+    results = []
+    exp_tag = "datastore"
+    outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
+
+
+    config.set(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, "naive")
+    config.set(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, "naive")
+    config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, "naive")
+    config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "120")
+    config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
+    config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, "999")
+
+
+    OFFLOADING_POLICIES = ["basic", "random-stateful", "state-aware"]
+    MIGRATION_POLICIES = ["none", "random", "greedy", "ilp"]
+
+    # Check existing results
+    old_results = None
+    if not args.force:
+        try:
+            old_results = pd.read_csv(outfile)
+        except:
+            pass
+
+    for zipf_popularity in [True,False]:
+        for edge_memory in [4096]:
+            for workload_scenario in ["edge-alt", "edge"]:
+                for seed in SEEDS:
+                    config.set(conf.SEC_SIM, conf.SEED, str(seed))
+                    seed_sequence = SeedSequence(seed)
+
+                    for max_dat in [0.100, 0.200, 1]:
+                        for mig_pol in MIGRATION_POLICIES:
+                            config.set(conf.SEC_STATEFUL, conf.POLICY_NAME, mig_pol)
+                            for pol in OFFLOADING_POLICIES:
+                                config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
+
+                                for load_coeff in [1.0]:
+
+                                    keys = {}
+                                    keys["Load"] = load_coeff
+                                    keys["EdgeMem"] = edge_memory
+                                    keys["ZipfPopularity"] = zipf_popularity
+                                    keys["WorkloadScenario"] = workload_scenario
+                                    keys["MaxDataAccessTime"] = max_dat
+                                    keys["OffloadingPolicy"] = pol
+                                    keys["MigrationPolicy"] = mig_pol
+                                    keys["Seed"] = seed
+
+                                    run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
+
+                                    # Check if we can skip this run
+                                    if old_results is not None and not\
+                                            old_results[(old_results.Seed == seed) &\
+                                                (old_results.OffloadingPolicy == pol) &\
+                                                (old_results.Load == load_coeff) &\
+                                                (old_results.EdgeMem == edge_memory) &\
+                                                (old_results.WorkloadScenario == workload_scenario) &\
+                                                (old_results.ZipfPopularity == zipf_popularity) &\
+                                                (old_results.MaxDataAccessTime == max_dat) &\
+                                                (old_results.MigrationPolicy == mig_pol)].empty:
+                                        print("Skipping conf") 
+                                        continue 
+                                    temp_spec_file = generate_temp_spec (seed_sequence, max_data_access_time=max_dat, load_coeff=load_coeff, zipf_key_popularity=zipf_popularity, arrivals_mode=workload_scenario, edge_memory=edge_memory, external_data_store=True)
+                                    infra = default_infra()
+                                    stats, resptimes, resptimes_perc, dat_perc = _experiment(config, seed_sequence, infra, temp_spec_file.name)
+                                    temp_spec_file.close()
+                                    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                                        stats.print(of)
+                                    #resptimes.to_csv(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}_rt.csv"), index=False)
+
+                                    result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()) +\
+                                            list(resptimes_perc.items()) + list(dat_perc.items()))
+                                    results.append(result)
+                                    print(result)
+
+                                    resultsDf = pd.DataFrame(results)
+                                    if old_results is not None:
+                                        resultsDf = pd.concat([old_results, resultsDf])
+                                    resultsDf.to_csv(outfile, index=False)
+    
+    resultsDf = pd.DataFrame(results)
+    if old_results is not None:
+        resultsDf = pd.concat([old_results, resultsDf])
+    resultsDf.to_csv(outfile, index=False)
+    print(resultsDf.groupby("OffloadingPolicy").mean())
+
+    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
+        config.write(of)
 
 def experiment_main (args, config):
     results = []
@@ -325,6 +436,8 @@ if __name__ == "__main__":
     
     if args.experiment.lower() == "a":
         experiment_main(args, config)
+    if args.experiment.lower() == "d":
+        experiment_datastore(args, config)
     else:
         print("Unknown experiment!")
         exit(1)

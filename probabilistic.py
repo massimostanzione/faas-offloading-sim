@@ -17,7 +17,8 @@ class ProbabilisticPolicy(Policy):
         super().__init__(simulation, node)
         self.strict_budget_enforce = strict_budget_enforce
         cloud_region = node.region.default_cloud
-        self.cloud = self.simulation.node_choice_rng.choice(self.simulation.infra.get_region_nodes(cloud_region), 1)[0]
+        cloud_nodes = [n for n in self.simulation.infra.get_region_nodes(cloud_region) if n.total_memory>0]
+        self.cloud = self.simulation.node_choice_rng.choice(cloud_nodes, 1)[0]
 
 
         self.rng = self.simulation.policy_rng1

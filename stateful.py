@@ -15,20 +15,39 @@ class KeyLocator:
 
 def init_key_placement (functions, infra, rng):
     size_means=[10*1000, 1*1000*1000]
-    # Place all the keys in the cloud
-    cloud_nodes = infra.get_cloud_nodes()
+
     all_keys = set()
     for f in functions:
         for k,_ in f.accessed_keys:
             all_keys.add(k)
-    i = 0
-    for k in all_keys:
-        m=rng.choice(size_means, size=1)
-        size = int(rng.gamma(shape=m/10000,scale=10000))
-        cloud_nodes[i].kv_store[k] = size
-        key_locator.update_key_location(k, cloud_nodes[i])
-        print(f"Placed {k} in {cloud_nodes[i]} with size {size}")
-        i = (i + 1) % len(cloud_nodes)
+
+    # Check if a datastore node exists
+    nodes = infra.get_nodes(ignore_non_processing=False)
+    datastore = None
+    for n in nodes:
+        if n.name == "datastore":
+            datastore = n
+            break
+
+    if datastore is not None:
+        # Place all the keys in the datastore
+        for k in all_keys:
+            m=rng.choice(size_means, size=1)
+            size = int(rng.gamma(shape=m/10000,scale=10000))
+            datastore.kv_store[k] = size
+            key_locator.update_key_location(k, datastore)
+            print(f"Placed {k} in {datastore} with size {size}")
+    else:
+        # Place all the keys in the cloud
+        cloud_nodes = infra.get_cloud_nodes()
+        i = 0
+        for k in all_keys:
+            m=rng.choice(size_means, size=1)
+            size = int(rng.gamma(shape=m/10000,scale=10000))
+            cloud_nodes[i].kv_store[k] = size
+            key_locator.update_key_location(k, cloud_nodes[i])
+            print(f"Placed {k} in {cloud_nodes[i]} with size {size}")
+            i = (i + 1) % len(cloud_nodes)
 
 
 
@@ -595,8 +614,9 @@ class AlwaysOffloadStatefulPolicy(offloading_policy.Policy):
         # Add all the nodes storing keys for the function
         for k,p in f.accessed_keys:
             key_node = key_locator.get_node(k)
-            value_size = key_node.kv_store[k]
-            remote_nodes[key_node] = remote_nodes.get(key_node,0) + p*value_size
+            if key_node.total_memory > 0.0:
+                value_size = key_node.kv_store[k]
+                remote_nodes[key_node] = remote_nodes.get(key_node,0) + p*value_size
 
         # pick node with maximum expected data to retrieve
         sorted_nodes = sorted(remote_nodes.items(), key=lambda x: x[1], reverse=True)
@@ -631,7 +651,9 @@ class StateAwareOffloadingPolicy(offloading_policy.GreedyPolicy):
         remote_nodes = set([self.cloud])
         # Add all the nodes storing keys for the function
         for k,_ in f.accessed_keys:
-            remote_nodes.add(key_locator.get_node(k))
+            _remote = key_locator.get_node(k)
+            if _remote.total_memory*_remote.speedup > 0.0:
+                remote_nodes.add(_remote)
 
         # XXX: We do not consider cold start here
 
