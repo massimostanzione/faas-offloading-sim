@@ -602,6 +602,9 @@ class AlwaysOffloadStatefulPolicy(offloading_policy.Policy):
 
     def __init__(self, simulation, node):
         super().__init__(simulation, node)
+        # Pick the closest cloud node
+        nodes_w_lat = [(_n,simulation.infra.get_latency(node,_n)) for _n in simulation.infra.get_cloud_nodes()]
+        self.cloud = sorted(nodes_w_lat, key=lambda x: x[1])[0][0]
 
     def schedule(self, f, c, offloaded_from):
         if len(offloaded_from) > 2:
@@ -617,6 +620,8 @@ class AlwaysOffloadStatefulPolicy(offloading_policy.Policy):
             if key_node.total_memory > 0.0:
                 value_size = key_node.kv_store[k]
                 remote_nodes[key_node] = remote_nodes.get(key_node,0) + p*value_size
+        if not self.cloud in remote_nodes:
+            remote_nodes[self.cloud] = 0
 
         # pick node with maximum expected data to retrieve
         sorted_nodes = sorted(remote_nodes.items(), key=lambda x: x[1], reverse=True)

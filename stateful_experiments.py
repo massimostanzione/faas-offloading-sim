@@ -243,7 +243,7 @@ def experiment_datastore (args, config):
     config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, "999")
 
 
-    OFFLOADING_POLICIES = ["basic", "random-stateful", "state-aware"]
+    OFFLOADING_POLICIES = ["basic", "random-stateful", "state-aware", "state-aware-always-offload"]
     MIGRATION_POLICIES = ["none", "random", "greedy", "ilp"]
 
     # Check existing results
