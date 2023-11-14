@@ -132,7 +132,7 @@ class RandomKeyMigrationPolicy(KeyMigrationPolicy):
 
     def migrate(self):
         # Move keys randomly
-        nodes = self.simulation.infra.get_nodes()
+        nodes = self.simulation.infra.get_nodes(ignore_non_processing=False)
         for n in nodes:
             keys = list(n.kv_store.keys())
             for key in keys:
