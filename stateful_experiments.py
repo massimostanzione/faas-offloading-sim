@@ -354,9 +354,9 @@ def experiment_scalability (args, config):
     # TODO: different workloads settings
 
     for zipf_popularity in [True]:
-        for n_keys in [5,10,15,20]:
-            for n_functions in [5,10,15,20,25]:
-                for seed in SEEDS:
+        for n_keys in [5,10]:
+            for n_functions in [5,10,15,20,25,30]:
+                for seed in SEEDS[:5]:
                     config.set(conf.SEC_SIM, conf.SEED, str(seed))
                     seed_sequence = SeedSequence(seed)
 
