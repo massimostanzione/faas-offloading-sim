@@ -406,8 +406,8 @@ class ILPMinDataAccessTimeMigrationPolicy(KeyMigrationPolicy):
         # migration =  { }
         for k in keys: 
             for j in nodes: 
-                print(f"{pl.value(x[k][j])}")
-                if pl.value(x[k][j]) == 1.0:
+                # print(f"{pl.value(x[k][j])}")
+                if round(pl.value(x[k][j])) == 1.0:
                     allocation[k] = j
                 # for i in nodes: 
                 #     if pl.value(y[k][i][j]) == 1.0:
@@ -577,10 +577,10 @@ class ILPBoundedDataAccessTimeMigrationPolicy(ILPMinDataAccessTimeMigrationPolic
         _migration =  { }
         for k in keys: 
             for j in nodes: 
-                if pl.value(x[k][j]) == 1.0:
+                if round(pl.value(x[k][j])) == 1.0:
                     allocation[k] = j
                 for i in nodes: 
-                    if pl.value(y[k][i][j]) == 1.0:
+                    if round(pl.value(y[k][i][j])) == 1.0:
                         _migration[(k,i)] = j 
 
         _deltaF = {}
