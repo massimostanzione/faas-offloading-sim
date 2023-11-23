@@ -24,11 +24,11 @@ PERCENTILES=np.array([1,5,10,25,50,75,90,95,99])/100.0
 
 # Returns an open NamedTemporaryFile
 # arrivals "single", "edge", "all"
-def generate_temp_spec (seed_sequence, load_coeff=1.0, arrivals_mode="single", max_data_access_time=99, zipf_key_popularity=True, edge_memory=4096, external_data_store=False, n_keys=5, n_functions=5):
+def generate_temp_spec (seed_sequence, load_coeff=1.0, arrivals_mode="single", max_data_access_time=99, zipf_key_popularity=True, edge_memory=4096, external_data_store=False, n_keys=5, n_functions=5, cloud_nodes=5):
     outf = tempfile.NamedTemporaryFile(mode="w")
 
     n_edges = 5
-    n_cloud = 5
+    n_cloud = cloud_nodes
     nodes = []
 
     for i in range(n_edges):
@@ -353,14 +353,14 @@ def experiment_scalability (args, config):
 
     # TODO: different workloads settings
 
-    for zipf_popularity in [True]:
-        for n_keys in [5,10]:
+    for cloud_nodes in [5,10,20,30]:
+        for n_keys in [5]:
             for n_functions in [5,10,15,20,25,30]:
                 for seed in SEEDS[:5]:
                     config.set(conf.SEC_SIM, conf.SEED, str(seed))
                     seed_sequence = SeedSequence(seed)
 
-                    for max_dat in [0.200]:
+                    for max_dat in [0.2]:
                         for mig_pol in MIGRATION_POLICIES:
                             config.set(conf.SEC_STATEFUL, conf.POLICY_NAME, mig_pol)
                             for pol in OFFLOADING_POLICIES:
@@ -371,7 +371,7 @@ def experiment_scalability (args, config):
                                     keys = {}
                                     keys["Load"] = load_coeff
                                     keys["Keys"] = n_keys
-                                    keys["ZipfPopularity"] = zipf_popularity
+                                    keys["CloudNodes"] = cloud_nodes
                                     keys["Functions"] = n_functions
                                     keys["MaxDataAccessTime"] = max_dat
                                     keys["OffloadingPolicy"] = pol
@@ -387,12 +387,12 @@ def experiment_scalability (args, config):
                                                 (old_results.Load == load_coeff) &\
                                                 (old_results.Keys == n_keys) &\
                                                 (old_results.Functions == n_functions) &\
-                                                (old_results.ZipfPopularity == zipf_popularity) &\
+                                                (old_results.CloudNodes == cloud_nodes) &\
                                                 (old_results.MaxDataAccessTime == max_dat) &\
                                                 (old_results.MigrationPolicy == mig_pol)].empty:
                                         print("Skipping conf") 
                                         continue 
-                                    temp_spec_file = generate_temp_spec (seed_sequence, max_data_access_time=max_dat, load_coeff=load_coeff, zipf_key_popularity=zipf_popularity, arrivals_mode="edge", edge_memory=4096, n_keys=n_keys, n_functions=n_functions)
+                                    temp_spec_file = generate_temp_spec (seed_sequence, max_data_access_time=max_dat, load_coeff=load_coeff, zipf_key_popularity=True, cloud_nodes=cloud_nodes, arrivals_mode="edge", edge_memory=4096, n_keys=n_keys, n_functions=n_functions)
                                     infra = default_infra()
                                     stats, resptimes, resptimes_perc, dat_perc = _experiment(config, seed_sequence, infra, temp_spec_file.name)
                                     temp_spec_file.close()
