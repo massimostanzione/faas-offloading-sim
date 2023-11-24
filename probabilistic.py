@@ -452,7 +452,7 @@ class RandomPolicy(Policy):
         decision = self.rng.choice(list(SchedulerDecision))
 
         if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
-            return self.rng.choice([SchedulerDecision.DROP, SchedulerDecision.OFFLOAD_CLOUD, SchedulerDecision.OFFLOAD_EDGE])
+            decision = self.rng.choice([SchedulerDecision.DROP, SchedulerDecision.OFFLOAD_CLOUD, SchedulerDecision.OFFLOAD_EDGE])
         return (decision, None)
 
     def update(self):
