@@ -11,6 +11,11 @@ class Stats:
         self.nodes = infra.get_nodes()
         fun_classes = [(f,c) for f in functions for c in classes]
         fcn = [(f,c,n) for f in functions for c in classes for n in self.nodes]
+        
+        keys = set()
+        for f in functions:
+            for k,_ in f.accessed_keys:
+                keys.add(k)
 
         self.arrivals = {x: 0 for x in fcn}
         self.ext_arrivals = {x: 0 for x in fcn}
@@ -28,10 +33,16 @@ class Stats:
         self.utility = 0.0
         self.utility_detail = {x: 0.0 for x in fcn}
         self.penalty = 0.0
+        self.data_access_count = {(k,f,n): 0 for k in keys for f in functions for n in self.nodes}
+        self.data_access_violations = {f: 0 for f in functions}
+        self.data_migrations_count = 0
+        self.data_migrated_bytes = 0.0
         self._memory_usage_area = {x: 0.0 for x in self.nodes}
         self._memory_usage_t0 = {x: 0.0 for x in self.nodes}
         self._policy_update_time_sum = {x: 0.0 for x in self.nodes}
         self._policy_updates = {x: 0 for x in self.nodes}
+        self._mig_policy_update_time_sum = 0.0
+        self._mig_policy_updates = 0
 
         self.budget = self.sim.config.getfloat(conf.SEC_POLICY, conf.HOURLY_BUDGET, fallback=-1.0)
 
@@ -43,18 +54,16 @@ class Stats:
             if t is float or t is int:
                 # no change required
                 stats[metric] = raw[metric]
-            if t is dict:
+            elif t is dict:
                 # replace with a new dict, w reformatted keys
                 new_metric = {repr(x): raw[metric][x] for x in raw[metric]}
                 stats[metric] = new_metric
 
         avg_rt = {repr(x): self.resp_time_sum[x]/self.completions[x] for x in self.completions if self.completions[x] > 0}
         stats["avgRT"] = avg_rt
-        del(stats["resp_time_sum"])
 
         avg_exec = {repr(x): self.execution_time_sum[x]/self.node2completions[x] for x in self.node2completions if self.node2completions[x] > 0}
         stats["avgExecTime"] = avg_exec
-        del(stats["execution_time_sum"])
 
         completed_perc = {repr(x): self.completions[x]/self.arrivals[x] for x in self.completions if self.arrivals[x] > 0}
         stats["completedPercentage"] = completed_perc
@@ -84,16 +93,17 @@ class Stats:
         for n in self._memory_usage_t0:
             avgMemUtil[repr(n)] = self._memory_usage_area[n]/self.sim.t/n.total_memory
         stats["avgMemoryUtilization"] = avgMemUtil
-        del(stats["_memory_usage_area"])
-        del(stats["_memory_usage_t0"])
 
         avg_policy_upd_time = {}
         for n in self._policy_update_time_sum:
             if self._policy_updates[n] > 0:
                 avg_policy_upd_time[repr(n)] = self._policy_update_time_sum[n]/self._policy_updates[n]
         stats["avgPolicyUpdateTime"] = avg_policy_upd_time
-        del(stats["_policy_update_time_sum"])
-        del(stats["_policy_updates"])
+
+        avg_mig_policy_upd_time = 0
+        if self._mig_policy_updates > 0:
+            avg_mig_policy_upd_time = self._mig_policy_update_time_sum/self._mig_policy_updates
+        stats["avgMigPolicyUpdateTime"] = avg_mig_policy_upd_time
 
 
         return stats
@@ -106,6 +116,10 @@ class Stats:
     def update_policy_upd_time (self, node, t):
         self._policy_update_time_sum[node] += t
         self._policy_updates[node] += 1
+
+    def update_mig_policy_upd_time (self, t):
+        self._mig_policy_update_time_sum += t
+        self._mig_policy_updates += 1
 
     def print (self, out_file):
         print(json.dumps(self.to_dict(), indent=4, sort_keys=True), file=out_file)

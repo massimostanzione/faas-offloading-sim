@@ -60,6 +60,7 @@ class Node:
         self.custom_sched_policy = custom_sched_policy
 
         self.warm_pool = ContainerPool()
+        self.kv_store = {}
 
     def __repr__ (self):
         return self.name
@@ -106,7 +107,9 @@ class Function:
     serviceSCV: float = 1.0
     initMean: float = 0.500
     inputSizeMean: float = 100
-
+    accessed_keys: [] = field(default_factory=lambda: [])
+    max_data_access_time: float = None 
+    
     def __repr__ (self):
         return self.name
 

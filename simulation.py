@@ -12,6 +12,8 @@ from policy import SchedulerDecision
 import policy
 import probabilistic
 from faas import *
+import stateful
+from stateful import key_locator
 from arrivals import ArrivalProcess
 from infrastructure import *
 from statistics import Stats
@@ -63,6 +65,7 @@ class Completion(Event):
     cold: bool
     exec_time: float
     offloaded_from: [Node] = None
+    data_access_time: float = 0.0
 
 
 OFFLOADING_OVERHEAD = 0.005
@@ -74,6 +77,7 @@ ARRIVAL_TRACE_PERIOD = 60.0
 class Simulation:
 
     config: configparser.ConfigParser
+    seed_sequence: SeedSequence
     infra: Infrastructure
     functions: [Function]
     classes: [QoSClass]
@@ -94,16 +98,16 @@ class Simulation:
         self.verbosity = self.config.getint(conf.SEC_SIM, conf.VERBOSITY, fallback=0)
 
         # Seeds
-        seed = self.config.getint(conf.SEC_SIM, conf.SEED, fallback=1)
-        ss = SeedSequence(seed)
         n_arrival_processes = sum([len(arrival_procs) for arrival_procs in self.node2arrivals.values()])
         # Spawn off child SeedSequences to pass to child processes.
-        child_seeds = ss.spawn(3 + 3*n_arrival_processes)
+        child_seeds = self.seed_sequence.spawn(5 + 3*n_arrival_processes)
         self.service_rng = default_rng(child_seeds[0])
         self.node_choice_rng = default_rng(child_seeds[1])
         self.policy_rng1 = default_rng(child_seeds[2])
+        self.keys_rng = default_rng(child_seeds[3])
+        self.keys_policy_rng = default_rng(child_seeds[4])
 
-        i = 3
+        i = 5
         for n,arvs in self.node2arrivals.items():
             for arv in arvs:
                 arv.init_rng(default_rng(child_seeds[i]), default_rng(child_seeds[i+1]), default_rng(child_seeds[i+2]))
@@ -114,8 +118,9 @@ class Simulation:
         # Other params
         self.init_time = {}
         for node in self.infra.get_nodes():
-            for fun in self.functions:
-                self.init_time[(fun,node)] = fun.initMean/node.speedup
+            if node.speedup > 0:
+                for fun in self.functions:
+                    self.init_time[(fun,node)] = fun.initMean/node.speedup
 
 
     def new_policy (self, configured_policy, node):
@@ -149,9 +154,32 @@ class Simulation:
             return policy.GreedyPolicyWithCostMinimization(self, node)
         elif configured_policy == "random":
             return probabilistic.RandomPolicy(self, node)
+        elif configured_policy == "random-stateful":
+            return stateful.RandomStatefulOffloadingPolicy(self, node)
+        elif configured_policy == "state-aware":
+            return stateful.StateAwareOffloadingPolicy(self, node)
+        elif configured_policy == "state-aware-always-offload":
+            return stateful.AlwaysOffloadStatefulPolicy(self, node)
         else:
             raise RuntimeError(f"Unknown policy: {configured_policy}")
 
+    def new_state_migration_policy(self, stateful_policy_name: str):
+        if stateful_policy_name == "none":
+            return None
+        elif stateful_policy_name == "random":
+            return stateful.RandomKeyMigrationPolicy(self, self.keys_policy_rng)
+        elif stateful_policy_name == "gradient-discent":
+            return stateful.GradientBasedMigrationPolicy(self, self.keys_policy_rng)
+        elif stateful_policy_name == "spring-based":
+            return stateful.SpringBasedMigrationPolicy(self, self.keys_policy_rng)
+        elif stateful_policy_name == "greedy":
+            return stateful.SimpleGreedyMigrationPolicy(self, self.keys_policy_rng)
+        elif stateful_policy_name == "ilp-min-access":
+            return stateful.ILPMinDataAccessTimeMigrationPolicy(self, self.keys_policy_rng)
+        elif stateful_policy_name == "ilp":
+            return stateful.ILPBoundedDataAccessTimeMigrationPolicy(self, self.keys_policy_rng)
+        else:
+            raise RuntimeError(f"Unknown state migration policy: {stateful_policy_name}")
 
     def run (self):
         # Simulate
@@ -169,6 +197,10 @@ class Simulation:
             _policy = n.custom_sched_policy if n.custom_sched_policy is not None else "cloud"
             self.node2policy[n] = self.new_policy(_policy, n)
 
+        self.key_migration_policy = None
+        stateful_policy_name = self.config.get(conf.SEC_STATEFUL, conf.POLICY_NAME, fallback="none")
+        self.key_migration_policy = self.new_state_migration_policy(stateful_policy_name)
+
         self.policy_update_interval = self.config.getfloat(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, fallback=-1)
         self.rate_update_interval = self.config.getfloat(conf.SEC_SIM, conf.RATE_UPDATE_INTERVAL, fallback=-1)
         print(self.rate_update_interval)
@@ -179,7 +211,7 @@ class Simulation:
         rt_print_filename = self.config.get(conf.SEC_SIM, conf.RESP_TIMES_FILE, fallback="")
         if len(rt_print_filename) > 0:
             self.resp_times_file = open(rt_print_filename, "w")
-            print(f"Function,Class,Node,Offloaded,Cold,RT", file=self.resp_times_file)
+            print(f"Function,Class,Node,Offloaded,Cold,DataAccess,RT", file=self.resp_times_file)
         else:
             self.resp_times_file = None
 
@@ -200,6 +232,10 @@ class Simulation:
             # No arrivals
             print("No arrivals configured.")
             exit(1)
+
+        # Initialize state placement
+        stateful.init_key_placement (self.functions, self.infra, self.keys_rng)
+
 
         if self.policy_update_interval > 0.0:
             self.schedule(self.policy_update_interval, PolicyUpdate())
@@ -237,6 +273,16 @@ class Simulation:
         return self.stats
 
 
+    def move_key (self, k, src_node, dest_node):
+        if src_node == dest_node:
+            return
+        dest_node.kv_store[k] = src_node.kv_store[k]
+        del(src_node.kv_store[k])
+        key_locator.update_key_location(k, dest_node)
+
+        moved_bytes = dest_node.kv_store[k]
+        self.stats.data_migrations_count += 1
+        self.stats.data_migrated_bytes += moved_bytes
     
     def __schedule_next_arrival(self, node, arrival_proc):
         if not self.external_arrivals_allowed:
@@ -297,6 +343,17 @@ class Simulation:
                 upd_t0 = time.time()
                 p.update()
                 self.stats.update_policy_upd_time(n,time.time()-upd_t0)
+
+            # Migrate keys
+            if self.key_migration_policy is not None:
+                upd_t0 = time.time()
+                self.key_migration_policy.update_metrics()
+                self.key_migration_policy.migrate()
+                for p in self.node2policy.values():
+                    if isinstance(p, stateful.StateAwareOffloadingPolicy):
+                        p.latency_estimation_cache = {}
+                self.stats.update_mig_policy_upd_time(time.time()-upd_t0)
+
             self.schedule(t + self.policy_update_interval, event)
         elif isinstance(event, ArrivalRateUpdate):
             for n, arvs in self.node2arrivals.copy().items():
@@ -324,6 +381,7 @@ class Simulation:
         c = event.qos_class
         n = event.node
         duration = event.exec_time
+        dat = event.data_access_time
         #print(f"Completed {f}-{c}: {rt}")
 
         # Account for the time needed to send back the result
@@ -347,11 +405,14 @@ class Simulation:
             self.stats.violations[(f,c,n)] += 1
             self.stats.penalty += c.penalty
 
+        if dat > f.max_data_access_time:
+            self.stats.data_access_violations[f] += 1
+
         if n.cost > 0.0:
             self.stats.cost += duration * f.memory/1024 * n.cost
 
         if self.resp_times_file is not None:
-            print(f"{f},{c},{n},{event.offloaded_from != None and len(event.offloaded_from) > 0},{event.cold},{rt}", file=self.resp_times_file)
+            print(f"{f},{c},{n},{event.offloaded_from != None and len(event.offloaded_from) > 0},{event.cold},{dat},{rt}", file=self.resp_times_file)
 
         n.warm_pool.append((f, self.t + self.expiration_timeout))
         if self.external_arrivals_allowed:
@@ -379,11 +440,10 @@ class Simulation:
             self.stats.ext_arrivals[(f,c,n)] += 1
 
         # Policy
-        sched_decision = node_policy.schedule(f,c,event.offloaded_from)
+        sched_decision, target_node = node_policy.schedule(f,c,event.offloaded_from)
 
         if sched_decision == SchedulerDecision.EXEC:
-            speedup = n.speedup
-            duration = self.service_rng.gamma(1.0/f.serviceSCV, f.serviceMean*f.serviceSCV/speedup) 
+            duration, data_access_time = self.next_function_duration(f, n)
             # check warm or cold
             if f in n.warm_pool:
                 n.warm_pool.remove(f)
@@ -395,13 +455,21 @@ class Simulation:
                 self.stats.cold_starts[(f,n)] += 1
                 init_time = self.init_time[(f,n)]
             arrival_time = self.t if event.original_arrival_time is None else event.original_arrival_time
-            self.schedule(self.t + init_time + duration, Completion(arrival_time, f,c, n, init_time > 0, duration, event.offloaded_from))
+            self.schedule(float(self.t + init_time + duration), Completion(arrival_time, f,c, n, init_time > 0, duration, event.offloaded_from, data_access_time))
         elif sched_decision == SchedulerDecision.DROP:
             self.stats.dropped_reqs[(f,c,n)] += 1
             if event.offloaded_from is not None and len(event.offloaded_from) > 0:
                 self.stats.dropped_offloaded[(f,c,n)] += 1
         elif sched_decision == SchedulerDecision.OFFLOAD_CLOUD:
-            remote_node = self.infra.get_cloud_nodes()[0] # TODO pick a Cloud node
+            if target_node is not None:
+                remote_node = target_node
+            else:
+                # Pick the closest cloud node
+                nodes_w_lat = [(_n,self.infra.get_latency(n,_n)) for _n in self.infra.get_cloud_nodes()]
+                if len(nodes_w_lat) < 1:
+                    remote_node = None
+                else:
+                    remote_node = sorted(nodes_w_lat, key=lambda x: x[1])[0][0]
             if remote_node is None:
                 # drop
                 self.stats.dropped_reqs[(f,c,n)] += 1
@@ -409,7 +477,10 @@ class Simulation:
                 self.stats.offloaded[(f,c,n)] += 1
                 self.do_offload(event, remote_node)  
         elif sched_decision == SchedulerDecision.OFFLOAD_EDGE:
-            remote_node = node_policy.pick_edge_node(f,c)
+            if target_node is not None:
+                remote_node = target_node
+            else:
+                remote_node = node_policy.pick_edge_node(f,c)
             if remote_node is None:
                 # drop
                 self.stats.dropped_reqs[(f,c,n)] += 1
@@ -421,3 +492,22 @@ class Simulation:
         if external:
             self.__schedule_next_arrival(n, arv_proc)
 
+    def next_function_duration (self, f: Function, n: Node):
+        # execution time
+        duration = float(self.service_rng.gamma(1.0/f.serviceSCV, f.serviceMean*f.serviceSCV/n.speedup) )
+        data_access_time = 0
+        # we add the time to access state
+        for k,prob in f.accessed_keys:
+            # check if it is accessed 
+            if self.keys_rng.random() <= prob:
+                # check if the key is on the node
+                if k not in n.kv_store:
+                    remote_node = stateful.key_locator.get_node(k)
+                    assert(k in remote_node.kv_store)
+                    value_size = remote_node.kv_store[k]
+                    extra_latency = self.infra.get_latency(n, remote_node)*2
+                    # bandwidth
+                    extra_latency += value_size/(self.infra.get_bandwidth(n, remote_node)*125000)
+                    data_access_time += extra_latency
+                self.stats.data_access_count[(k,f,n)] += 1
+        return float(duration + data_access_time), float(data_access_time)
