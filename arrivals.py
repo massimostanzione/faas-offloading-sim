@@ -1,5 +1,9 @@
 from faas import Function, QoSClass
 
+import numpy as np
+import numpy.matlib as ml
+from map import SamplesFromMAP
+
 class ArrivalProcess:
 
     def __init__ (self, function: Function, classes: [QoSClass]):
@@ -72,3 +76,18 @@ class TraceArrivalProcess (ArrivalProcess):
     def close(self):
         super().close()
         self.trace.close()
+
+class MAPArrivalProcess (ArrivalProcess):
+
+    def __init__ (self, function: Function, classes: [QoSClass], D0, D1):
+        super().__init__(function, classes) 
+        self.state = 0
+        self.D0 = D0
+        self.D1 = D1
+
+    def next_iat (self):
+        iat, self.state = SamplesFromMAP(self.D0, self.D1, 1, initial=self.state)
+        return float(iat)
+
+    def has_dynamic_rate (self):
+        return False
