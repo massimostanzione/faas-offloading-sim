@@ -200,7 +200,7 @@ def experiment_main_comparison(args, config):
         for latency in [0.050, 0.100, 0.200]:
             for budget in [0.25, 0.5, 1,2,10]:
                 config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
-                for functions in range(1,6):
+                for functions in [5]:
                     for pol in POLICIES:
                         config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
 

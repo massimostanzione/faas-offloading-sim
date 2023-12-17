@@ -56,9 +56,8 @@ def write_spec (outf, n_functions=5, load_coeff=1.0, dynamic_rate_coeff=1.0, arr
 
     arrivals = []
     if arrivals_to_single_node:
-        total_load = 8000*load_coeff
+        rate = 10*load_coeff
         for f in functions:
-            rate = total_load/n_functions/(f["duration_mean"]*f["memory"])
             arrivals.append({"node": "edge1",
                             "function": f["name"],
                             "rate": rate,
@@ -66,11 +65,9 @@ def write_spec (outf, n_functions=5, load_coeff=1.0, dynamic_rate_coeff=1.0, arr
                             })
     else:
         edge_nodes = [n for n in nodes if "edge" in n["name"]]
-        total_load = 16000*load_coeff
-        load_per_node = total_load/len(edge_nodes)
         for n in edge_nodes:
             for f in functions:
-                rate = load_per_node/n_functions/(f["duration_mean"]*f["memory"])
+                rate = 10*load_coeff/len(edge_nodes)
                 arrivals.append({"node": n["name"],
                                 "function": f["name"],
                                 "rate": rate,
