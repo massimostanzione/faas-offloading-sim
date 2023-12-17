@@ -1,10 +1,12 @@
 import sys
+import math
+import numpy as np
 import yaml
 
 import faas
 import conf
 import stateful
-from arrivals import PoissonArrivalProcess, TraceArrivalProcess
+from arrivals import PoissonArrivalProcess, TraceArrivalProcess, MAPArrivalProcess
 from numpy.random import SeedSequence, default_rng
 from simulation import Simulation
 from infrastructure import *
@@ -83,6 +85,27 @@ def read_spec_file (spec_file_name, infra, config):
             elif "rate" in f:
                 dynamic_rate_coeff = float(f["dynamic_coeff"]) if "dynamic_coeff" in f else 0.0
                 arv = PoissonArrivalProcess(fun, invoking_classes, float(f["rate"]), dynamic_rate_coeff=dynamic_rate_coeff)
+            elif "map" in f:
+                # map: 1;2;3;4;...
+                matrix_entries = f["map"].split(";")
+                n = int(math.sqrt(len(matrix_entries)/2))
+                assert(n*n*2 == len(matrix_entries))
+                D0str = ""
+                k=0
+                for i in range(n):
+                    for j in range(n):
+                        D0str += f"{matrix_entries[k]} "
+                        k+=1
+                    D0str += ";"
+                D1str = ""
+                for i in range(n):
+                    for j in range(n):
+                        D1str += f"{matrix_entries[k]} "
+                        k+=1
+                    D1str += ";"
+                D0 = np.matrix(D0str[:-1]) # strip last semicolon
+                D1 = np.matrix(D1str[:-1])
+                arv = MAPArrivalProcess(fun, invoking_classes,  D0=D0, D1=D1)
 
             if not node in node2arrivals:
                 node2arrivals[node] = []
