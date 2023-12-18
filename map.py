@@ -1,111 +1,10 @@
 """
-This module has been adapted from the BuTools project: https://github.com/ghorvath78/butools
+This module has been adapted from and relies on the BuTools project: https://github.com/ghorvath78/butools
 """
 import numpy as np
 import numpy.matlib as ml
-import numpy.linalg as la
 from numpy.random import rand
-
-def CheckGenerator (Q, transient=False, prec=10e-14):
-    """
-    Checks if the matrix is a valid generator matrix: the 
-    matrix is a square matrix, the matrix has positive or 
-    zero off-diagonal elements, the diagonal of the matrix 
-    is negative, the rowsum of the matrix is 0.
-    
-    If the "transient" parameter is set to false, it checks 
-    if the real part of the maximum absolute eigenvalue is 
-    less than zero and the rowsum is equal or less than 0. 
-    
-    Parameters
-    ----------
-    Q : matrix, shape (M,M)
-        The generator to check.
-    transient : bool, optional
-        If true, the procedure checks if Q is a transient 
-        generator, otherwise it checks if it is a valid 
-        generator. The default value is false.
-    prec : double, optional
-        Entries with absolute value less than prec are 
-        considered to be zeros. The default value is 1e-14.
-        
-    Returns
-    -------
-    r : bool
-        The result of the check.
-    """
-
-    if not isinstance(Q,np.ndarray):
-        Q = np.array(Q)
-        
-    if Q.shape[0]!=Q.shape[1]:
-        return False
-
-    if np.any(np.diag(Q)>=prec):
-        return False
-
-    N = Q.shape[0]
-    odQ = Q<-prec
-    for i in range(N):
-        odQ[i,i] = 0
-
-    if np.sum(np.any(odQ))>0:
-        return False
-
-    if transient:
-        if np.max(np.sum(Q,1))>prec:
-            return False
-
-        if np.max(np.real(la.eigvals(Q)))>=prec:
-            return False
-    else:
-        if np.any(np.abs(np.sum(Q,1))>prec):
-            return False
-    return True
-
-def CheckMAPRepresentation (D0, D1, prec=10e-9):
-    """
-    Checks if the input matrixes define a continuous time MAP.
-    
-    Matrices D0 and D1 must have the same size, D0 must be a 
-    transient generator matrix, D1 has only non-negative 
-    elements, and the rowsum of D0+D1 is 0 (up to the numerical
-    precision).
-    
-    Parameters
-    ----------
-    D0 : matrix, shape (M,M)
-        The D0 matrix of the MAP to check
-    D1 : matrix, shape (M,M)
-        The D1 matrix of the MAP to check
-    prec : double, optional
-        Numerical precision, the default value is 1e-14
-    
-    Returns
-    -------
-    r : bool 
-        The result of the check
-    """
-
-    if not CheckGenerator(D0,True):
-        return False
-
-    if D0.shape!=D1.shape:
-        if butools.verbose:
-            print ("CheckMAPRepresentation: D0 and D1 have different sizes!")
-        return False
-
-    if np.min(D1)<-prec:
-        if butools.verbose:
-            print ("CheckMAPRepresentation: D1 has negative element!")
-        return False
-
-    if np.any(np.abs(np.sum(D0+D1,1))>prec):
-        if butools.verbose:
-            print ("CheckMAPRepresentation: The rowsum of D0+D1 is not 0!")
-        return False
-
-    return True
+from butools.map import *
 
 def SamplesFromMAP (D0, D1, k, initial=None, prec=1e-14):
     """
@@ -184,4 +83,55 @@ def SamplesFromMAP (D0, D1, k, initial=None, prec=1e-14):
 
 #D0 = ml.matrix([[-0.17, 0, 0, 0.07],[0.01, -0.78, 0.03, 0.08],[0.22, 0.17, -1.1, 0.02],[0.04, 0.12, 0, -0.42]])
 #D1 = ml.matrix([[0, 0.06, 0, 0.04],[0.04, 0.19, 0.21, 0.22],[0.22, 0.13, 0.15, 0.19],[0.05, 0, 0.17, 0.04]])
-#iat, s = SamplesFromMAP((D0, D1), 1, initial=1)
+#iat, s = SamplesFromMAP(D0, D1, 1, initial=1)
+
+rate=10
+# erlang
+def make_erlang2 (rate):
+    x=rate*2
+    D0 = ml.matrix([[-x, x],[0.0, -x]])
+    D1 = ml.matrix([[0, 0],[x, 0]])
+    return (D0, D1)
+
+#hyper
+def make_hyper (rate):
+    l2=0.75*rate
+    l1=2*l2
+    p=0.5
+    q=1.0-p
+    D0 = ml.matrix([[-l1, 0],[0, -l2]])
+    D1 = ml.matrix([[p*l1,q*l1],[p*l2, q*l2]])
+    return (D0, D1)
+
+def make_mmpp2 (rate):
+    m1=0.75*rate
+    m2=10*rate
+    l12=0.1
+    l21=3.5
+    
+    D0 = ml.matrix([[-l12-m1, l12],[l21, -l21-m2]])
+    D1 = ml.matrix([[m1, 0],[0, m2]])
+    return (D0, D1)
+
+if __name__ == "__main__":
+    #Mean rate: 10.0 - SCV: 0.5
+    #Mean rate: 10.0 - SCV: 1.2222222222222219
+    #Mean rate: 10.069444444444441 - SCV: 1.5877814088598385
+    D0,D1 = make_erlang2(rate)
+    mean,m2 = MarginalMomentsFromMAP(D0,D1,2)
+    var = m2 - mean**2
+    scv = var/mean**2
+    print(f"Mean rate: {1.0/mean} - SCV: {scv}")
+
+    D0,D1 = make_hyper(rate)
+    mean,m2 = MarginalMomentsFromMAP(D0,D1,2)
+    var = m2 - mean**2
+    scv = var/mean**2
+    print(f"Mean rate: {1.0/mean} - SCV: {scv}")
+
+    D0,D1 = make_mmpp2(rate)
+    mean,m2 = MarginalMomentsFromMAP(D0,D1,2)
+    var = m2 - mean**2
+    scv = var/mean**2
+    print(f"Mean rate: {1.0/mean} - SCV: {scv}")
+
