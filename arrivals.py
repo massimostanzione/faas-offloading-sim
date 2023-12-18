@@ -60,6 +60,16 @@ class PoissonArrivalProcess (ArrivalProcess):
             print(f"Rate: {self.rate} -> {next_rate}")
             self.rate = next_rate
 
+class DeterministicArrivalProcess (PoissonArrivalProcess):
+
+    def __init__ (self, function: Function, classes: [QoSClass], rate: float,
+                  dynamic_rate_coeff: float = 0.0):
+        super().__init__(function, classes, rate, dynamic_rate_coeff) 
+
+    def next_iat (self):
+        return 1.0/self.rate
+
+
 
 class TraceArrivalProcess (ArrivalProcess):
 
@@ -91,3 +101,5 @@ class MAPArrivalProcess (ArrivalProcess):
 
     def has_dynamic_rate (self):
         return False
+
+

@@ -5,7 +5,7 @@ import argparse
 import pandas as pd
 import numpy as np
 
-from spec import generate_temp_spec
+from spec import generate_temp_spec, generate_random_temp_spec
 import faas
 import conf
 from arrivals import PoissonArrivalProcess, TraceArrivalProcess, MAPArrivalProcess
@@ -229,7 +229,8 @@ def experiment_main_comparison(args, config):
                             print("Skipping conf")
                             continue
 
-                        temp_spec_file = generate_temp_spec (n_functions=functions)
+                        rng = default_rng(seed_sequence.spawn(1)[0])
+                        temp_spec_file = generate_random_temp_spec (rng, n_functions=functions)
                         infra = default_infra(edge_cloud_latency=latency)
                         stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
                         temp_spec_file.close()

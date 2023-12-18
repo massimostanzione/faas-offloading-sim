@@ -122,6 +122,6 @@ functions:
       - key: b
 ```
 
-### Open issues
+# Credits
 
- - different distributions for the value size?
+The project includes the *BuTools* package. [Original source](https://github.com/ghorvath78/butools/tree/master/Python)
