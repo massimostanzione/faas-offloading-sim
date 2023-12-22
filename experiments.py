@@ -680,14 +680,10 @@ if __name__ == "__main__":
     
     if args.experiment.lower() == "a":
         experiment_main_comparison(args, config)
-    elif args.experiment.lower() == "a2":
-        experiment_main_comparison2(args, config)
     elif args.experiment.lower() == "b":
         experiment_arrivals_to_all(args, config)
     elif args.experiment.lower() == "v":
         experiment_varying_arrivals(args, config)
-    elif args.experiment.lower() == "e":
-        experiment_edge(args, config)
     elif args.experiment.lower() == "s":
         experiment_scalability(args, config)
     elif args.experiment.lower() == "x":
