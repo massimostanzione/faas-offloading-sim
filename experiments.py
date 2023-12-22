@@ -361,6 +361,7 @@ def experiment_arrivals_to_all (args, config):
             pass
 
     for seed in SEEDS:
+        seed_sequence = SeedSequence(seed)
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
         for latency in [0.100]:
             for budget in [0.5,1,2]:
@@ -391,9 +392,10 @@ def experiment_arrivals_to_all (args, config):
                         print("Skipping conf")
                         continue
 
-                    temp_spec_file = generate_temp_spec (n_functions=5, arrivals_to_single_node=False)
+                    rng = default_rng(seed_sequence.spawn(1)[0])
+                    temp_spec_file = generate_random_temp_spec (rng, n_functions=5, arrivals_to_single_node=False)
                     infra = default_infra(edge_cloud_latency=latency)
-                    stats = _experiment(config, infra, temp_spec_file.name)
+                    stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
                     temp_spec_file.close()
                     with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
                         stats.print(of)
