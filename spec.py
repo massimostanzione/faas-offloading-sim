@@ -114,8 +114,12 @@ def generate_random_temp_spec (rng, n_functions=5, load_coeff=1.0, dynamic_rate_
         a, b = (myclip_a - loc) / scale, (myclip_b - loc) / scale
         f["input_mean"] = float(truncnorm.rvs(a, b, loc=loc, scale=scale, size=1))
 
-    functions_arrival_distributions = rng.choice(ARRIVAL_DISTRIBUTIONS, size=n_functions)
-    functions_arrival_distributions = {f["name"]: d for f,d in zip(functions, functions_arrival_distributions)}
+    if dynamic_rate_coeff > 1.0:
+        print("Forcing Poisson arrivals")
+        functions_arrival_distributions = {f["name"]: "exp" for f in functions}
+    else:
+        functions_arrival_distributions = rng.choice(ARRIVAL_DISTRIBUTIONS, size=n_functions)
+        functions_arrival_distributions = {f["name"]: d for f,d in zip(functions, functions_arrival_distributions)}
 
 
     ntemp = tempfile.NamedTemporaryFile(mode="w")
