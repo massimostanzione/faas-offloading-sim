@@ -23,7 +23,7 @@ class ColdStartEstimation(Enum):
         s = s.lower()
         if s == "no":
             return ColdStartEstimation.NO
-        elif s == "naive":
+        elif s == "naive" or s == "":
             return ColdStartEstimation.NAIVE
         elif s == "naive-per-function":
             return ColdStartEstimation.NAIVE_PER_FUNCTION
@@ -144,8 +144,8 @@ class GreedyPolicy(Policy):
         self.estimated_service_time = {}
         self.estimated_service_time_cloud = {}
 
-        self.local_cold_start_estimation = ColdStartEstimation.from_string(self.simulation.config.get(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))
-        self.cloud_cold_start_estimation = ColdStartEstimation.from_string(self.simulation.config.get(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))
+        self.local_cold_start_estimation = ColdStartEstimation.from_string(self.simulation.config.get(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, fallback=""))
+        self.cloud_cold_start_estimation = ColdStartEstimation.from_string(self.simulation.config.get(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, fallback=""))
 
         # OLD: cloud_region = node.region.default_cloud
         #self.cloud = self.simulation.node_choice_rng.choice(self.simulation.infra.get_region_nodes(cloud_region), 1)[0]
