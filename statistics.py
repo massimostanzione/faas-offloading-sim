@@ -35,6 +35,7 @@ class Stats:
         self.penalty = 0.0
         self.data_access_count = {(k,f,n): 0 for k in keys for f in functions for n in self.nodes}
         self.data_access_violations = {f: 0 for f in functions}
+        self.data_access_tardiness = 0.0
         self.data_migrations_count = 0
         self.data_migrated_bytes = 0.0
         self._memory_usage_area = {x: 0.0 for x in self.nodes}
