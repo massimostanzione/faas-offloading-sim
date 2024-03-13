@@ -407,6 +407,7 @@ class Simulation:
 
         if f.max_data_access_time is not None and dat > f.max_data_access_time:
             self.stats.data_access_violations[f] += 1
+            self.stats.data_access_tardiness += dat - f.max_data_access_time
 
         if n.cost > 0.0:
             self.stats.cost += duration * f.memory/1024 * n.cost

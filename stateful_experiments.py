@@ -206,6 +206,7 @@ def relevant_stats_dict (stats):
     result["NetUtility"] = stats.utility-stats.penalty
     result["Cost"] = stats.cost
     result["DataMigrations"] = stats.data_migrations_count
+    result["DataTardiness"] = stats.data_access_tardiness
     result["DataMigratedBytes"] = stats.data_migrated_bytes
     result["MigPolicyExecTime"] = stats._mig_policy_update_time_sum/stats._mig_policy_updates if stats._mig_policy_updates > 0 else 0
     for f in stats.data_access_violations:
@@ -236,7 +237,7 @@ def relevant_stats_dict (stats):
 
 def experiment_datastore (args, config):
     results = []
-    exp_tag = "datastore"
+    exp_tag = "datastoreTard"
     outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
 
 
@@ -266,7 +267,7 @@ def experiment_datastore (args, config):
                     config.set(conf.SEC_SIM, conf.SEED, str(seed))
                     seed_sequence = SeedSequence(seed)
 
-                    for max_dat in [0.100, 0.200, 1]:
+                    for max_dat in [0.100, 0.200]:
                         for mig_pol in MIGRATION_POLICIES:
                             config.set(conf.SEC_STATEFUL, conf.POLICY_NAME, mig_pol)
                             for pol in OFFLOADING_POLICIES:
