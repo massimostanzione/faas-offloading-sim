@@ -3,7 +3,7 @@ import numpy as np
 from pacsltk import perfmodel
 
 import conf
-import optimizer, optimizer2
+import lp_optimizer, optimizer_no_edge
 from policy import Policy, SchedulerDecision, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS
 
 ADAPTIVE_LOCAL_MEMORY_COEFFICIENT=True
@@ -259,7 +259,7 @@ class ProbabilisticPolicy(Policy):
             print(f"Usable memory: {self.local_usable_memory_coeff:.2f}")
 
         bandwidth = self.simulation.infra.get_bandwidth(self.node, self.cloud)
-        new_probs = optimizer.update_probabilities(self.node, self.cloud,
+        new_probs = optimizer_no_edge.update_probabilities(self.node, self.cloud,
                                                    self.simulation,
                                                    self.arrival_rates,
                                                    self.estimated_service_time,
@@ -417,7 +417,7 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
                 self.local_usable_memory_coeff = min(self.local_usable_memory_coeff*1.1, 1.0)
             print(f"{self.node}: Usable memory: {self.local_usable_memory_coeff:.2f}")
 
-        new_probs = optimizer2.update_probabilities(self.node, self.cloud,
+        new_probs = lp_optimizer.update_probabilities(self.node, self.cloud,
                                                    self.aggregated_edge_memory,
                                                    self.simulation,
                                                    self.arrival_rates,

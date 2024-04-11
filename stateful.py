@@ -1,5 +1,5 @@
 from utils.latency_space import GradientEstimate, NetworkCoordinateSystem, Point, Space, SpringForce
-from optimizer import solve
+from lp_optimizer import solve
 
 
 class KeyLocator:

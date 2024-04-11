@@ -6,7 +6,7 @@ import pulp as pl
 
 warm_start = False
 
-from optimizer2 import BETA_COST
+from lp_optimizer import BETA_COST
 
 def update_probabilities (edge, cloud, sim, arrival_rates, serv_time, serv_time_cloud,
                           init_time, offload_time, edge_cloud_bandwidth, cold_start_p_local, cold_start_p_cloud, required_percentile=-1.0,budget=-1, local_usable_memory_coeff=1.0):
