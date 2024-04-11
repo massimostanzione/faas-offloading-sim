@@ -7,7 +7,8 @@ import pulp as pl
 warm_start = False
 BETA_COST=0.0
 
-def update_probabilities (local, cloud, aggregated_edge_memory, sim,
+def update_probabilities (local, cloud, aggregated_edge_memory, functions,
+                            classes,
                           arrival_rates,
                           serv_time, serv_time_cloud, serv_time_edge,
                           init_time_local, init_time_cloud, init_time_edge,
@@ -15,11 +16,9 @@ def update_probabilities (local, cloud, aggregated_edge_memory, sim,
                           bandwidth_cloud, bandwidth_edge,
                           cold_start_p_local, cold_start_p_cloud,
                           cold_start_p_edge,budget=-1,
-                          local_usable_memory_coeff=1.0):
-    VERBOSE = sim.verbosity
-
-    F = sim.functions
-    C = sim.classes
+                          local_usable_memory_coeff=1.0, VERBOSE=False):
+    F = functions
+    C = classes
     F_C = [(f,c) for f in F for c in C]
 
     if VERBOSE > 1:

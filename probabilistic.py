@@ -419,7 +419,8 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
 
         new_probs = lp_optimizer.update_probabilities(self.node, self.cloud,
                                                    self.aggregated_edge_memory,
-                                                   self.simulation,
+                                                   self.simulation.functions,
+                                                   self.simulation.classes,
                                                    self.arrival_rates,
                                                    self.estimated_service_time,
                                                    self.estimated_service_time_cloud,
@@ -435,7 +436,8 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
                                                    self.cold_start_prob_cloud,
                                                    self.cold_start_prob_edge,
                                                    self.local_budget,
-                                                   self.local_usable_memory_coeff)
+                                                   self.local_usable_memory_coeff,
+                                                   self.simulation.verbosity)
         if new_probs is not None:
             self.probs = new_probs
             #print(f"[{self.node}] Probs: {self.probs}")
