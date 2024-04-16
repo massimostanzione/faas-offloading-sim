@@ -3,7 +3,7 @@ import numpy as np
 from pacsltk import perfmodel
 
 import conf
-import lp_optimizer, optimizer_no_edge
+import lp_optimizer, optimizer_no_edge, optimizer_nonlinear
 from policy import Policy, SchedulerDecision, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS
 
 ADAPTIVE_LOCAL_MEMORY_COEFFICIENT=True
@@ -421,6 +421,8 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
         optimizer_to_use =  self.simulation.config.get(conf.SEC_POLICY, conf.QOS_OPTIMIZER, fallback="")
         if optimizer_to_use == "" or optimizer_to_use == "fgcs24" or optimizer_to_use == "lp":
             opt = lp_optimizer
+        elif optimizer_to_use == "nonlinear":
+            opt = optimizer_nonlinear
         else:
             raise RuntimeError(f"Unknown optimizer: {optimizer_to_use}")
 
