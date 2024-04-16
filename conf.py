@@ -22,6 +22,7 @@ LOCAL_COLD_START_EST_STRATEGY = "local-cold-start-estimation"
 CLOUD_COLD_START_EST_STRATEGY = "cloud-cold-start-estimation"
 EDGE_COLD_START_EST_STRATEGY = "edge-cold-start-estimation"
 HOURLY_BUDGET = "budget"
+QOS_OPTIMIZER = "optimizer"
 SPLIT_BUDGET_AMONG_EDGE_NODES = "split-budget-edge"
 PROHIBIT_ANY_SECOND_OFFLOADING = "prohibit-any-second-offloading"
 

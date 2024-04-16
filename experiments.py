@@ -91,7 +91,7 @@ def experiment_varying_arrivals (args, config):
 
 
 
-    POLICIES = ["basic-budget", "probabilistic2", "greedy-budget", "probabilistic2-strict", "probabilistic2-strictAlt"]
+    POLICIES = ["basic-budget", "probabilistic", "greedy-budget", "probabilistic-strict", "probabilistic-strictAlt"]
 
     # Check existing results
     old_results = None
@@ -114,9 +114,9 @@ def experiment_varying_arrivals (args, config):
                         for pol in POLICIES:
                             config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
 
-                            if alpha > 0.3 and (not "probabilistic" in pol):
+                            if alpha > 0.3 and (not "probabilistic-legacy" in pol):
                                 continue
-                            if policy_update_interval != 120 and (not "probabilistic" in pol):
+                            if policy_update_interval != 120 and (not "probabilistic-legacy" in pol):
                                 continue
 
                             if "greedy" in pol:
@@ -187,7 +187,7 @@ def experiment_main_comparison(args, config):
     config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
 
 
-    POLICIES = ["random", "basic", "basic-edge", "basic-budget", "probabilistic", "probabilistic2", "greedy", "greedy-min-cost", "greedy-budget", "probabilistic-strict", "probabilistic2-strict", "probabilistic2-strictAlt", "probabilistic2Alt"]
+    POLICIES = ["random", "basic", "basic-edge", "basic-budget", "probabilistic-legacy", "probabilistic", "greedy", "greedy-min-cost", "greedy-budget", "probabilistic-legacy-strict", "probabilistic-strict", "probabilistic-strictAlt", "probabilisticAlt"]
 
     # Check existing results
     old_results = None
@@ -271,8 +271,8 @@ def experiment_arrivals_to_all (args, config):
     config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
 
 
-    POLICIES = ["basic", "basic-budget", "probabilistic", "probabilistic2", "greedy", "greedy-budget", "probabilistic-strict",
-                "probabilistic2-strict", "probabilistic2-strictAlt", "probabilistic2Alt"]
+    POLICIES = ["basic", "basic-budget", "probabilistic-legacy", "probabilistic", "greedy", "greedy-budget", "probabilistic-legacy-strict",
+                "probabilistic-strict", "probabilistic-strictAlt", "probabilisticAlt"]
 
     # Check existing results
     old_results = None
@@ -354,7 +354,7 @@ def experiment_edge (args, config):
     config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, "naive-per-function")
 
 
-    POLICIES = ["basic", "basic-edge", "probabilistic", "probabilistic2", "probabilistic2Alt"]
+    POLICIES = ["basic", "basic-edge", "probabilistic-legacy", "probabilistic", "probabilisticAlt"]
 
     # Check existing results
     old_results = None
@@ -426,8 +426,8 @@ def experiment_simple (args, config):
     config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
 
 
-    POLICIES = ["basic", "basic-edge", "basic-budget", "probabilistic2", "greedy-budget",  "probabilistic2-strict",
-                "probabilistic2Alt", "probabilistic2-strictAlt"]
+    POLICIES = ["basic", "basic-edge", "basic-budget", "probabilistic", "greedy-budget",  "probabilistic-strict",
+                "probabilisticAlt", "probabilistic-strictAlt"]
 
     # Check existing results
     old_results = None
@@ -511,7 +511,7 @@ def experiment_scalability (args, config):
     config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, "10")
 
 
-    POLICIES = ["probabilistic", "probabilistic2"]
+    POLICIES = ["probabilistic-legacy", "probabilistic"]
 
     # Check existing results
     old_results = None

@@ -9,7 +9,11 @@ from policy import Policy, SchedulerDecision, ColdStartEstimation, COLD_START_PR
 ADAPTIVE_LOCAL_MEMORY_COEFFICIENT=True
 ADAPTIVE_EDGE_MEMORY_COEFFICIENT=True
 
+
 class ProbabilisticPolicy(Policy):
+    """
+    Legacy. No Edge offloading.
+    """
 
     # Probability vector: p_e, p_o, p_d
 
@@ -280,7 +284,6 @@ class ProbabilisticPolicy(Policy):
 class ProbabilisticPolicy2 (ProbabilisticPolicy):
 
     # Probability vector: p_L, p_C, p_E, p_D
-    # LP Model v2
 
     def __init__(self, simulation, node, strict_budget_enforce=False):
         super().__init__(simulation, node, strict_budget_enforce)
@@ -291,8 +294,6 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
         self.cold_start_prob_edge = {}
         self.prohibit_any_2nd_offloading = simulation.config.getboolean(conf.SEC_POLICY, conf.PROHIBIT_ANY_SECOND_OFFLOADING,
                                                                   fallback="false")
-        print(self.prohibit_any_2nd_offloading)
-
 
         self.possible_decisions = list(SchedulerDecision)
         self.probs = {(f, c): [0.5, 0.5, 0., 0.] for f in simulation.functions for c in simulation.classes}
@@ -417,7 +418,13 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
                 self.local_usable_memory_coeff = min(self.local_usable_memory_coeff*1.1, 1.0)
             print(f"{self.node}: Usable memory: {self.local_usable_memory_coeff:.2f}")
 
-        new_probs = lp_optimizer.update_probabilities(self.node, self.cloud,
+        optimizer_to_use =  self.simulation.config.get(conf.SEC_POLICY, conf.QOS_OPTIMIZER, fallback="")
+        if optimizer_to_use == "" or optimizer_to_use == "fgcs24" or optimizer_to_use == "lp":
+            opt = lp_optimizer
+        else:
+            raise RuntimeError(f"Unknown optimizer: {optimizer_to_use}")
+
+        new_probs = opt.update_probabilities(self.node, self.cloud,
                                                    self.aggregated_edge_memory,
                                                    self.simulation.functions,
                                                    self.simulation.classes,
