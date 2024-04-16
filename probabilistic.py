@@ -295,6 +295,9 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
         self.prohibit_any_2nd_offloading = simulation.config.getboolean(conf.SEC_POLICY, conf.PROHIBIT_ANY_SECOND_OFFLOADING,
                                                                   fallback="false")
 
+        self.adaptive_local_memory = simulation.config.getboolean(conf.SEC_POLICY, conf.ADAPTIVE_LOCAL_MEMORY,
+                                                                  fallback="false")
+
         self.possible_decisions = list(SchedulerDecision)
         self.probs = {(f, c): [0.5, 0.5, 0., 0.] for f in simulation.functions for c in simulation.classes}
 
