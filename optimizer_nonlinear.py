@@ -163,7 +163,24 @@ def optimize (lp_probs, FC, pDeadlineL, pDeadlineC, pDeadlineE, local, cloud, ag
         A[i,NVARS*i+1]=1
         if EDGE_ENABLED:
             A[i,NVARS*i+2]=1
-    constraints = [LinearConstraint(A=A, lb=0, ub=1, keep_feasible=False)]
+    sumLC = LinearConstraint(A=A, lb=0, ub=1, keep_feasible=False)
+    
+    A2 = np.zeros(NVARS*N)
+    for i,fc in enumerate(FC):
+        # cloud usage
+        A2[NVARS*i+1]=cloud.cost*arrival_rates[fc]*serv_time_cloud[fc[0]]*fc[0].memory/1024
+    budgetLC = LinearConstraint(A=A2, lb=0, ub=budget/3600, keep_feasible=False)
+
+    constraints = [sumLC, budgetLC]
+    
+    if EDGE_ENABLED:
+        A3 = np.zeros(NVARS*N)
+        for i,fc in enumerate(FC):
+            # edge mem
+            A3[NVARS*i+2]=arrival_rates[fc]*serv_time_edge[fc[0]]*fc[0].memory
+        edgeMemLC = LinearConstraint(A=A3, lb=0, ub=aggregated_edge_memory, keep_feasible=False)
+        constraints.append(edgeMemLC)
+
     #constraints = []
     #for i in range(N):
     #    c1 = lambda x: 1-x[3*i]-x[3*i+1]-x[3*i+2]
