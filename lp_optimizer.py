@@ -3,64 +3,52 @@ import conf
 import math
 import sys
 import pulp as pl
+from optimization import OptProblemParams
 
 warm_start = False
-BETA_COST=0.0
 
-def compute_deadline_satisfaction_probs (F_C,
-                          serv_time, serv_time_cloud, serv_time_edge,
-                          init_time_local, init_time_cloud, init_time_edge,
-                          offload_time_cloud, offload_time_edge,
-                          bandwidth_cloud, bandwidth_edge,
-                          cold_start_p_local, cold_start_p_cloud,
-                          cold_start_p_edge):
+def compute_deadline_satisfaction_probs (params: OptProblemParams):
     deadline_satisfaction_prob_local = {}
     deadline_satisfaction_prob_edge = {}
     deadline_satisfaction_prob_cloud = {}
 
     # TODO: we are assuming exponential distribution
     # Probability of satisfying the deadline
-    for f,c in F_C:
+    for f,c in params.fun_classes():
         p = 0.0
-        if c.max_rt - init_time_local[f] > 0.0:
-            p += cold_start_p_local[f]*(1.0 - math.exp(-1.0/serv_time[f]*(c.max_rt - init_time_local[f])))
+        if c.max_rt - params.init_time_local[f] > 0.0:
+            p += params.cold_start_p_local[f]*(1.0 - math.exp(-1.0/params.serv_time[f]*(c.max_rt - params.init_time_local[f])))
         if c.max_rt > 0.0:
-            p += (1.0-cold_start_p_local[f])*(1.0 - math.exp(-1.0/serv_time[f]*c.max_rt))
+            p += (1.0-params.cold_start_p_local[f])*(1.0 - math.exp(-1.0/params.serv_time[f]*c.max_rt))
         deadline_satisfaction_prob_local[(f,c)] = p
 
         p = 0.0
-        tx_time = f.inputSizeMean*8/1000/1000/bandwidth_cloud
-        if c.max_rt - init_time_cloud[f] - offload_time_cloud - tx_time > 0.0:
-            p += cold_start_p_cloud[f]*(1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt - init_time_cloud[f] - offload_time_cloud - tx_time)))
-        if c.max_rt - offload_time_cloud - tx_time > 0.0:
-            p += (1.0-cold_start_p_cloud[f])*(1.0 - math.exp(-1.0/serv_time_cloud[f]*(c.max_rt-offload_time_cloud - tx_time)))
+        tx_time = f.inputSizeMean*8/1000/1000/params.bandwidth_cloud
+        if c.max_rt - params.init_time_cloud[f] - params.offload_time_cloud - tx_time > 0.0:
+            p += params.cold_start_p_cloud[f]*(1.0 - math.exp(-1.0/params.serv_time_cloud[f]*(c.max_rt - params.init_time_cloud[f] - params.offload_time_cloud - tx_time)))
+        if c.max_rt - params.offload_time_cloud - tx_time > 0.0:
+            p += (1.0-params.cold_start_p_cloud[f])*(1.0 - math.exp(-1.0/params.serv_time_cloud[f]*(c.max_rt-params.offload_time_cloud - tx_time)))
         deadline_satisfaction_prob_cloud[(f,c)] = p
 
-        p = 0.0
-        try:
-            tx_time = f.inputSizeMean*8/1000/1000/bandwidth_edge
-            if c.max_rt - init_time_edge[f] - offload_time_edge - tx_time > 0.0:
-                p += cold_start_p_edge[f]*(1.0 - math.exp(-1.0/serv_time_edge[f]*(c.max_rt - init_time_edge[f] - offload_time_edge - tx_time)))
-            if c.max_rt - offload_time_edge - tx_time > 0.0:
-                p += (1.0-cold_start_p_edge[f])*(1.0 - math.exp(-1.0/serv_time_edge[f]*(c.max_rt-offload_time_edge - tx_time)))
-        except:
-            pass
-        deadline_satisfaction_prob_edge[(f,c)] = p
+        if params.aggregated_edge_memory > 0.0: 
+            p = 0.0
+            try:
+                tx_time = f.inputSizeMean*8/1000/1000/params.bandwidth_edge
+                if c.max_rt - params.init_time_edge[f] - params.offload_time_edge - tx_time > 0.0:
+                    p += params.cold_start_p_edge[f]*(1.0 - math.exp(-1.0/params.serv_time_edge[f]*(c.max_rt - params.init_time_edge[f] - params.offload_time_edge - tx_time)))
+                if c.max_rt - params.offload_time_edge - tx_time > 0.0:
+                    p += (1.0-params.cold_start_p_edge[f])*(1.0 - math.exp(-1.0/params.serv_time_edge[f]*(c.max_rt-params.offload_time_edge - tx_time)))
+            except:
+                pass
+            deadline_satisfaction_prob_edge[(f,c)] = p
+        else:
+            deadline_satisfaction_prob_edge = {fc: 0 for fc in params.fun_classes()}
 
     return deadline_satisfaction_prob_local, deadline_satisfaction_prob_cloud, deadline_satisfaction_prob_edge
 
-def update_probabilities (local, cloud, aggregated_edge_memory, functions,
-                            classes,
-                          arrival_rates,
-                          serv_time, serv_time_cloud, serv_time_edge,
-                          init_time_local, init_time_cloud, init_time_edge,
-                          offload_time_cloud, offload_time_edge,
-                          bandwidth_cloud, bandwidth_edge,
-                          cold_start_p_local, cold_start_p_cloud,
-                          cold_start_p_edge,budget=-1,
-                          local_usable_memory_coeff=1.0, VERBOSE=False):
-    F = functions
-    C = classes
+def update_probabilities (params: OptProblemParams, VERBOSE=False):
+    F = params.functions
+    C = params.classes
     F_C = [(f,c) for f in F for c in C]
 
     if VERBOSE > 1:
@@ -77,11 +65,7 @@ def update_probabilities (local, cloud, aggregated_edge_memory, functions,
     pE = pl.LpVariable.dicts("PEdge", (F, C), 0, 1, pl.LpContinuous)
     pD = pl.LpVariable.dicts("PDrop", (F, C), 0, 1, pl.LpContinuous)
 
-    deadline_satisfaction_prob_local, deadline_satisfaction_prob_cloud, deadline_satisfaction_prob_edge = compute_deadline_satisfaction_probs(F_C, serv_time, serv_time_cloud, serv_time_edge,\
-                          init_time_local, init_time_cloud, init_time_edge,\
-                          offload_time_cloud, offload_time_edge,\
-                          bandwidth_cloud, bandwidth_edge,\
-                          cold_start_p_local, cold_start_p_cloud, cold_start_p_edge)
+    deadline_satisfaction_prob_local, deadline_satisfaction_prob_cloud, deadline_satisfaction_prob_edge = compute_deadline_satisfaction_probs(params)
 
     if VERBOSE > 1:
         print("------------------------------")
@@ -100,9 +84,7 @@ def update_probabilities (local, cloud, aggregated_edge_memory, functions,
                        pl.lpSum([c.penalty*arrival_rates[(f,c)]*\
                        (pL[f][c]*(1.0-deadline_satisfaction_prob_local[(f,c)])+\
                        pE[f][c]*(1.0-deadline_satisfaction_prob_edge[(f,c)])+\
-                       pC[f][c]*(1.0-deadline_satisfaction_prob_cloud[(f,c)])) for f,c in F_C])-\
-                BETA_COST*pl.lpSum([cloud.cost*arrival_rates[(f,c)]*\
-                       pC[f][c]*serv_time_cloud[f]*f.memory/1024 for f,c in F_C]) , "objUtilCost")
+                       pC[f][c]*(1.0-deadline_satisfaction_prob_cloud[(f,c)])) for f,c in F_C]), "objUtilCost")
 
     # Probability
     for f,c in F_C:

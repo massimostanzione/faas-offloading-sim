@@ -5,6 +5,7 @@ from pacsltk import perfmodel
 import conf
 import lp_optimizer, optimizer_no_edge, optimizer_nonlinear
 from policy import Policy, SchedulerDecision, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS
+from optimization import OptProblemParams
 
 ADAPTIVE_LOCAL_MEMORY_COEFFICIENT=True
 ADAPTIVE_EDGE_MEMORY_COEFFICIENT=True
@@ -429,27 +430,31 @@ class ProbabilisticPolicy2 (ProbabilisticPolicy):
         else:
             raise RuntimeError(f"Unknown optimizer: {optimizer_to_use}")
 
-        new_probs = opt.update_probabilities(self.node, self.cloud,
-                                                   self.aggregated_edge_memory,
-                                                   self.simulation.functions,
-                                                   self.simulation.classes,
-                                                   self.arrival_rates,
-                                                   self.estimated_service_time,
-                                                   self.estimated_service_time_cloud,
-                                                   self.estimated_service_time_edge,
-                                                   self.init_time_local,
-                                                   self.init_time_cloud,
-                                                   self.init_time_edge,
-                                                   self.cloud_rtt,
-                                                   self.edge_rtt,
-                                                   self.cloud_bw,
-                                                   self.edge_bw,
-                                                   self.cold_start_prob_local,
-                                                   self.cold_start_prob_cloud,
-                                                   self.cold_start_prob_edge,
-                                                   self.local_budget,
-                                                   self.local_usable_memory_coeff,
-                                                   self.simulation.verbosity)
+        # TODO: build params object
+        params = OptProblemParams(self.node, 
+                self.cloud, 
+                self.simulation.functions,
+                self.simulation.classes,
+                self.arrival_rates,
+                self.estimated_service_time,
+                self.estimated_service_time_cloud,
+                self.init_time_local,
+                self.init_time_cloud,
+                self.cold_start_prob_local,
+                self.cold_start_prob_cloud,
+                self.cloud_rtt,
+                self.cloud_bw,
+                self.local_usable_memory_coeff,
+                self.local_budget,
+                self.aggregated_edge_memory,
+                self.estimated_service_time_edge,
+                self.edge_rtt,
+                self.cold_start_prob_edge,
+                self.init_time_edge,
+                self.edge_bw)
+
+        new_probs = opt.update_probabilities(params, self.simulation.verbosity)
+
         if new_probs is not None:
             self.probs = new_probs
             #print(f"[{self.node}] Probs: {self.probs}")
