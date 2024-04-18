@@ -3,6 +3,7 @@ import numpy as np
 import math
 import lp_optimizer 
 from scipy.optimize import minimize, LinearConstraint
+from optimization import OptProblemParams
 
 def optimize_P2 (lp_probs, FC, pDeadlineL, pDeadlineC, local, cloud, aggregated_edge_memory, functions,
                             classes,
@@ -74,19 +75,11 @@ def optimize_P2 (lp_probs, FC, pDeadlineL, pDeadlineC, local, cloud, aggregated_
 
     return probs
 
-def optimize (lp_probs, FC, pDeadlineL, pDeadlineC, pDeadlineE, local, cloud, aggregated_edge_memory, functions,
-                            classes,
-                          arrival_rates,
-                          serv_time, serv_time_cloud, serv_time_edge,
-                          init_time_local, init_time_cloud, init_time_edge,
-                          offload_time_cloud, offload_time_edge,
-                          bandwidth_cloud, bandwidth_edge,
-                          cold_start_p_local, cold_start_p_cloud,
-                          cold_start_p_edge,budget=-1,
-                          local_usable_memory_coeff=1.0):
+def optimize (lp_probs, params, pDeadlineL, pDeadlineC, pDeadlineE):
 
+    FC=list(params.fun_classes())
     N=len(FC)
-    EDGE_ENABLED = True if aggregated_edge_memory > 0.0 else False
+    EDGE_ENABLED = True if params.aggregated_edge_memory > 0.0 else False
     NVARS = 3 if EDGE_ENABLED else 2
 
     print(lp_probs)
@@ -102,11 +95,11 @@ def optimize (lp_probs, FC, pDeadlineL, pDeadlineC, pDeadlineE, local, cloud, ag
 
 
     def kaufman (_p):
-        M = int(local_usable_memory_coeff*local.total_memory)
+        M = int(params.usable_local_memory_coeff*params.local_node.total_memory)
         mem_demands = [fc[0].memory for fc in FC]
         alpha = np.zeros(len(mem_demands))
         for i,fc in enumerate(FC):
-            alpha[i] = arrival_rates[fc]*_p[NVARS*i]*serv_time[fc[0]]
+            alpha[i] = params.arrival_rates[fc]*_p[NVARS*i]*params.serv_time_local[fc[0]]
 
         q = np.zeros(M+1)
         q[0] = 1
@@ -134,9 +127,9 @@ def optimize (lp_probs, FC, pDeadlineL, pDeadlineC, pDeadlineE, local, cloud, ag
             gammaL = c.utility*pDeadlineL[fc] - c.penalty*(1-pDeadlineL[fc])
             gammaC = c.utility*pDeadlineC[fc] - c.penalty*(1-pDeadlineC[fc])
             gammaE = c.utility*pDeadlineE[fc] - c.penalty*(1-pDeadlineE[fc])
-            v += arrival_rates[(f,c)] * (_p[NVARS*i]*gammaL + _p[NVARS*i+1]*gammaC)
+            v += params.arrival_rates[(f,c)] * (_p[NVARS*i]*gammaL + _p[NVARS*i+1]*gammaC)
             if EDGE_ENABLED:
-                v += arrival_rates[(f,c)] * _p[NVARS*i+2]*gammaE
+                v += params.arrival_rates[(f,c)] * _p[NVARS*i+2]*gammaE
         return v
 
     def obj (_p):
@@ -147,11 +140,11 @@ def optimize (lp_probs, FC, pDeadlineL, pDeadlineC, pDeadlineE, local, cloud, ag
             gammaL = c.utility*pDeadlineL[fc] - c.penalty*(1-pDeadlineL[fc])
             gammaC = c.utility*pDeadlineC[fc] - c.penalty*(1-pDeadlineC[fc])
             gammaE = c.utility*pDeadlineE[fc] - c.penalty*(1-pDeadlineE[fc])
-            v += arrival_rates[(f,c)] * (\
+            v += params.arrival_rates[(f,c)] * (\
                     _p[NVARS*i]*(1-blocking_p[i])*gammaL +\
                     _p[NVARS*i+1]*gammaC)
             if EDGE_ENABLED:
-                v += arrival_rates[(f,c)] * _p[NVARS*i+2]*gammaE
+                v += params.arrival_rates[(f,c)] * _p[NVARS*i+2]*gammaE
         return v
 
     print(f"LP obj: {obj(p)} ({lp_obj(p)})")
@@ -168,8 +161,8 @@ def optimize (lp_probs, FC, pDeadlineL, pDeadlineC, pDeadlineE, local, cloud, ag
     A2 = np.zeros(NVARS*N)
     for i,fc in enumerate(FC):
         # cloud usage
-        A2[NVARS*i+1]=cloud.cost*arrival_rates[fc]*serv_time_cloud[fc[0]]*fc[0].memory/1024
-    budgetLC = LinearConstraint(A=A2, lb=0, ub=budget/3600, keep_feasible=False)
+        A2[NVARS*i+1]=params.cloud.cost*params.arrival_rates[fc]*params.serv_time_cloud[fc[0]]*fc[0].memory/1024
+    budgetLC = LinearConstraint(A=A2, lb=0, ub=params.budget/3600, keep_feasible=False)
 
     constraints = [sumLC, budgetLC]
     
@@ -177,8 +170,8 @@ def optimize (lp_probs, FC, pDeadlineL, pDeadlineC, pDeadlineE, local, cloud, ag
         A3 = np.zeros(NVARS*N)
         for i,fc in enumerate(FC):
             # edge mem
-            A3[NVARS*i+2]=arrival_rates[fc]*serv_time_edge[fc[0]]*fc[0].memory
-        edgeMemLC = LinearConstraint(A=A3, lb=0, ub=aggregated_edge_memory, keep_feasible=False)
+            A3[NVARS*i+2]=params.arrival_rates[fc]*params.serv_time_edge[fc[0]]*fc[0].memory
+        edgeMemLC = LinearConstraint(A=A3, lb=0, ub=params.aggregated_edge_memory, keep_feasible=False)
         constraints.append(edgeMemLC)
 
     #constraints = []
@@ -206,33 +199,13 @@ def optimize (lp_probs, FC, pDeadlineL, pDeadlineC, pDeadlineE, local, cloud, ag
     return probs
 
 
-def update_probabilities (local, cloud, aggregated_edge_memory, functions,
-                            classes,
-                          arrival_rates,
-                          serv_time, serv_time_cloud, serv_time_edge,
-                          init_time_local, init_time_cloud, init_time_edge,
-                          offload_time_cloud, offload_time_edge,
-                          bandwidth_cloud, bandwidth_edge,
-                          cold_start_p_local, cold_start_p_cloud,
-                          cold_start_p_edge,budget=-1,
-                          local_usable_memory_coeff=1.0, VERBOSE=False):
-    F = functions
-    C = classes
-    FC = [(f,c) for f in F for c in C]
+def update_probabilities (params: OptProblemParams, VERBOSE=False):
+    F = params.functions
+    C = params.classes
 
-    pDeadlineL, pDeadlineC, pDeadlineE = lp_optimizer.compute_deadline_satisfaction_probs(FC, serv_time, serv_time_cloud, serv_time_edge,\
-                          init_time_local, init_time_cloud, init_time_edge,\
-                          offload_time_cloud, offload_time_edge,\
-                          bandwidth_cloud, bandwidth_edge,\
-                          cold_start_p_local, cold_start_p_cloud, cold_start_p_edge)
+    pDeadlineL, pDeadlineC, pDeadlineE = lp_optimizer.compute_deadline_satisfaction_probs(params)
 
-    lp_probs = lp_optimizer.update_probabilities(local, cloud, aggregated_edge_memory, functions,
-                            classes, arrival_rates, serv_time, serv_time_cloud, serv_time_edge,
-                          init_time_local, init_time_cloud, init_time_edge,
-                          offload_time_cloud, offload_time_edge,
-                          bandwidth_cloud, bandwidth_edge,
-                          cold_start_p_local, cold_start_p_cloud,
-                          cold_start_p_edge,budget, local_usable_memory_coeff)
+    lp_probs = lp_optimizer.update_probabilities(params, VERBOSE)
 
 
     #probs = optimize_P2(lp_probs, FC, pDeadlineL, pDeadlineC,
@@ -247,20 +220,10 @@ def update_probabilities (local, cloud, aggregated_edge_memory, functions,
     #                      cold_start_p_edge,budget,
     #                      local_usable_memory_coeff)
 
-    probs = optimize(lp_probs, FC, pDeadlineL, pDeadlineC, pDeadlineE,
-            local, cloud, aggregated_edge_memory, functions,
-                            classes,
-                          arrival_rates,
-                          serv_time, serv_time_cloud, serv_time_edge,
-                          init_time_local, init_time_cloud, init_time_edge,
-                          offload_time_cloud, offload_time_edge,
-                          bandwidth_cloud, bandwidth_edge,
-                          cold_start_p_local, cold_start_p_cloud,
-                          cold_start_p_edge,budget,
-                          local_usable_memory_coeff)
+    probs = optimize(lp_probs, params, pDeadlineL, pDeadlineC, pDeadlineE)
 
     #Workaround to avoid numerical issues
-    for f,c in FC:
+    for f,c in params.fun_classes():
         s = sum(probs[(f,c)])
         probs[(f,c)] = [x/s for x in probs[(f,c)]]
         if VERBOSE > 0:

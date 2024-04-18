@@ -17,9 +17,9 @@ def compute_deadline_satisfaction_probs (params: OptProblemParams):
     for f,c in params.fun_classes():
         p = 0.0
         if c.max_rt - params.init_time_local[f] > 0.0:
-            p += params.cold_start_p_local[f]*(1.0 - math.exp(-1.0/params.serv_time[f]*(c.max_rt - params.init_time_local[f])))
+            p += params.cold_start_p_local[f]*(1.0 - math.exp(-1.0/params.serv_time_local[f]*(c.max_rt - params.init_time_local[f])))
         if c.max_rt > 0.0:
-            p += (1.0-params.cold_start_p_local[f])*(1.0 - math.exp(-1.0/params.serv_time[f]*c.max_rt))
+            p += (1.0-params.cold_start_p_local[f])*(1.0 - math.exp(-1.0/params.serv_time_local[f]*c.max_rt))
         deadline_satisfaction_prob_local[(f,c)] = p
 
         p = 0.0
@@ -77,11 +77,11 @@ def update_probabilities (params: OptProblemParams, VERBOSE=False):
         print(f"Deadline Sat ProbE: {deadline_satisfaction_prob_edge}")
         print("------------------------------")
 
-    prob += (pl.lpSum([c.utility*arrival_rates[(f,c)]*\
+    prob += (pl.lpSum([c.utility*params.arrival_rates[(f,c)]*\
                        (pL[f][c]*deadline_satisfaction_prob_local[(f,c)]+\
                        pE[f][c]*deadline_satisfaction_prob_edge[(f,c)]+\
                        pC[f][c]*deadline_satisfaction_prob_cloud[(f,c)]) for f,c in F_C]) -\
-                       pl.lpSum([c.penalty*arrival_rates[(f,c)]*\
+                       pl.lpSum([c.penalty*params.arrival_rates[(f,c)]*\
                        (pL[f][c]*(1.0-deadline_satisfaction_prob_local[(f,c)])+\
                        pE[f][c]*(1.0-deadline_satisfaction_prob_edge[(f,c)])+\
                        pC[f][c]*(1.0-deadline_satisfaction_prob_cloud[(f,c)])) for f,c in F_C]), "objUtilCost")
@@ -91,27 +91,27 @@ def update_probabilities (params: OptProblemParams, VERBOSE=False):
         prob += (pL[f][c] + pE[f][c] + pC[f][c] + pD[f][c] == 1.0)
 
     # Memory
-    prob += (pl.lpSum([f.memory*x[f][c] for f,c in F_C]) <= local_usable_memory_coeff*local.total_memory)
-    prob += (pl.lpSum([f.memory*y[f][c] for f,c in F_C]) <= aggregated_edge_memory)
+    prob += (pl.lpSum([f.memory*x[f][c] for f,c in F_C]) <= params.usable_local_memory_coeff*params.local_node.total_memory)
+    prob += (pl.lpSum([f.memory*y[f][c] for f,c in F_C]) <= params.aggregated_edge_memory)
 
     # Share
     for f,c in F_C:
-        prob += (pL[f][c]*arrival_rates[(f,c)]*serv_time[f] <= x[f][c])
-        prob += (pE[f][c]*arrival_rates[(f,c)]*serv_time_edge[f] <= y[f][c])
+        prob += (pL[f][c]*params.arrival_rates[(f,c)]*params.serv_time_local[f] <= x[f][c])
+        prob += (pE[f][c]*params.arrival_rates[(f,c)]*params.serv_time_edge[f] <= y[f][c])
 
     class_arrival_rates = {}
     for c in C:
-        class_arrival_rates[c] = sum([arrival_rates[(f,c)] for f in F if c in C])
+        class_arrival_rates[c] = sum([params.arrival_rates[(f,c)] for f in F if c in C])
 
     # Min completion
     for c in C:
         if c.min_completion_percentage > 0.0 and class_arrival_rates[c] > 0.0:
-            prob += (pl.lpSum([pD[f][c]*arrival_rates[(f,c)] for f in F])/class_arrival_rates[c]                     <= 1 - c.min_completion_percentage)
+            prob += (pl.lpSum([pD[f][c]*params.arrival_rates[(f,c)] for f in F])/class_arrival_rates[c]                     <= 1 - c.min_completion_percentage)
     
     # Max hourly budget
-    if budget is not None and budget > 0.0:
-        prob += (pl.lpSum([cloud.cost*arrival_rates[(f,c)]*\
-                       pC[f][c]*serv_time_cloud[f]*f.memory/1024 for f,c in F_C]) <= budget/3600)
+    if params.budget is not None and params.budget > 0.0:
+        prob += (pl.lpSum([params.cloud.cost*params.arrival_rates[(f,c)]*\
+                       pC[f][c]*params.serv_time_cloud[f]*f.memory/1024 for f,c in params.fun_classes()]) <= params.budget/3600)
 
     status = solve(prob)
     if status != "Optimal":
