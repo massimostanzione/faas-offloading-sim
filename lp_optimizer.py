@@ -51,6 +51,8 @@ def update_probabilities (params: OptProblemParams, VERBOSE=False):
     C = params.classes
     F_C = [(f,c) for f in F for c in C]
 
+    EDGE_ENABLED = True if params.aggregated_edge_memory > 0.0 else False
+
     if VERBOSE > 1:
         print("------------------------------")
         print(f"Edge memory: {aggregated_edge_memory}")
@@ -62,8 +64,9 @@ def update_probabilities (params: OptProblemParams, VERBOSE=False):
     y = pl.LpVariable.dicts("Y", (F, C), 0, None, pl.LpContinuous)
     pL = pl.LpVariable.dicts("PExec", (F, C), 0, 1, pl.LpContinuous)
     pC = pl.LpVariable.dicts("PCloud", (F, C), 0, 1, pl.LpContinuous)
-    pE = pl.LpVariable.dicts("PEdge", (F, C), 0, 1, pl.LpContinuous)
     pD = pl.LpVariable.dicts("PDrop", (F, C), 0, 1, pl.LpContinuous)
+    if EDGE_ENABLED:
+        pE = pl.LpVariable.dicts("PEdge", (F, C), 0, 1, pl.LpContinuous)
 
     deadline_satisfaction_prob_local, deadline_satisfaction_prob_cloud, deadline_satisfaction_prob_edge = compute_deadline_satisfaction_probs(params)
 
@@ -77,27 +80,41 @@ def update_probabilities (params: OptProblemParams, VERBOSE=False):
         print(f"Deadline Sat ProbE: {deadline_satisfaction_prob_edge}")
         print("------------------------------")
 
-    prob += (pl.lpSum([c.utility*params.arrival_rates[(f,c)]*\
-                       (pL[f][c]*deadline_satisfaction_prob_local[(f,c)]+\
-                       pE[f][c]*deadline_satisfaction_prob_edge[(f,c)]+\
-                       pC[f][c]*deadline_satisfaction_prob_cloud[(f,c)]) for f,c in F_C]) -\
-                       pl.lpSum([c.penalty*params.arrival_rates[(f,c)]*\
-                       (pL[f][c]*(1.0-deadline_satisfaction_prob_local[(f,c)])+\
-                       pE[f][c]*(1.0-deadline_satisfaction_prob_edge[(f,c)])+\
-                       pC[f][c]*(1.0-deadline_satisfaction_prob_cloud[(f,c)])) for f,c in F_C]), "objUtilCost")
+    if EDGE_ENABLED:
+        prob += (pl.lpSum([c.utility*params.arrival_rates[(f,c)]*\
+                        (pL[f][c]*deadline_satisfaction_prob_local[(f,c)]+\
+                        pE[f][c]*deadline_satisfaction_prob_edge[(f,c)]+\
+                        pC[f][c]*deadline_satisfaction_prob_cloud[(f,c)]) for f,c in F_C]) -\
+                        pl.lpSum([c.penalty*params.arrival_rates[(f,c)]*\
+                        (pL[f][c]*(1.0-deadline_satisfaction_prob_local[(f,c)])+\
+                        pE[f][c]*(1.0-deadline_satisfaction_prob_edge[(f,c)])+\
+                        pC[f][c]*(1.0-deadline_satisfaction_prob_cloud[(f,c)])) for f,c in F_C]), "objUtilCost")
+    else:
+        prob += (pl.lpSum([c.utility*params.arrival_rates[(f,c)]*\
+                        (pL[f][c]*deadline_satisfaction_prob_local[(f,c)]+\
+                        pC[f][c]*deadline_satisfaction_prob_cloud[(f,c)]) for f,c in F_C]) -\
+                        pl.lpSum([c.penalty*params.arrival_rates[(f,c)]*\
+                        (pL[f][c]*(1.0-deadline_satisfaction_prob_local[(f,c)])+\
+                        pC[f][c]*(1.0-deadline_satisfaction_prob_cloud[(f,c)])) for f,c in F_C]), "objUtilCost")
 
     # Probability
-    for f,c in F_C:
-        prob += (pL[f][c] + pE[f][c] + pC[f][c] + pD[f][c] == 1.0)
+    if EDGE_ENABLED:
+        for f,c in F_C:
+            prob += (pL[f][c] + pE[f][c] + pC[f][c] + pD[f][c] == 1.0)
+    else:
+        for f,c in F_C:
+            prob += (pL[f][c] + pC[f][c] + pD[f][c] == 1.0)
 
     # Memory
     prob += (pl.lpSum([f.memory*x[f][c] for f,c in F_C]) <= params.usable_local_memory_coeff*params.local_node.total_memory)
-    prob += (pl.lpSum([f.memory*y[f][c] for f,c in F_C]) <= params.aggregated_edge_memory)
+    if EDGE_ENABLED:
+        prob += (pl.lpSum([f.memory*y[f][c] for f,c in F_C]) <= params.aggregated_edge_memory)
 
     # Share
     for f,c in F_C:
         prob += (pL[f][c]*params.arrival_rates[(f,c)]*params.serv_time_local[f] <= x[f][c])
-        prob += (pE[f][c]*params.arrival_rates[(f,c)]*params.serv_time_edge[f] <= y[f][c])
+        if EDGE_ENABLED:
+            prob += (pE[f][c]*params.arrival_rates[(f,c)]*params.serv_time_edge[f] <= y[f][c])
 
     class_arrival_rates = {}
     for c in C:
@@ -128,10 +145,16 @@ def update_probabilities (params: OptProblemParams, VERBOSE=False):
         shares = {(f,c): pl.value(x[f][c]) for f,c in F_C}
         print(f"Shares: {shares}")
 
-    probs = {(f,c): [pl.value(pL[f][c]),
-                     pl.value(pC[f][c]),
-                     pl.value(pE[f][c]),
-                     pl.value(pD[f][c])] for f,c in F_C}
+    if EDGE_ENABLED:
+        probs = {(f,c): [pl.value(pL[f][c]),
+                        pl.value(pC[f][c]),
+                        pl.value(pE[f][c]),
+                        pl.value(pD[f][c])] for f,c in F_C}
+    else:
+        probs = {(f,c): [pl.value(pL[f][c]),
+                        pl.value(pC[f][c]),
+                        0.0,
+                        pl.value(pD[f][c])] for f,c in F_C}
 
     # Expected cost
     #ec = 0

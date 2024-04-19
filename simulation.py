@@ -133,19 +133,21 @@ class Simulation:
         if configured_policy == "cloud":
             return policy.CloudPolicy(self, node)
         elif configured_policy == "probabilistic-legacy":
+            self.config.set(conf.SEC_POLICY, conf.EDGE_OFFLOADING_ENABLED, "false")
             return probabilistic.ProbabilisticPolicy(self, node)
         elif configured_policy == "probabilistic-legacy-strict":
+            self.config.set(conf.SEC_POLICY, conf.EDGE_OFFLOADING_ENABLED, "false")
             return probabilistic.ProbabilisticPolicy(self, node, True)
         elif configured_policy == "probabilistic":
-            return probabilistic.ProbabilisticPolicy2(self, node)
+            return probabilistic.ProbabilisticPolicy(self, node)
         elif configured_policy == "probabilistic-strict":
-            return probabilistic.ProbabilisticPolicy2(self, node, True)
+            return probabilistic.ProbabilisticPolicy(self, node, True)
         elif configured_policy == "probabilistic-strictAlt" or configured_policy == "fgcs24":
             self.config.set(conf.SEC_POLICY, conf.PROHIBIT_ANY_SECOND_OFFLOADING, "true")
-            return probabilistic.ProbabilisticPolicy2(self, node, True)
+            return probabilistic.ProbabilisticPolicy(self, node, True)
         elif configured_policy == "probabilisticAlt":
             self.config.set(conf.SEC_POLICY, conf.PROHIBIT_ANY_SECOND_OFFLOADING, "true")
-            return probabilistic.ProbabilisticPolicy2(self, node)
+            return probabilistic.ProbabilisticPolicy(self, node)
         elif configured_policy == "greedy":
             return policy.GreedyPolicy(self, node)
         elif configured_policy == "greedy-budget":
