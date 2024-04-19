@@ -27,7 +27,8 @@ EDGE_COLD_START_EST_STRATEGY = "edge-cold-start-estimation"
 HOURLY_BUDGET = "budget"
 QOS_OPTIMIZER = "optimizer"
 SPLIT_BUDGET_AMONG_EDGE_NODES = "split-budget-edge"
-PROHIBIT_ANY_SECOND_OFFLOADING = "prohibit-any-second-offloading"
+MULTIPLE_OFFLOADING_ALLOWED = "multiple-offloading-allowed"
+FALLBACK_ON_LOCAL_REJECTION = "local-rejection-fallback"
 
 
 SEC_STATEFUL = "stateful"

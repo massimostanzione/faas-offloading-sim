@@ -143,11 +143,8 @@ class Simulation:
         elif configured_policy == "probabilistic-strict":
             return probabilistic.ProbabilisticPolicy(self, node, True)
         elif configured_policy == "probabilistic-strictAlt" or configured_policy == "fgcs24":
-            self.config.set(conf.SEC_POLICY, conf.PROHIBIT_ANY_SECOND_OFFLOADING, "true")
+            self.config.set(conf.SEC_POLICY, conf.MULTIPLE_OFFLOADING_ALLOWED, "false")
             return probabilistic.ProbabilisticPolicy(self, node, True)
-        elif configured_policy == "probabilisticAlt":
-            self.config.set(conf.SEC_POLICY, conf.PROHIBIT_ANY_SECOND_OFFLOADING, "true")
-            return probabilistic.ProbabilisticPolicy(self, node)
         elif configured_policy == "greedy":
             return policy.GreedyPolicy(self, node)
         elif configured_policy == "greedy-budget":

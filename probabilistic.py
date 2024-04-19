@@ -24,8 +24,6 @@ class ProbabilisticPolicy (Policy):
                                                                   fallback=1.0)
         self.edge_enabled = simulation.config.getboolean(conf.SEC_POLICY, conf.EDGE_OFFLOADING_ENABLED, fallback="true")
         self.strict_budget_enforce = strict_budget_enforce
-        self.prohibit_any_2nd_offloading = simulation.config.getboolean(conf.SEC_POLICY, conf.PROHIBIT_ANY_SECOND_OFFLOADING,
-                                                                  fallback="false")
 
         cloud_region = node.region.default_cloud
         cloud_nodes = [n for n in self.simulation.infra.get_region_nodes(cloud_region) if n.total_memory>0]
@@ -40,13 +38,16 @@ class ProbabilisticPolicy (Policy):
         self.edge_cold_start_estimation = ColdStartEstimation.from_string(self.simulation.config.get(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))
         assert(self.edge_cold_start_estimation != ColdStartEstimation.FULL_KNOWLEDGE)
 
+        self.allow_multi_offloading = simulation.config.getboolean(conf.SEC_POLICY, conf.MULTIPLE_OFFLOADING_ALLOWED,
+                fallback=False)
+        self.local_rejection_fallback = simulation.config.get(conf.SEC_POLICY, conf.FALLBACK_ON_LOCAL_REJECTION, fallback="reschedule")
+
         # Variables used for the adaptive local memory constraint
         self.adaptive_local_memory = simulation.config.getboolean(conf.SEC_POLICY, conf.ADAPTIVE_LOCAL_MEMORY,
-                                                                  fallback="false")
+                                                                  fallback=False)
         self.curr_local_blocked_reqs = 0
         self.curr_local_reqs = 0
         self.local_usable_memory_coeff = 1.0
-        self.forced_drop = 0.0
 
         self.arrival_rates = {}
         self.estimated_service_time = {}
@@ -72,37 +73,46 @@ class ProbabilisticPolicy (Policy):
         probabilities = self.probs[(f, c)].copy()
         
         # If the request has already been offloaded, cannot offload again
-        if len(offloaded_from) > 0: 
+        if len(offloaded_from) > 0 and not self.allow_multi_offloading: 
             probabilities[SchedulerDecision.OFFLOAD_EDGE.value-1] = 0
             probabilities[SchedulerDecision.OFFLOAD_CLOUD.value-1] = 0
             s = sum(probabilities)
             if not s > 0.0:
-                probabilities = [0 for x in probabilities]
-                probabilities[SchedulerDecision.EXEC.value-1]=0.5
-                probabilities[SchedulerDecision.DROP.value-1]=0.5
+                return (SchedulerDecision.DROP, None)
             else:
                 probabilities = [x/s for x in probabilities]
 
         decision = self.rng.choice(self.possible_decisions, p=probabilities)
         if decision == SchedulerDecision.EXEC:
             self.curr_local_reqs += 1
+
+        # Local rejection due to lack of resources
         if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
             self.curr_local_blocked_reqs += 1
-            if self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
-                probabilities[SchedulerDecision.OFFLOAD_CLOUD.value-1] = 0
-            probabilities[SchedulerDecision.EXEC.value-1] = 0
-            s = sum(probabilities)
-            if not s > 0.0:
-                # NOTE: we may add new Cloud offloadings even if p_cloud=0
-                if c.utility > 0.0 and \
-                        self.simulation.stats.cost / self.simulation.t * 3600 < self.budget \
-                        and (not self.prohibit_any_2nd_offloading or len(offloaded_from) == 0):
-                    return (SchedulerDecision.OFFLOAD_CLOUD, None)
-                else:
-                    return (SchedulerDecision.DROP, None)
-                    self.forced_drop += 1
-            probabilities = [x/s for x in probabilities]
-            return (self.rng.choice(self.possible_decisions, p=probabilities), None)
+
+            if self.local_rejection_fallback == "fgcs24" or self.local_rejection_fallback == "reschedule":
+                probabilities[SchedulerDecision.EXEC.value-1] = 0
+
+                if self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
+                    probabilities[SchedulerDecision.OFFLOAD_CLOUD.value-1] = 0
+
+                s = sum(probabilities)
+                if not s > 0.0:
+                    # NOTE: we may add new Cloud offloadings even if p_cloud=0
+                    if c.utility > 0.0 and \
+                            self.simulation.stats.cost / self.simulation.t * 3600 < self.budget \
+                            and (self.allow_multi_offloading or len(offloaded_from) == 0):
+                        return (SchedulerDecision.OFFLOAD_CLOUD, None)
+                    else:
+                        return (SchedulerDecision.DROP, None)
+
+                probabilities = [x/s for x in probabilities]
+                return (self.rng.choice(self.possible_decisions, p=probabilities), None)
+            elif self.local_rejection_fallback == "drop":
+                return (SchedulerDecision.DROP, None)
+            else:
+                raise RuntimeError(f"Unknown local rejection fallback: {self.local_rejection_fallback}")
+
         
         if decision == SchedulerDecision.OFFLOAD_CLOUD and self.strict_budget_enforce and\
                 self.simulation.stats.cost / self.simulation.t * 3600 > self.budget:
