@@ -7,7 +7,6 @@ import lp_optimizer, optimizer_nonlinear
 from policy import Policy, SchedulerDecision, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS
 from optimization import OptProblemParams
 
-ADAPTIVE_LOCAL_MEMORY_COEFFICIENT=True
 ADAPTIVE_EDGE_MEMORY_COEFFICIENT=True
 
 
@@ -18,18 +17,22 @@ class ProbabilisticPolicy (Policy):
     def __init__(self, simulation, node, strict_budget_enforce=False):
         super().__init__(simulation, node)
 
-        self.edge_enabled = simulation.config.getboolean(conf.SEC_POLICY, conf.EDGE_OFFLOADING_ENABLED, fallback="true")
-        self.strict_budget_enforce = strict_budget_enforce
-        cloud_region = node.region.default_cloud
-        cloud_nodes = [n for n in self.simulation.infra.get_region_nodes(cloud_region) if n.total_memory>0]
-        self.cloud = self.simulation.node_choice_rng.choice(cloud_nodes, 1)[0]
-
-
         self.rng = self.simulation.policy_rng1
         self.stats_snapshot = None
         self.last_update_time = None
         self.arrival_rate_alpha = self.simulation.config.getfloat(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA,
                                                                   fallback=1.0)
+        self.edge_enabled = simulation.config.getboolean(conf.SEC_POLICY, conf.EDGE_OFFLOADING_ENABLED, fallback="true")
+        self.strict_budget_enforce = strict_budget_enforce
+        self.prohibit_any_2nd_offloading = simulation.config.getboolean(conf.SEC_POLICY, conf.PROHIBIT_ANY_SECOND_OFFLOADING,
+                                                                  fallback="false")
+
+        cloud_region = node.region.default_cloud
+        cloud_nodes = [n for n in self.simulation.infra.get_region_nodes(cloud_region) if n.total_memory>0]
+
+        # Pick randomly one cloud node among the available ones
+        self.cloud = self.simulation.node_choice_rng.choice(cloud_nodes, 1)[0]
+
         self.local_cold_start_estimation = ColdStartEstimation.from_string(self.simulation.config.get(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))
         assert(self.local_cold_start_estimation != ColdStartEstimation.FULL_KNOWLEDGE)
         self.cloud_cold_start_estimation = ColdStartEstimation.from_string(self.simulation.config.get(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))
@@ -37,6 +40,9 @@ class ProbabilisticPolicy (Policy):
         self.edge_cold_start_estimation = ColdStartEstimation.from_string(self.simulation.config.get(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, fallback=ColdStartEstimation.NAIVE))
         assert(self.edge_cold_start_estimation != ColdStartEstimation.FULL_KNOWLEDGE)
 
+        # Variables used for the adaptive local memory constraint
+        self.adaptive_local_memory = simulation.config.getboolean(conf.SEC_POLICY, conf.ADAPTIVE_LOCAL_MEMORY,
+                                                                  fallback="false")
         self.curr_local_blocked_reqs = 0
         self.curr_local_reqs = 0
         self.local_usable_memory_coeff = 1.0
@@ -58,11 +64,6 @@ class ProbabilisticPolicy (Policy):
         self.edge_rtt = 0.0
         self.edge_bw = float("inf")
         self.cold_start_prob_edge = {}
-        self.prohibit_any_2nd_offloading = simulation.config.getboolean(conf.SEC_POLICY, conf.PROHIBIT_ANY_SECOND_OFFLOADING,
-                                                                  fallback="false")
-
-        self.adaptive_local_memory = simulation.config.getboolean(conf.SEC_POLICY, conf.ADAPTIVE_LOCAL_MEMORY,
-                                                                  fallback="false")
 
         self.possible_decisions = list(SchedulerDecision)
         self.probs = {(f, c): [0.5, 0.5, 0., 0.] for f in simulation.functions for c in simulation.classes}
@@ -110,16 +111,17 @@ class ProbabilisticPolicy (Policy):
         return (decision, None)
 
     def update(self):
-
         self.update_metrics()
 
         arrivals = sum([self.arrival_rates.get((f,c), 0.0) for f in self.simulation.functions for c in self.simulation.classes])
         if arrivals > 0.0:
+            # trigger the optimizer 
             self.update_probabilities()
 
         self.stats_snapshot = self.simulation.stats.to_dict()
         self.last_update_time = self.simulation.t
 
+        # reset counters
         self.curr_local_blocked_reqs = 0
         self.curr_local_reqs = 0
 
@@ -220,18 +222,12 @@ class ProbabilisticPolicy (Policy):
             else:
                 self.estimated_service_time_cloud[f] = 0.1
         
-        expected_compl = {}
-        expected_drop = {}
-        expected_offload = {}
         if self.stats_snapshot is not None:
             arrival_rates = {}
             for f, c, n in stats.arrivals:
                 if n != self.node:
                     continue
                 new_arrivals = stats.arrivals[(f, c, self.node)] - self.stats_snapshot["arrivals"][repr((f, c, n))]
-                expected_compl[(f,c)] = new_arrivals*self.probs[(f,c)][0]
-                expected_offload[(f,c)] = new_arrivals*self.probs[(f,c)][1]
-                expected_drop[(f,c)] = new_arrivals*self.probs[(f,c)][2]
                 new_rate = new_arrivals / (self.simulation.t - self.last_update_time)
                 self.arrival_rates[(f, c)] = self.arrival_rate_alpha * new_rate + \
                                              (1.0 - self.arrival_rate_alpha) * self.arrival_rates[(f, c)]
@@ -243,25 +239,21 @@ class ProbabilisticPolicy (Policy):
 
         self.estimate_cold_start_prob(stats)
 
-        #print(f"[{self.node}] Arrivals: {self.arrival_rates}")
-
         self.cloud_rtt = 2 * self.simulation.infra.get_latency(self.node, self.cloud)
         self.cloud_bw = self.simulation.infra.get_bandwidth(self.node, self.cloud)
         stats = self.simulation.stats
 
-
-        neighbor_probs, neighbors = self._get_edge_peers_probabilities()
-        if not self.edge_enabled or len(neighbors) == 0:
-            self.aggregated_edge_memory = 0
-        else:
-            self.aggregated_edge_memory = max(1,sum([x.curr_memory*x.peer_exposed_memory_fraction for x in neighbors]))
-        
         if self.edge_enabled:
+            neighbor_probs, neighbors = self._get_edge_peers_probabilities()
+            if len(neighbors) == 0:
+                self.aggregated_edge_memory = 0
+            else:
+                self.aggregated_edge_memory = max(1,sum([x.curr_memory*x.peer_exposed_memory_fraction for x in neighbors]))
+
             self.edge_rtt = sum([self.simulation.infra.get_latency(self.node, x)*prob for x,prob in zip(neighbors, neighbor_probs)])
             self.edge_bw = sum([self.simulation.infra.get_bandwidth(self.node, x)*prob for x,prob in zip(neighbors, neighbor_probs)])
 
-        self.estimated_service_time_edge = {}
-        if self.edge_enabled:
+            self.estimated_service_time_edge = {}
             for f in self.simulation.functions:
                 inittime = 0.0
                 servtime = 0.0
@@ -317,7 +309,7 @@ class ProbabilisticPolicy (Policy):
 
 
     def update_probabilities(self):
-        if ADAPTIVE_LOCAL_MEMORY_COEFFICIENT:
+        if self.adaptive_local_memory:
             loss = self.curr_local_blocked_reqs/self.curr_local_reqs if self.curr_local_reqs > 0 else 0
             if loss > 0.0:
                 self.local_usable_memory_coeff -= self.local_usable_memory_coeff*loss/2.0
@@ -337,7 +329,6 @@ class ProbabilisticPolicy (Policy):
             # probably redundant, just to be sure
             self.aggregated_edge_memory = 0
 
-        # TODO: build params object
         params = OptProblemParams(self.node, 
                 self.cloud, 
                 self.simulation.functions,
@@ -373,12 +364,16 @@ class RandomPolicy(Policy):
     def __init__(self, simulation, node):
         super().__init__(simulation, node)
         self.rng = self.simulation.policy_rng1
+        self.edge_enabled = simulation.config.getboolean(conf.SEC_POLICY, conf.EDGE_OFFLOADING_ENABLED, fallback="true")
+        self.decisions = [SchedulerDecision.EXEC, SchedulerDecision.DROP, SchedulerDecision.OFFLOAD_CLOUD]
+        if self.edge_enabled:
+            self.decisions.append(SchedulerDecision.OFFLOAD_EDGE)
 
     def schedule(self, f, c, offloaded_from):
-        decision = self.rng.choice(list(SchedulerDecision))
+        decision = self.rng.choice(self.decisions)
 
         if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
-            decision = self.rng.choice([SchedulerDecision.DROP, SchedulerDecision.OFFLOAD_CLOUD, SchedulerDecision.OFFLOAD_EDGE])
+            decision = self.rng.choice(self.decisions[1:])
         return (decision, None)
 
     def update(self):
