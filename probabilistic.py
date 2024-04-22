@@ -327,13 +327,6 @@ class ProbabilisticPolicy (Policy):
                 self.local_usable_memory_coeff = min(self.local_usable_memory_coeff*1.1, 1.0)
             print(f"{self.node}: Usable memory: {self.local_usable_memory_coeff:.2f}")
 
-        optimizer_to_use =  self.simulation.config.get(conf.SEC_POLICY, conf.QOS_OPTIMIZER, fallback="")
-        if optimizer_to_use == "" or optimizer_to_use == "fgcs24" or optimizer_to_use == "lp":
-            opt = lp_optimizer
-        elif optimizer_to_use == "nonlinear":
-            opt = optimizer_nonlinear
-        else:
-            raise RuntimeError(f"Unknown optimizer: {optimizer_to_use}")
 
         if not self.edge_enabled:
             # probably redundant, just to be sure
@@ -361,13 +354,116 @@ class ProbabilisticPolicy (Policy):
                 self.init_time_edge,
                 self.edge_bw)
 
+        opt = self.get_optimizer()
         new_probs = opt.update_probabilities(params, self.simulation.verbosity)
 
         if new_probs is not None:
             self.probs = new_probs
             #print(f"[{self.node}] Probs: {self.probs}")
 
+    def get_optimizer (self):
+        optimizer_to_use =  self.simulation.config.get(conf.SEC_POLICY, conf.QOS_OPTIMIZER, fallback="")
+        if optimizer_to_use == "" or optimizer_to_use == "fgcs24" or optimizer_to_use == "lp":
+            opt = lp_optimizer
+        elif optimizer_to_use == "nonlinear":
+            opt = optimizer_nonlinear
+        else:
+            raise RuntimeError(f"Unknown optimizer: {optimizer_to_use}")
+        return opt
 
+class OfflineProbabilisticPolicy (ProbabilisticPolicy):
+    """
+    Probabilistic, with probabilities computed offline with *known* parameters.
+    An ideal approach.
+    """
+
+
+    def __init__(self, simulation, node, strict_budget_enforce=False):
+        super().__init__(simulation, node, strict_budget_enforce)
+
+        if not self.edge_enabled:
+            # probably redundant, just to be sure
+            self.aggregated_edge_memory = 0
+
+        if not self.node in self.simulation.node2arrivals:
+            # No arrivals here... just skip
+            self.probs = {(f, c): [0.5, 0.5, 0., 0.] for f in simulation.functions for c in simulation.classes}
+            return
+
+        self.update_metrics()
+
+        params = OptProblemParams(self.node, 
+                self.cloud, 
+                self.simulation.functions,
+                self.simulation.classes,
+                self.arrival_rates, 
+                self.estimated_service_time, 
+                self.estimated_service_time_cloud, 
+                self.init_time_local, 
+                self.init_time_cloud, 
+                self.cold_start_prob_local,
+                self.cold_start_prob_cloud,
+                self.cloud_rtt, 
+                self.cloud_bw,
+                1.0,
+                self.local_budget,
+                self.aggregated_edge_memory,
+                self.estimated_service_time_edge, 
+                self.edge_rtt,
+                self.cold_start_prob_edge, 
+                self.init_time_edge, 
+                self.edge_bw)
+
+        self.probs = self.get_optimizer().update_probabilities(params, self.simulation.verbosity)
+
+    def update(self):
+        pass
+
+    def update_metrics(self):
+
+        self.estimated_service_time = {}
+        self.estimated_service_time_cloud = {}
+
+        for f in self.simulation.functions:
+            self.estimated_service_time[f] = f.serviceMean / self.node.speedup
+            self.estimated_service_time_cloud[f] = f.serviceMean / self.cloud.speedup
+        
+        for arv_proc in self.simulation.node2arrivals[self.node]:
+            f = arv_proc.function
+            # NOTE: this only works for some arrival processes (e.g., not for
+            # trace-driven)
+            rate_per_class = arv_proc.get_per_class_mean_rate()
+            for c,r in rate_per_class.items():
+                self.arrival_rates[(f, c)] = r
+
+        self.estimate_cold_start_prob(self.simulation.stats) # stats are empty at this point...
+
+        self.cloud_rtt = 2 * self.simulation.infra.get_latency(self.node, self.cloud)
+        self.cloud_bw = self.simulation.infra.get_bandwidth(self.node, self.cloud)
+
+        if self.edge_enabled:
+            neighbor_probs, neighbors = self._get_edge_peers_probabilities()
+            if len(neighbors) == 0:
+                self.aggregated_edge_memory = 0
+            else:
+                self.aggregated_edge_memory = max(1,sum([x.curr_memory*x.peer_exposed_memory_fraction for x in neighbors]))
+
+            self.edge_rtt = sum([self.simulation.infra.get_latency(self.node, x)*prob for x,prob in zip(neighbors, neighbor_probs)])
+            self.edge_bw = sum([self.simulation.infra.get_bandwidth(self.node, x)*prob for x,prob in zip(neighbors, neighbor_probs)])
+
+            self.estimated_service_time_edge = {}
+            for f in self.simulation.functions:
+                inittime = 0.0
+                servtime = 0.0
+                for neighbor, prob in zip(neighbors, neighbor_probs):
+                    servtime += prob*f.serviceMean/neighbor.speedup
+                    inittime += prob*self.simulation.init_time[(f,neighbor)]
+                if servtime == 0.0:
+                    servtime = self.estimated_service_time[f]
+                self.estimated_service_time_edge[f] = servtime
+                self.init_time_edge[f] = inittime
+
+            self.estimate_edge_cold_start_prob(self.simulation.stats, neighbors, neighbor_probs)
 
 class RandomPolicy(Policy):
 

@@ -145,6 +145,10 @@ class Simulation:
         elif configured_policy == "probabilistic-strictAlt" or configured_policy == "fgcs24":
             self.config.set(conf.SEC_POLICY, conf.MULTIPLE_OFFLOADING_ALLOWED, "false")
             return probabilistic.ProbabilisticPolicy(self, node, True)
+        elif configured_policy == "probabilistic-offline":
+            return probabilistic.OfflineProbabilisticPolicy(self, node)
+        elif configured_policy == "probabilistic-offline-strict":
+            return probabilistic.OfflineProbabilisticPolicy(self, node, True)
         elif configured_policy == "greedy":
             return policy.GreedyPolicy(self, node)
         elif configured_policy == "greedy-budget":
@@ -187,6 +191,8 @@ class Simulation:
         self.t = 0.0
         self.node2policy = {}
 
+        self.expiration_timeout = self.config.getfloat(conf.SEC_CONTAINER, conf.EXPIRATION_TIMEOUT, fallback=600)
+
         # Policy
         policy_name = self.config.get(conf.SEC_POLICY, conf.POLICY_NAME, fallback="basic")
         for n in self.infra.get_edge_nodes():
@@ -215,7 +221,6 @@ class Simulation:
             self.resp_times_file = None
 
 
-        self.expiration_timeout = self.config.getfloat(conf.SEC_CONTAINER, conf.EXPIRATION_TIMEOUT, fallback=600)
 
 
         if not self.config.getboolean(conf.SEC_SIM, conf.PLOT_RESP_TIMES, fallback=False):

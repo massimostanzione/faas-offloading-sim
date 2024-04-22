@@ -2,7 +2,7 @@ from faas import Function, QoSClass
 
 import numpy as np
 import numpy.matlib as ml
-from map import SamplesFromMAP
+from map import SamplesFromMAP, MapMean
 
 class ArrivalProcess:
 
@@ -33,6 +33,15 @@ class ArrivalProcess:
     def has_dynamic_rate (self):
         return False
 
+    def get_mean_rate(self):
+        raise RuntimeError("Not implemented")
+
+    def get_per_class_mean_rate (self):
+        d={}
+        for c,p in zip(self.classes, self.class_probs):
+            d[c] = self.get_mean_rate()*p
+        return d
+
 
 class PoissonArrivalProcess (ArrivalProcess):
 
@@ -60,6 +69,9 @@ class PoissonArrivalProcess (ArrivalProcess):
             print(f"Rate: {self.rate} -> {next_rate}")
             self.rate = next_rate
 
+    def get_mean_rate(self):
+        return self.rate
+
 class DeterministicArrivalProcess (PoissonArrivalProcess):
 
     def __init__ (self, function: Function, classes: [QoSClass], rate: float,
@@ -69,6 +81,8 @@ class DeterministicArrivalProcess (PoissonArrivalProcess):
     def next_iat (self):
         return 1.0/self.rate
 
+    def get_mean_rate(self):
+        return self.rate
 
 
 class TraceArrivalProcess (ArrivalProcess):
@@ -94,6 +108,7 @@ class MAPArrivalProcess (ArrivalProcess):
         self.state = 0
         self.D0 = D0
         self.D1 = D1
+        print(f"Mean rate: {self.get_mean_rate()}")
 
     def next_iat (self):
         iat, self.state = SamplesFromMAP(self.D0, self.D1, 1, initial=self.state)
@@ -102,4 +117,6 @@ class MAPArrivalProcess (ArrivalProcess):
     def has_dynamic_rate (self):
         return False
 
+    def get_mean_rate(self):
+        return 1.0/MapMean(self.D0, self.D1)
 

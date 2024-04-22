@@ -80,6 +80,9 @@ def SamplesFromMAP (D0, D1, k, initial=None, prec=1e-14):
     
     return x, state
 
+def MapMean (D0, D1):
+    return MarginalMomentsFromMAP(D0,D1,1)[0]
+
 
 #D0 = ml.matrix([[-0.17, 0, 0, 0.07],[0.01, -0.78, 0.03, 0.08],[0.22, 0.17, -1.1, 0.02],[0.04, 0.12, 0, -0.42]])
 #D1 = ml.matrix([[0, 0.06, 0, 0.04],[0.04, 0.19, 0.21, 0.22],[0.22, 0.13, 0.15, 0.19],[0.05, 0, 0.17, 0.04]])
