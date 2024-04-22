@@ -263,6 +263,8 @@ class Simulation:
                 self.stats.print(sys.stdout)
         elif self.config.getboolean(conf.SEC_SIM, conf.PRINT_FINAL_STATS, fallback=True):
             self.stats.print(sys.stdout)
+        else:
+            print(self.stats.utility - self.stats.penalty)
 
         if self.resp_times_file is not None:
             self.resp_times_file.close()
