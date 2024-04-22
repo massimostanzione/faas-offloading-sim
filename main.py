@@ -25,8 +25,15 @@ def read_spec_file (spec_file_name, infra, config):
             arrival_weight = c.get("arrival_weight", 1.0)
             utility = c.get("utility", 1.0)
             penalty = c.get("penalty", 0.0)
+            if penalty > 0.0:
+                print("[WARNING] Using the deprecated 'penalty' attribute")
+                deadline_penalty = penalty
+                drop_penalty = 0.0
+            else:
+                deadline_penalty = c.get("deadline_penalty", 0.0)
+                drop_penalty = c.get("drop_penalty", 0.0)
             deadline = c.get("max_resp_time", 1.0)
-            newclass = faas.QoSClass(classname, deadline, arrival_weight, utility=utility, penalty=penalty)
+            newclass = faas.QoSClass(classname, deadline, arrival_weight, utility=utility, deadline_penalty=deadline_penalty, drop_penalty=drop_penalty)
             classes.append(newclass)
             classname2class[classname]=newclass
 

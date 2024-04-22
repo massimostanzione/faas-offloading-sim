@@ -85,17 +85,19 @@ def update_probabilities (params: OptProblemParams, VERBOSE=False):
                         (pL[f][c]*deadline_satisfaction_prob_local[(f,c)]+\
                         pE[f][c]*deadline_satisfaction_prob_edge[(f,c)]+\
                         pC[f][c]*deadline_satisfaction_prob_cloud[(f,c)]) for f,c in F_C]) -\
-                        pl.lpSum([c.penalty*params.arrival_rates[(f,c)]*\
+                        pl.lpSum([c.deadline_penalty*params.arrival_rates[(f,c)]*\
                         (pL[f][c]*(1.0-deadline_satisfaction_prob_local[(f,c)])+\
                         pE[f][c]*(1.0-deadline_satisfaction_prob_edge[(f,c)])+\
-                        pC[f][c]*(1.0-deadline_satisfaction_prob_cloud[(f,c)])) for f,c in F_C]), "objUtilCost")
+                        pC[f][c]*(1.0-deadline_satisfaction_prob_cloud[(f,c)])) for f,c in F_C]) -\
+                        pl.lpSum([c.drop_penalty*params.arrival_rates[(f,c)]*pD[f][c] for f,c in F_C]), "objUtilCost")
     else:
         prob += (pl.lpSum([c.utility*params.arrival_rates[(f,c)]*\
                         (pL[f][c]*deadline_satisfaction_prob_local[(f,c)]+\
                         pC[f][c]*deadline_satisfaction_prob_cloud[(f,c)]) for f,c in F_C]) -\
-                        pl.lpSum([c.penalty*params.arrival_rates[(f,c)]*\
+                        pl.lpSum([c.deadline_penalty*params.arrival_rates[(f,c)]*\
                         (pL[f][c]*(1.0-deadline_satisfaction_prob_local[(f,c)])+\
-                        pC[f][c]*(1.0-deadline_satisfaction_prob_cloud[(f,c)])) for f,c in F_C]), "objUtilCost")
+                        pC[f][c]*(1.0-deadline_satisfaction_prob_cloud[(f,c)])) for f,c in F_C]) -\
+                        pl.lpSum([c.drop_penalty*params.arrival_rates[(f,c)]*pD[f][c] for f,c in F_C]), "objUtilCost")
 
     # Probability
     if EDGE_ENABLED:

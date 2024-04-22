@@ -124,9 +124,9 @@ def optimize (lp_probs, params, pDeadlineL, pDeadlineC, pDeadlineE):
         v = 0
         for i,fc in enumerate(FC):
             f,c = fc
-            gammaL = c.utility*pDeadlineL[fc] - c.penalty*(1-pDeadlineL[fc])
-            gammaC = c.utility*pDeadlineC[fc] - c.penalty*(1-pDeadlineC[fc])
-            gammaE = c.utility*pDeadlineE[fc] - c.penalty*(1-pDeadlineE[fc])
+            gammaL = c.utility*pDeadlineL[fc] - c.deadline_penalty*(1-pDeadlineL[fc]) + c.drop_penalty
+            gammaC = c.utility*pDeadlineC[fc] - c.deadline_penalty*(1-pDeadlineC[fc]) + c.drop_penalty
+            gammaE = c.utility*pDeadlineE[fc] - c.deadline_penalty*(1-pDeadlineE[fc]) + c.drop_penalty
             v += params.arrival_rates[(f,c)] * (_p[NVARS*i]*gammaL + _p[NVARS*i+1]*gammaC)
             if EDGE_ENABLED:
                 v += params.arrival_rates[(f,c)] * _p[NVARS*i+2]*gammaE
@@ -137,9 +137,9 @@ def optimize (lp_probs, params, pDeadlineL, pDeadlineC, pDeadlineE):
         v = 0
         for i,fc in enumerate(FC):
             f,c = fc
-            gammaL = c.utility*pDeadlineL[fc] - c.penalty*(1-pDeadlineL[fc])
-            gammaC = c.utility*pDeadlineC[fc] - c.penalty*(1-pDeadlineC[fc])
-            gammaE = c.utility*pDeadlineE[fc] - c.penalty*(1-pDeadlineE[fc])
+            gammaL = c.utility*pDeadlineL[fc] - c.deadline_penalty*(1-pDeadlineL[fc]) + c.drop_penalty
+            gammaC = c.utility*pDeadlineC[fc] - c.deadline_penalty*(1-pDeadlineC[fc]) + c.drop_penalty
+            gammaE = c.utility*pDeadlineE[fc] - c.deadline_penalty*(1-pDeadlineE[fc]) + c.drop_penalty
             v += params.arrival_rates[(f,c)] * (\
                     _p[NVARS*i]*(1-blocking_p[i])*gammaL +\
                     _p[NVARS*i+1]*gammaC)

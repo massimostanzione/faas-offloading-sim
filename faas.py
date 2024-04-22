@@ -84,7 +84,8 @@ class QoSClass:
     arrival_weight: float = 1.0
     utility: float = 1.0
     min_completion_percentage: float = 0.0
-    penalty: float = 0.0
+    deadline_penalty: float = 0.0
+    drop_penalty: float = 0.0
 
     
     def __repr__ (self):

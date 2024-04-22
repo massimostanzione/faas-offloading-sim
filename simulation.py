@@ -409,7 +409,7 @@ class Simulation:
             self.stats.utility_detail[(f,c,n)] += c.utility
         elif c.max_rt > 0.0:
             self.stats.violations[(f,c,n)] += 1
-            self.stats.penalty += c.penalty
+            self.stats.penalty += c.deadline_penalty
 
         if f.max_data_access_time is not None and dat > f.max_data_access_time:
             self.stats.data_access_violations[f] += 1
@@ -465,6 +465,7 @@ class Simulation:
             self.schedule(float(self.t + init_time + duration), Completion(arrival_time, f,c, n, init_time > 0, duration, event.offloaded_from, data_access_time))
         elif sched_decision == SchedulerDecision.DROP:
             self.stats.dropped_reqs[(f,c,n)] += 1
+            self.stats.penalty += c.drop_penalty
             if event.offloaded_from is not None and len(event.offloaded_from) > 0:
                 self.stats.dropped_offloaded[(f,c,n)] += 1
         elif sched_decision == SchedulerDecision.OFFLOAD_CLOUD:
@@ -480,6 +481,7 @@ class Simulation:
             if remote_node is None:
                 # drop
                 self.stats.dropped_reqs[(f,c,n)] += 1
+                self.stats.penalty += c.drop_penalty
             else:
                 self.stats.offloaded[(f,c,n)] += 1
                 self.do_offload(event, remote_node)  
@@ -491,6 +493,7 @@ class Simulation:
             if remote_node is None:
                 # drop
                 self.stats.dropped_reqs[(f,c,n)] += 1
+                self.stats.penalty += c.drop_penalty
             else:
                 self.stats.offloaded[(f,c,n)] += 1
                 self.do_offload(event, remote_node)  
