@@ -355,7 +355,7 @@ class ProbabilisticPolicy (Policy):
                 self.edge_bw)
 
         opt = self.get_optimizer()
-        new_probs = opt.update_probabilities(params, self.simulation.verbosity)
+        new_probs, _ = opt.update_probabilities(params, self.simulation.verbosity)
 
         if new_probs is not None:
             self.probs = new_probs
@@ -414,7 +414,8 @@ class OfflineProbabilisticPolicy (ProbabilisticPolicy):
                 self.init_time_edge, 
                 self.edge_bw)
 
-        self.probs = self.get_optimizer().update_probabilities(params, self.simulation.verbosity)
+        self.probs, obj_value = self.get_optimizer().update_probabilities(params, self.simulation.verbosity)
+        self.simulation.stats.optimizer_obj_value[self.node] = obj_value
 
     def update(self):
         pass

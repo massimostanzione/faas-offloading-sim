@@ -135,12 +135,12 @@ def update_probabilities (params: OptProblemParams, VERBOSE=False):
     status = solve(prob)
     if status != "Optimal":
         print(f"WARNING: solution status: {status}")
-        return None
+        return None, None
     
     obj = pl.value(prob.objective)
     if obj is None:
         print(f"WARNING: objective is None")
-        return None
+        return None, None
     
     if VERBOSE > 0:
         print("Obj = ", obj)
@@ -174,7 +174,7 @@ def update_probabilities (params: OptProblemParams, VERBOSE=False):
         probs[(f,c)] = [x/s for x in probs[(f,c)]]
         if VERBOSE > 0:
             print(f"{f}-{c}: {probs[(f,c)]}")
-    return probs
+    return probs, obj
 
 def solve (problem):
     global warm_start

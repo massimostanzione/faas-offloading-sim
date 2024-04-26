@@ -196,7 +196,7 @@ def optimize (lp_probs, params, pDeadlineL, pDeadlineC, pDeadlineE):
         probs = {(fc[0],fc[1]): [x[NVARS*i], x[NVARS*i+1], 0, max(0.0,1.0-x[NVARS*i]-x[NVARS*i+1])]
                      for i,fc in enumerate(FC)}
     print(probs)
-    return probs
+    return probs, -1.0*res.fun
 
 
 def update_probabilities (params: OptProblemParams, VERBOSE=False):
@@ -205,7 +205,7 @@ def update_probabilities (params: OptProblemParams, VERBOSE=False):
 
     pDeadlineL, pDeadlineC, pDeadlineE = lp_optimizer.compute_deadline_satisfaction_probs(params)
 
-    lp_probs = lp_optimizer.update_probabilities(params, VERBOSE)
+    lp_probs, _ = lp_optimizer.update_probabilities(params, VERBOSE)
 
 
     #probs = optimize_P2(lp_probs, FC, pDeadlineL, pDeadlineC,
@@ -220,7 +220,7 @@ def update_probabilities (params: OptProblemParams, VERBOSE=False):
     #                      cold_start_p_edge,budget,
     #                      local_usable_memory_coeff)
 
-    probs = optimize(lp_probs, params, pDeadlineL, pDeadlineC, pDeadlineE)
+    probs, obj_val = optimize(lp_probs, params, pDeadlineL, pDeadlineC, pDeadlineE)
 
     #Workaround to avoid numerical issues
     for f,c in params.fun_classes():
@@ -230,4 +230,4 @@ def update_probabilities (params: OptProblemParams, VERBOSE=False):
             print(f"{f}-{c}: {probs[(f,c)]}")
 
 
-    return probs
+    return probs, obj_val

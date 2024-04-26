@@ -1,4 +1,5 @@
 import yaml
+import math
 import tempfile
 from scipy.stats import truncnorm
 import numpy as np
@@ -104,7 +105,7 @@ def generate_random_temp_spec (rng, n_functions=5, load_coeff=1.0, dynamic_rate_
     for f in functions:
         f["duration_mean"] = float(rng.uniform(0.1,0.5))
         f["init_mean"] = float(rng.uniform(0.25,0.75))
-        f["memory"] = float(rng.uniform(128,1024))
+        f["memory"] = int(math.ceil(rng.uniform(128,1024)))
         f["duration_scv"] = float(rng.choice([1,0.5,0.25]))
 
         myclip_a = 100

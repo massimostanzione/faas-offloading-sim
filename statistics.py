@@ -38,6 +38,7 @@ class Stats:
         self.data_access_tardiness = 0.0
         self.data_migrations_count = 0
         self.data_migrated_bytes = 0.0
+        self.optimizer_obj_value = {x: 0.0 for x in self.nodes}
         self._memory_usage_area = {x: 0.0 for x in self.nodes}
         self._memory_usage_t0 = {x: 0.0 for x in self.nodes}
         self._policy_update_time_sum = {x: 0.0 for x in self.nodes}
