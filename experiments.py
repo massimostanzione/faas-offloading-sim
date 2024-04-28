@@ -175,6 +175,89 @@ def experiment_varying_arrivals (args, config):
     with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
         config.write(of)
 
+def experiment_all_costs(args, config):
+    results = []
+    exp_tag = "allCosts"
+    config.set(conf.SEC_POLICY, conf.SPLIT_BUDGET_AMONG_EDGE_NODES, "false")
+    outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
+
+    config.set(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, "pacs")
+    config.set(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, "pacs")
+    config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "120")
+    config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
+
+
+    POLICIES = ["random", "basic", "basic-edge", "basic-budget", "probabilistic", "probabilistic2", "greedy", "greedy-min-cost", "greedy-budget", "probabilistic-strict", "probabilistic2-strict", "probabilistic2-strictAlt", "probabilistic2Alt"]
+
+    # Check existing results
+    old_results = None
+    if not args.force:
+        try:
+            old_results = pd.read_csv(outfile)
+        except:
+            pass
+
+    for seed in SEEDS:
+        config.set(conf.SEC_SIM, conf.SEED, str(seed))
+        seed_sequence = SeedSequence(seed)
+        for latency in [0.100]:
+            for budget in [0.25, 0.5, 1,2,10]:
+                config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
+                for functions in [5]:
+                    for pol in POLICIES:
+                        config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
+
+                        if "greedy" in pol:
+                            config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, "full-knowledge")
+                        else:
+                            config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, "naive-per-function")
+
+
+                        keys = {}
+                        keys["Policy"] = pol
+                        keys["Seed"] = seed
+                        keys["Functions"] = functions
+                        keys["Latency"] = latency
+                        keys["Budget"] = budget
+
+                        run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
+
+                        # Check if we can skip this run
+                        if old_results is not None and not\
+                                old_results[(old_results.Seed == seed) &\
+                                    (old_results.Latency == latency) &\
+                                    (old_results.Functions == functions) &\
+                                    (old_results.Budget == budget) &\
+                                    (old_results.Policy == pol)].empty:
+                            print("Skipping conf")
+                            continue
+
+                        rng = default_rng(seed_sequence.spawn(1)[0])
+                        temp_spec_file = generate_random_temp_spec (rng, n_functions=functions, edge_cost=0.00005)
+                        infra = default_infra(edge_cloud_latency=latency)
+                        stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
+                        temp_spec_file.close()
+                        with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                            stats.print(of)
+
+                        result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
+                        results.append(result)
+                        print(result)
+
+                        resultsDf = pd.DataFrame(results)
+                        if old_results is not None:
+                            resultsDf = pd.concat([old_results, resultsDf])
+                        resultsDf.to_csv(outfile, index=False)
+    
+    resultsDf = pd.DataFrame(results)
+    if old_results is not None:
+        resultsDf = pd.concat([old_results, resultsDf])
+    resultsDf.to_csv(outfile, index=False)
+    print(resultsDf.groupby("Policy").mean())
+
+    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
+        config.write(of)
+
 def experiment_main_comparison(args, config):
     results = []
     exp_tag = "mainComparison"
@@ -610,6 +693,8 @@ if __name__ == "__main__":
         experiment_scalability(args, config)
     elif args.experiment.lower() == "x":
         experiment_simple(args, config)
+    elif args.experiment.lower() == "z":
+        experiment_all_costs(args, config)
     else:
         print("Unknown experiment!")
         exit(1)
