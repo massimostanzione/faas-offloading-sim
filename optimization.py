@@ -29,3 +29,11 @@ class OptProblemParams:
         for f in self.functions:
             for c in self.classes:
                 yield (f,c)
+
+class Optimizer:
+
+    def __init__ (self, verbose=False):
+        self.verbose = verbose
+
+    def optimize_probabilities (self, params: OptProblemParams):
+        pass

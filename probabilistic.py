@@ -3,9 +3,10 @@ import numpy as np
 from pacsltk import perfmodel
 
 import conf
-import lp_optimizer, optimizer_nonlinear
+from lp_optimizer import LPOptimizer
+from optimizer_nonlinear import NonlinearOptimizer
 from policy import Policy, SchedulerDecision, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS
-from optimization import OptProblemParams
+from optimization import OptProblemParams, Optimizer
 
 ADAPTIVE_EDGE_MEMORY_COEFFICIENT=True
 
@@ -355,7 +356,7 @@ class ProbabilisticPolicy (Policy):
                 self.edge_bw)
 
         opt = self.get_optimizer()
-        new_probs, _ = opt.update_probabilities(params, self.simulation.verbosity)
+        new_probs, _ = opt.optimize_probabilities(params)
 
         if new_probs is not None:
             self.probs = new_probs
@@ -364,9 +365,15 @@ class ProbabilisticPolicy (Policy):
     def get_optimizer (self):
         optimizer_to_use =  self.simulation.config.get(conf.SEC_POLICY, conf.QOS_OPTIMIZER, fallback="")
         if optimizer_to_use == "" or optimizer_to_use == "fgcs24" or optimizer_to_use == "lp":
-            opt = lp_optimizer
+            opt = LPOptimizer(self.simulation.verbosity)
         elif optimizer_to_use == "nonlinear":
-            opt = optimizer_nonlinear
+            opt = NonlinearOptimizer(verbose=self.simulation.verbosity)
+        elif optimizer_to_use == "nonlinear-noguess":
+            opt = NonlinearOptimizer(initial_guess=None,
+                    verbose=self.simulation.verbosity)
+        elif optimizer_to_use == "nonlinear-lp-relaxed":
+            opt = NonlinearOptimizer(initial_guess="lp", method="none",
+                    verbose=self.simulation.verbosity)
         else:
             raise RuntimeError(f"Unknown optimizer: {optimizer_to_use}")
         return opt
@@ -414,7 +421,7 @@ class OfflineProbabilisticPolicy (ProbabilisticPolicy):
                 self.init_time_edge, 
                 self.edge_bw)
 
-        self.probs, obj_value = self.get_optimizer().update_probabilities(params, self.simulation.verbosity)
+        self.probs, obj_value = self.get_optimizer().optimize_probabilities(params)
         self.simulation.stats.optimizer_obj_value[self.node] = obj_value
 
     def update(self):

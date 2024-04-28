@@ -1,6 +1,23 @@
 from utils.latency_space import GradientEstimate, NetworkCoordinateSystem, Point, Space, SpringForce
-from lp_optimizer import solve
 
+def solve (problem):
+    warm_start=False
+    solver_name = os.environ.get("PULP_SOLVER", "GLPK_CMD")
+    
+    if not solver_name in ["CPLEX_CMD", "GUROBI_CMD", "PULP_CBC_CMD", "CBC_CMD", "CPLEX_PY", "GUROBI"] and warm_start:
+        print("WARNING: warmStart not supported by solver {}".format(solver_name))
+        warm_start = False
+
+    if not warm_start:
+        if solver_name == "GUROBI_CMD":
+            solver = pl.getSolver(solver_name, gapRel=0.02, timeLimit=900)
+        else:
+            solver = pl.getSolver(solver_name, msg=False)
+    else:
+        solver = pl.getSolver(solver_name, warmStart=warm_start)
+
+    problem.solve(solver)
+    return pl.LpStatus[problem.status]
 
 class KeyLocator:
     
