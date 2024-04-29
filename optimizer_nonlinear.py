@@ -133,7 +133,7 @@ class NonlinearOptimizer (Optimizer):
             x = res.x
             obj_val = -res.fun
         elif self.method == "none" or self.method is None:
-            x = p 
+            x = x0 
             obj_val = obj(x)
         else:
             raise RuntimeError(f"Unknown optimization method: '{self.method}'")
