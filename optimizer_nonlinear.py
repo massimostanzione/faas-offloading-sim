@@ -5,29 +5,34 @@ import lp_optimizer
 from scipy.optimize import minimize, LinearConstraint
 from optimization import OptProblemParams, Optimizer
 
+INITIAL_GUESS_NONE=None
+INITIAL_GUESS_LP="lp"
+INITIAL_GUESS_LAST_SOL="last"
+
 class NonlinearOptimizer (Optimizer):
 
     def __init__ (self, initial_guess="lp", method="trust-region", verbose=False):
         super().__init__(verbose)
         self.initial_guess = initial_guess
         self.method = method
+        self.last_solution = None
 
-    def optimize (self, lp_probs, params, pDeadlineL, pDeadlineC, pDeadlineE):
+    def optimize (self, params, pDeadlineL, pDeadlineC, pDeadlineE, x0=None, lp_probs=None):
         FC=list(params.fun_classes())
         N=len(FC)
         EDGE_ENABLED = True if params.aggregated_edge_memory > 0.0 else False
         NVARS = 3 if EDGE_ENABLED else 2
 
 
-        p = np.zeros(NVARS*N)
-
-        # Load the LP solution as the initial point
-        if lp_probs is not None:
-            for i,fc in enumerate(FC):
-                p[NVARS*i+0] = lp_probs[fc][0]
-                p[NVARS*i+1] = lp_probs[fc][1]
-                if EDGE_ENABLED:
-                    p[NVARS*i+2] = lp_probs[fc][2]
+        if x0 is None:
+            x0 = np.zeros(NVARS*N)
+            if lp_probs is not None:
+                # Load the LP solution as the initial point
+                for i,fc in enumerate(FC):
+                    x0[NVARS*i+0] = lp_probs[fc][0]
+                    x0[NVARS*i+1] = lp_probs[fc][1]
+                    if EDGE_ENABLED:
+                        x0[NVARS*i+2] = lp_probs[fc][2]
 
 
         def kaufman (_p):
@@ -85,7 +90,7 @@ class NonlinearOptimizer (Optimizer):
                     v += params.arrival_rates[(f,c)] * _p[NVARS*i+2]*gammaE
             return v
 
-        print(f"LP obj: {obj(p)} ({lp_obj(p)})")
+        print(f"LP obj for x0: {obj(x0)} ({lp_obj(x0)})")
 
         # sum <= 1
         A = np.zeros((N, NVARS*N))
@@ -123,7 +128,7 @@ class NonlinearOptimizer (Optimizer):
         bounds = [(0,1) for i in range(NVARS*N)]
 
         if self.method == "trust-region":
-            res = minimize(lambda x: -1*obj(x), p, method="trust-constr", bounds=bounds, constraints=constraints, tol=1e-6, options={"maxiter": 200000})
+            res = minimize(lambda x: -1*obj(x), x0, method="trust-constr", bounds=bounds, constraints=constraints, tol=1e-6, options={"maxiter": 200000})
             print(res)
             x = res.x
             obj_val = -res.fun
@@ -140,6 +145,10 @@ class NonlinearOptimizer (Optimizer):
             probs = {(fc[0],fc[1]): [x[NVARS*i], x[NVARS*i+1], 0, max(0.0,1.0-x[NVARS*i]-x[NVARS*i+1])]
                         for i,fc in enumerate(FC)}
         print(probs)
+
+        # Save last computed solution
+        self.last_solution = x.copy()
+
         return probs, obj_val
 
 
@@ -150,15 +159,19 @@ class NonlinearOptimizer (Optimizer):
         pDeadlineL, pDeadlineC, pDeadlineE = lp_optimizer.compute_deadline_satisfaction_probs(params)
 
 
-        if self.initial_guess == "lp":
-            print("Computing initial sol")
+        lp_probs = None
+        x0 = None
+        if self.initial_guess == INITIAL_GUESS_LP or (self.initial_guess == INITIAL_GUESS_LAST_SOL and self.last_solution is None):
+            print("Computing initial LP sol")
             lp_probs, _ = lp_optimizer.LPOptimizer(verbose=False).optimize_probabilities(params)
-        elif self.initial_guess == "" or self.initial_guess is None:
-            lp_probs = None
+        elif self.initial_guess == INITIAL_GUESS_LAST_SOL:
+            x0 = self.last_solution
+        elif self.initial_guess == "" or self.initial_guess is INITIAL_GUESS_NONE:
+            pass
         else:
             raise RuntimeError(f"Unknown initial_guess config: '{self.initial_guess}'")
 
-        probs, obj_val = self.optimize(lp_probs, params, pDeadlineL, pDeadlineC, pDeadlineE)
+        probs, obj_val = self.optimize(params, pDeadlineL, pDeadlineC, pDeadlineE, x0, lp_probs)
 
         #Workaround to avoid numerical issues
         for f,c in params.fun_classes():

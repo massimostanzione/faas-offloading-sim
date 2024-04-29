@@ -23,6 +23,9 @@ class ProbabilisticPolicy (Policy):
         self.last_update_time = None
         self.arrival_rate_alpha = self.simulation.config.getfloat(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA,
                                                                   fallback=1.0)
+
+        self.optimizer = self.get_optimizer()
+
         self.edge_enabled = simulation.config.getboolean(conf.SEC_POLICY, conf.EDGE_OFFLOADING_ENABLED, fallback="true")
         self.strict_budget_enforce = strict_budget_enforce
 
@@ -355,8 +358,7 @@ class ProbabilisticPolicy (Policy):
                 self.init_time_edge,
                 self.edge_bw)
 
-        opt = self.get_optimizer()
-        new_probs, _ = opt.optimize_probabilities(params)
+        new_probs, _ = self.optimizer.optimize_probabilities(params)
 
         if new_probs is not None:
             self.probs = new_probs
@@ -367,7 +369,9 @@ class ProbabilisticPolicy (Policy):
         if optimizer_to_use == "" or optimizer_to_use == "fgcs24" or optimizer_to_use == "lp":
             opt = LPOptimizer(self.simulation.verbosity)
         elif optimizer_to_use == "nonlinear":
-            opt = NonlinearOptimizer(verbose=self.simulation.verbosity)
+            opt = NonlinearOptimizer(initial_guess="lp", verbose=self.simulation.verbosity)
+        elif optimizer_to_use == "nonlinear-warm":
+            opt = NonlinearOptimizer(initial_guess="last", verbose=self.simulation.verbosity)
         elif optimizer_to_use == "nonlinear-noguess":
             opt = NonlinearOptimizer(initial_guess=None,
                     verbose=self.simulation.verbosity)
@@ -421,7 +425,7 @@ class OfflineProbabilisticPolicy (ProbabilisticPolicy):
                 self.init_time_edge, 
                 self.edge_bw)
 
-        self.probs, obj_value = self.get_optimizer().optimize_probabilities(params)
+        self.probs, obj_value = self.optimizer.optimize_probabilities(params)
         self.simulation.stats.optimizer_obj_value[self.node] = obj_value
 
     def update(self):
