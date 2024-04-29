@@ -206,7 +206,7 @@ def experiment_optimizers(args, config):
                             keys["Seed"] = seed
                             keys["Latency"] = latency
                             keys["EdgeEnabled"] = edge_enabled
-                            keys["Functions"] = function
+                            keys["Functions"] = functions
                             keys["Budget"] = budget
 
                             run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
