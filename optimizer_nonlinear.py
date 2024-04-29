@@ -41,6 +41,8 @@ class NonlinearOptimizer (Optimizer):
             q[0] = 1
             for j in range(1, M+1):
                 for i,m in enumerate(mem_demands):
+                    if j-m < 0:
+                        continue
                     q[j] += q[j-m] * m * alpha[i]
                 q[j] /= j
 
