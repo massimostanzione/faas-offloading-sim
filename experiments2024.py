@@ -216,7 +216,7 @@ def experiment_optimizers(args, config):
                                     old_results[(old_results.Seed == seed) &\
                                         (old_results.Latency == latency) &\
                                         (old_results.Budget == budget) &\
-                                        (old_results.Functions == function) &\
+                                        (old_results.Functions == functions) &\
                                         (old_results.EdgeEnabled == edge_enabled) &\
                                         (old_results.Optimizer == opt)].empty:
                                 print("Skipping conf")
