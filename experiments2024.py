@@ -90,7 +90,7 @@ def experiment_main_comparison(args, config):
     config.set(conf.SEC_POLICY, conf.FALLBACK_ON_LOCAL_REJECTION, "drop")
 
 
-    POLICIES = ["basic-budget", "probabilistic", "probabilistic-offline"]
+    POLICIES = ["basic-budget", "probabilistic"]
 
     # Check existing results
     old_results = None
@@ -114,7 +114,7 @@ def experiment_main_comparison(args, config):
                         if "probabilistic" in pol:
                             optimizers = ["nonlinear", "nonlinear-lp-relaxed"]
                         else:
-                            optimizers = [""]
+                            optimizers = ["-"]
                         for opt in optimizers:
                             config.set(conf.SEC_POLICY, conf.QOS_OPTIMIZER, opt)
 
@@ -189,63 +189,64 @@ def experiment_optimizers(args, config):
         except:
             pass
 
-    for seed in SEEDS[:2]:
+    for seed in SEEDS:
         config.set(conf.SEC_SIM, conf.SEED, str(seed))
         seed_sequence = SeedSequence(seed)
-        for latency in [0.050, 0.100, 0.200][:1]:
-            for budget in [0.25, 0.5, 1,2,10][:1]:
-                config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
-                for opt in ["nonlinear", "nonlinear-lp-relaxed"]:
-                    config.set(conf.SEC_POLICY, conf.QOS_OPTIMIZER, opt)
+        for edge_enabled in [True,False]:
+            config.set(conf.SEC_POLICY, conf.EDGE_OFFLOADING_ENABLED, str(edge_enabled))
+            for latency in [0.100]:
+                for functions in [2,3,4,5]:
+                    for budget in [0.25, 0.5, 1]:
+                        config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
+                        for opt in ["nonlinear", "nonlinear-warm", "nonlinear-lp-relaxed"]:
+                            config.set(conf.SEC_POLICY, conf.QOS_OPTIMIZER, opt)
 
-                    keys = {}
-                    keys["Optimizer"] = opt
-                    keys["Seed"] = seed
-                    keys["Latency"] = latency
-                    keys["Budget"] = budget
+                            keys = {}
+                            keys["Optimizer"] = opt
+                            keys["Seed"] = seed
+                            keys["Latency"] = latency
+                            keys["EdgeEnabled"] = edge_enabled
+                            keys["Functions"] = function
+                            keys["Budget"] = budget
 
-                    run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
+                            run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
 
-                    # Check if we can skip this run
-                    if old_results is not None and not\
-                            old_results[(old_results.Seed == seed) &\
-                                (old_results.Latency == latency) &\
-                                (old_results.Budget == budget) &\
-                                (old_results.Optimizer == opt)].empty:
-                        print("Skipping conf")
-                        continue
+                            # Check if we can skip this run
+                            if old_results is not None and not\
+                                    old_results[(old_results.Seed == seed) &\
+                                        (old_results.Latency == latency) &\
+                                        (old_results.Budget == budget) &\
+                                        (old_results.Functions == function) &\
+                                        (old_results.EdgeEnabled == edge_enabled) &\
+                                        (old_results.Optimizer == opt)].empty:
+                                print("Skipping conf")
+                                continue
 
-                    rng = default_rng(seed_sequence.spawn(1)[0])
-                    temp_spec_file = generate_random_temp_spec (rng, n_functions=3)
-                    infra = default_infra(edge_cloud_latency=latency)
+                            rng = default_rng(seed_sequence.spawn(1)[0])
+                            temp_spec_file = generate_random_temp_spec (rng, n_functions=functions)
+                            infra = default_infra(edge_cloud_latency=latency)
 
-                    t0 = time.time()
-                    stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
-                    temp_spec_file.close()
-                    t1 = time.time()
+                            t0 = time.time()
+                            stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
+                            temp_spec_file.close()
+                            t1 = time.time()
 
-                    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
-                        stats.print(of)
+                            with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                                stats.print(of)
 
-                    result=dict(list(keys.items()))# + list(relevant_stats_dict(stats).items()))
+                            result=dict(list(keys.items()))# + list(relevant_stats_dict(stats).items()))
 
-                    # NOTE: we assume that only 1 node solves the problem
-                    result["Obj"] = max(stats.optimizer_obj_value.values())
-                    result["ExecTime"] = t1-t0
-                    results.append(result)
-                    print(result)
+                            # NOTE: we assume that only 1 node solves the problem
+                            result["Obj"] = max(stats.optimizer_obj_value.values())
+                            result["ExecTime"] = t1-t0
+                            results.append(result)
+                            print(result)
 
-                    resultsDf = pd.DataFrame(results)
-                    if old_results is not None:
-                        resultsDf = pd.concat([old_results, resultsDf])
-                    resultsDf.to_csv(outfile, index=False)
+                            resultsDf = pd.DataFrame(results)
+                            if old_results is not None:
+                                resultsDf = pd.concat([old_results, resultsDf])
+                            resultsDf.to_csv(outfile, index=False)
     
-    resultsDf = pd.DataFrame(results)
-    if old_results is not None:
-        resultsDf = pd.concat([old_results, resultsDf])
-    resultsDf.to_csv(outfile, index=False)
-    print(resultsDf.groupby("Optimizer").mean(numeric_only=True))
-
     with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
         config.write(of)
 
