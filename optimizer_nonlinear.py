@@ -57,7 +57,8 @@ class NonlinearOptimizer (Optimizer):
             bp_per_fun = np.zeros(len(FC))
             for i,m in enumerate(mem_demands):
                 for j in range(0, m):
-                    bp_per_fun[i] += q[M - j]
+                    if M-j >= 0:
+                        bp_per_fun[i] += q[M - j]
             bp_per_fun /= G
             return bp_per_fun
 
