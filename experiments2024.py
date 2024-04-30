@@ -17,7 +17,7 @@ from numpy.random import SeedSequence, default_rng
 
 DEFAULT_CONFIG_FILE = "config.ini"
 DEFAULT_OUT_DIR = "results"
-DEFAULT_DURATION = 3600
+DEFAULT_DURATION = 1800 # TODO
 SEEDS=[1,293,287844,2902,944,9573,102903,193,456,71]
 PERCENTILES=np.array([1,5,10,25,50,75,90,95,99])/100.0
 
@@ -352,6 +352,7 @@ if __name__ == "__main__":
 
     config = conf.parse_config_file("default.ini")
     config.set(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, "-1")
+    config.set(conf.SEC_SIM, conf.PRINT_FINAL_STATS, "false")
     config.set(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, str(DEFAULT_DURATION))
 
     if args.debug:
