@@ -108,7 +108,6 @@ class MAPArrivalProcess (ArrivalProcess):
         self.state = 0
         self.D0 = D0
         self.D1 = D1
-        print(f"Mean rate: {self.get_mean_rate()}")
 
     def next_iat (self):
         iat, self.state = SamplesFromMAP(self.D0, self.D1, 1, initial=self.state)
