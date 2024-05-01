@@ -88,6 +88,7 @@ def experiment_main_comparison(args, config):
     config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
     config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(1))
     config.set(conf.SEC_POLICY, conf.FALLBACK_ON_LOCAL_REJECTION, "drop")
+    config.set(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, "slsqp")
 
 
     POLICIES = ["basic-budget", "probabilistic"]
@@ -108,7 +109,7 @@ def experiment_main_comparison(args, config):
             for functions in [3,5]:
                 for edge_enabled in [True,False]:
                     config.set(conf.SEC_POLICY, conf.EDGE_OFFLOADING_ENABLED, str(edge_enabled))
-                    for edge_memory in [512, 1024, 2048, 4096]:
+                    for edge_memory in [1024, 2048, 4096]:
                         for pol in POLICIES:
                             config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
                             if "probabilistic" in pol:
