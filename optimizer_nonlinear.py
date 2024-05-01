@@ -176,6 +176,9 @@ class NonlinearOptimizer (Optimizer):
 
         #Workaround to avoid numerical issues
         for f,c in params.fun_classes():
+            for i,_p in enumerate(probs[(f,c)]):
+                if _p < 0.0001:
+                    probs[(f,c)][i] = 0
             s = sum(probs[(f,c)])
             probs[(f,c)] = [x/s for x in probs[(f,c)]]
             if self.verbose > 0:
