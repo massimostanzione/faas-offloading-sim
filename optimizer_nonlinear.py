@@ -93,46 +93,70 @@ class NonlinearOptimizer (Optimizer):
 
         print(f"LP obj for x0: {obj(x0)} ({lp_obj(x0)})")
 
-        # sum <= 1
-        A = np.zeros((N, NVARS*N))
-        for i in range(N):
-            A[i,NVARS*i]=1
-            A[i,NVARS*i+1]=1
-            if EDGE_ENABLED:
-                A[i,NVARS*i+2]=1
-        sumLC = LinearConstraint(A=A, lb=0, ub=1, keep_feasible=False)
-        
-        A2 = np.zeros(NVARS*N)
-        for i,fc in enumerate(FC):
-            # cloud usage
-            A2[NVARS*i+1]=params.cloud.cost*params.arrival_rates[fc]*params.serv_time_cloud[fc[0]]*fc[0].memory/1024
-        budgetLC = LinearConstraint(A=A2, lb=0, ub=params.budget/3600, keep_feasible=False)
 
-        constraints = [sumLC, budgetLC]
-        
-        if EDGE_ENABLED:
-            A3 = np.zeros(NVARS*N)
-            for i,fc in enumerate(FC):
-                # edge mem
-                A3[NVARS*i+2]=params.arrival_rates[fc]*params.serv_time_edge[fc[0]]*fc[0].memory
-            edgeMemLC = LinearConstraint(A=A3, lb=0, ub=params.aggregated_edge_memory, keep_feasible=False)
-            constraints.append(edgeMemLC)
-
-        #constraints = []
-        #for i in range(N):
-        #    c1 = lambda x: 1-x[3*i]-x[3*i+1]-x[3*i+2]
-        #    c2 = lambda x: x[3*i]+x[3*i+1]+x[3*i+2]
-        #    print(f"C1-{i}: {c1(p)}")
-        #    print(c2(p))
-        #    constraints.append({"type":"ineq", "fun": c1})
-        #    constraints.append({"type":"ineq", "fun": c2})
         bounds = [(0,1) for i in range(NVARS*N)]
 
         if self.method == "trust-region":
+            # sum <= 1
+            A = np.zeros((N, NVARS*N))
+            for i in range(N):
+                A[i,NVARS*i]=1
+                A[i,NVARS*i+1]=1
+                if EDGE_ENABLED:
+                    A[i,NVARS*i+2]=1
+            sumLC = LinearConstraint(A=A, lb=0, ub=1, keep_feasible=False)
+            
+            A2 = np.zeros(NVARS*N)
+            for i,fc in enumerate(FC):
+                # cloud usage
+                A2[NVARS*i+1]=params.cloud.cost*params.arrival_rates[fc]*params.serv_time_cloud[fc[0]]*fc[0].memory/1024
+            budgetLC = LinearConstraint(A=A2, lb=0, ub=params.budget/3600, keep_feasible=False)
+
+            constraints = [sumLC, budgetLC]
+            
+            if EDGE_ENABLED:
+                A3 = np.zeros(NVARS*N)
+                for i,fc in enumerate(FC):
+                    # edge mem
+                    A3[NVARS*i+2]=params.arrival_rates[fc]*params.serv_time_edge[fc[0]]*fc[0].memory
+                edgeMemLC = LinearConstraint(A=A3, lb=0, ub=params.aggregated_edge_memory, keep_feasible=False)
+                constraints.append(edgeMemLC)
+
             res = minimize(lambda x: -1*obj(x), x0, method="trust-constr", bounds=bounds, constraints=constraints, tol=1e-6, options={"maxiter": 200000})
             print(res)
             x = res.x
             obj_val = -res.fun
+        elif self.method == "slsqp":
+            constraints = []
+            for i in range(N):
+                # sum <= 1
+                if EDGE_ENABLED:
+                    c = lambda x: 1-x[NVARS*i]-x[NVARS*i+1]-x[NVARS*i+2]
+                else:
+                    c = lambda x: 1-x[NVARS*i]-x[NVARS*i+1]
+                constraints.append({"type":"ineq", "fun": c})
+
+            # cloud usage
+            def cbudget(x):
+                total=0
+                for i,fc in enumerate(FC):
+                    total += x[NVARS*i+1]*params.cloud.cost*params.arrival_rates[fc]*params.serv_time_cloud[fc[0]]*fc[0].memory/1024
+                return params.budget/3600-total
+            constraints.append({"type":"ineq", "fun": cbudget})
+
+            if EDGE_ENABLED:
+                def cedge(x):
+                    total=0
+                    for i,fc in enumerate(FC):
+                        total += x[NVARS*i+2]*params.arrival_rates[fc]*params.serv_time_edge[fc[0]]*fc[0].memory
+                    return params.aggregated_edge_memory-total
+                constraints.append({"type":"ineq", "fun": cedge})
+
+            res = minimize(lambda x: -1*obj(x), x0, method="SLSQP", bounds=bounds, constraints=constraints, tol=1e-6, options={"maxiter": 200000})
+            print(res)
+            x = res.x
+            obj_val = -res.fun
+
         elif self.method == "none" or self.method is None:
             x = x0 
             obj_val = obj(x)

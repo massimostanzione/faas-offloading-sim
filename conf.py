@@ -29,6 +29,7 @@ QOS_OPTIMIZER = "optimizer"
 SPLIT_BUDGET_AMONG_EDGE_NODES = "split-budget-edge"
 MULTIPLE_OFFLOADING_ALLOWED = "multiple-offloading-allowed"
 FALLBACK_ON_LOCAL_REJECTION = "local-rejection-fallback"
+NONLINEAR_OPT_ALGORITHM = "nonlinear-optimization-alg"
 
 
 SEC_STATEFUL = "stateful"

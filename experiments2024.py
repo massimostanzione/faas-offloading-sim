@@ -206,57 +206,67 @@ def experiment_optimizers(args, config):
         for edge_enabled in [True,False]:
             config.set(conf.SEC_POLICY, conf.EDGE_OFFLOADING_ENABLED, str(edge_enabled))
             for latency in [0.100]:
-                for functions in [2,3,4,5]:
-                    for budget in [0.25, 0.5, 1]:
+                for functions in [2,3,5]:
+                    for budget in [0.1, 1]:
                         config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
-                        for opt in ["nonlinear", "nonlinear-warm", "nonlinear-lp-relaxed"]:
+                        for opt in ["nonlinear", "nonlinear-noguess", "nonlinear-lp-relaxed"]:
                             config.set(conf.SEC_POLICY, conf.QOS_OPTIMIZER, opt)
 
-                            keys = {}
-                            keys["Optimizer"] = opt
-                            keys["Seed"] = seed
-                            keys["Latency"] = latency
-                            keys["EdgeEnabled"] = edge_enabled
-                            keys["Functions"] = functions
-                            keys["Budget"] = budget
+                            if "relaxed" in opt:
+                                algs = ["-"]
+                            else:
+                                algs = ["trust-constr", "slsqp"]
 
-                            run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
+                            for alg in algs:
+                                config.set(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, alg)
 
-                            # Check if we can skip this run
-                            if old_results is not None and not\
-                                    old_results[(old_results.Seed == seed) &\
-                                        (old_results.Latency == latency) &\
-                                        (old_results.Budget == budget) &\
-                                        (old_results.Functions == functions) &\
-                                        (old_results.EdgeEnabled == edge_enabled) &\
-                                        (old_results.Optimizer == opt)].empty:
-                                print("Skipping conf")
-                                continue
+                                keys = {}
+                                keys["Optimizer"] = opt
+                                keys["Alg"] = alg
+                                keys["Seed"] = seed
+                                keys["Latency"] = latency
+                                keys["EdgeEnabled"] = edge_enabled
+                                keys["Functions"] = functions
+                                keys["Budget"] = budget
 
-                            rng = default_rng(seed_sequence.spawn(1)[0])
-                            temp_spec_file = generate_random_temp_spec (rng, n_functions=functions)
-                            infra = default_infra(edge_cloud_latency=latency)
+                                run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
 
-                            t0 = time.time()
-                            stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
-                            temp_spec_file.close()
-                            t1 = time.time()
+                                # Check if we can skip this run
+                                if old_results is not None and not\
+                                        old_results[(old_results.Seed == seed) &\
+                                            (old_results.Latency == latency) &\
+                                            (old_results.Budget == budget) &\
+                                            (old_results.Functions == functions) &\
+                                            (old_results.Alg == alg) &\
+                                            (old_results.EdgeEnabled == edge_enabled) &\
+                                            (old_results.Optimizer == opt)].empty:
+                                    print("Skipping conf")
+                                    continue
 
-                            with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
-                                stats.print(of)
+                                rng = default_rng(seed_sequence.spawn(1)[0])
+                                temp_spec_file = generate_random_temp_spec (rng, n_functions=functions)
+                                infra = default_infra(edge_cloud_latency=latency)
 
-                            result=dict(list(keys.items()))# + list(relevant_stats_dict(stats).items()))
+                                t0 = time.time()
+                                stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
+                                temp_spec_file.close()
+                                t1 = time.time()
 
-                            # NOTE: we assume that only 1 node solves the problem
-                            result["Obj"] = max(stats.optimizer_obj_value.values())
-                            result["ExecTime"] = t1-t0
-                            results.append(result)
-                            print(result)
+                                with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                                    stats.print(of)
 
-                            resultsDf = pd.DataFrame(results)
-                            if old_results is not None:
-                                resultsDf = pd.concat([old_results, resultsDf])
-                            resultsDf.to_csv(outfile, index=False)
+                                result=dict(list(keys.items()))# + list(relevant_stats_dict(stats).items()))
+
+                                # NOTE: we assume that only 1 node solves the problem
+                                result["Obj"] = max(stats.optimizer_obj_value.values())
+                                result["ExecTime"] = t1-t0
+                                results.append(result)
+                                print(result)
+
+                                resultsDf = pd.DataFrame(results)
+                                if old_results is not None:
+                                    resultsDf = pd.concat([old_results, resultsDf])
+                                resultsDf.to_csv(outfile, index=False)
     
     with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
         config.write(of)

@@ -369,11 +369,14 @@ class ProbabilisticPolicy (Policy):
         if optimizer_to_use == "" or optimizer_to_use == "fgcs24" or optimizer_to_use == "lp":
             opt = LPOptimizer(self.simulation.verbosity)
         elif optimizer_to_use == "nonlinear":
-            opt = NonlinearOptimizer(initial_guess="lp", verbose=self.simulation.verbosity)
+            method = self.simulation.config.get(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, fallback="trust-constr")
+            opt = NonlinearOptimizer(initial_guess="lp", method=method, verbose=self.simulation.verbosity)
         elif optimizer_to_use == "nonlinear-warm":
-            opt = NonlinearOptimizer(initial_guess="last", verbose=self.simulation.verbosity)
+            method = self.simulation.config.get(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, fallback="trust-constr")
+            opt = NonlinearOptimizer(initial_guess="last", method=method, verbose=self.simulation.verbosity)
         elif optimizer_to_use == "nonlinear-noguess":
-            opt = NonlinearOptimizer(initial_guess=None,
+            method = self.simulation.config.get(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, fallback="trust-constr")
+            opt = NonlinearOptimizer(initial_guess=None, method=method,
                     verbose=self.simulation.verbosity)
         elif optimizer_to_use == "nonlinear-lp-relaxed":
             opt = NonlinearOptimizer(initial_guess="lp", method="none",
