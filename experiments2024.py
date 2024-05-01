@@ -215,7 +215,7 @@ def experiment_optimizers(args, config):
                             if "relaxed" in opt:
                                 algs = ["-"]
                             else:
-                                algs = ["trust-constr", "slsqp"]
+                                algs = ["trust-region", "slsqp"]
 
                             for alg in algs:
                                 config.set(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, alg)
