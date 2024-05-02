@@ -91,8 +91,33 @@ class NonlinearOptimizer (Optimizer):
                     v += params.arrival_rates[(f,c)] * _p[NVARS*i+2]*gammaE
             return v
 
-        print(f"LP obj for x0: {obj(x0)} ({lp_obj(x0)})")
 
+        def is_feasible (x):
+            print(x)
+            for i,fc in enumerate(FC):
+                s = x[NVARS*i] + x[NVARS*i+1]
+                if EDGE_ENABLED:
+                    s += x[NVARS*i+2]
+                if s > 1.001:
+                    print(x)
+                    print(f"Sum: {s}")
+                    return False
+            # cloud usage
+            total=0
+            for i,fc in enumerate(FC):
+                total += x[NVARS*i+1]*params.cloud.cost*params.arrival_rates[fc]*params.serv_time_cloud[fc[0]]*fc[0].memory/1024
+            if params.budget/3600 < total - 0.001:
+                print("Budget")
+                return False
+            if EDGE_ENABLED:
+                total=0
+                for i,fc in enumerate(FC):
+                    total += x[NVARS*i+2]*params.arrival_rates[fc]*params.serv_time_edge[fc[0]]*fc[0].memory
+                if params.aggregated_edge_memory < total - 0.001:
+                    return False
+            return True
+
+        print(f"LP obj for x0: {obj(x0)} ({lp_obj(x0)})")
 
         bounds = [(0,1) for i in range(NVARS*N)]
 
@@ -131,9 +156,9 @@ class NonlinearOptimizer (Optimizer):
             for i in range(N):
                 # sum <= 1
                 if EDGE_ENABLED:
-                    c = lambda x: 1-x[NVARS*i]-x[NVARS*i+1]-x[NVARS*i+2]
+                    c = lambda x, i=i: 1-x[NVARS*i]-x[NVARS*i+1]-x[NVARS*i+2]
                 else:
-                    c = lambda x: 1-x[NVARS*i]-x[NVARS*i+1]
+                    c = lambda x, i=i: 1-x[NVARS*i]-x[NVARS*i+1]
                 constraints.append({"type":"ineq", "fun": c})
 
             # cloud usage
@@ -163,6 +188,8 @@ class NonlinearOptimizer (Optimizer):
         else:
             raise RuntimeError(f"Unknown optimization method: '{self.method}'")
 
+        #assert(is_feasible(x))
+
         if EDGE_ENABLED:
             probs = {(fc[0],fc[1]): [x[NVARS*i], x[NVARS*i+1], x[NVARS*i+2], max(0.0,1.0-x[NVARS*i]-x[NVARS*i+1]-x[NVARS*i+2])]
                         for i,fc in enumerate(FC)}
@@ -170,6 +197,9 @@ class NonlinearOptimizer (Optimizer):
             probs = {(fc[0],fc[1]): [x[NVARS*i], x[NVARS*i+1], 0, max(0.0,1.0-x[NVARS*i]-x[NVARS*i+1])]
                         for i,fc in enumerate(FC)}
         print(probs)
+
+
+
 
         # Save last computed solution
         self.last_solution = x.copy()
