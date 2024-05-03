@@ -86,7 +86,6 @@ def experiment_main_comparison(args, config):
     config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, "naive-per-function")
     config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, "120")
     config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, "0.3")
-    config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(1))
     config.set(conf.SEC_POLICY, conf.FALLBACK_ON_LOCAL_REJECTION, "drop")
     config.set(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, "slsqp")
 
@@ -106,67 +105,71 @@ def experiment_main_comparison(args, config):
         for seed in SEEDS:
             config.set(conf.SEC_SIM, conf.SEED, str(seed))
             seed_sequence = SeedSequence(seed)
-            for functions in [3,5]:
-                for edge_enabled in [True,False]:
-                    config.set(conf.SEC_POLICY, conf.EDGE_OFFLOADING_ENABLED, str(edge_enabled))
-                    for edge_memory in [1024, 2048, 4096]:
-                        for pol in POLICIES:
-                            config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
-                            if "probabilistic" in pol:
-                                optimizers = ["nonlinear", "nonlinear-lp-relaxed"]
-                            else:
-                                optimizers = ["-"]
-                            for opt in optimizers:
-                                config.set(conf.SEC_POLICY, conf.QOS_OPTIMIZER, opt)
-
-                                if "probabilistic" in pol and "lp-relaxed" in opt:
-                                    adaptive_local_mem_values = [True,False]
+            for functions in [5]:
+                for budget in [-1, 0.1, 1]:
+                    config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
+                    for edge_enabled in [True,False]:
+                        config.set(conf.SEC_POLICY, conf.EDGE_OFFLOADING_ENABLED, str(edge_enabled))
+                        for edge_memory in [1024, 2048, 4096]:
+                            for pol in POLICIES:
+                                config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
+                                if "probabilistic" in pol:
+                                    optimizers = ["nonlinear", "nonlinear-lp-relaxed"]
                                 else:
-                                    adaptive_local_mem_values = [False]
-                                for adaptive_local_mem in adaptive_local_mem_values:
-                                    config.set(conf.SEC_POLICY, conf.ADAPTIVE_LOCAL_MEMORY, str(adaptive_local_mem))
+                                    optimizers = ["-"]
+                                for opt in optimizers:
+                                    config.set(conf.SEC_POLICY, conf.QOS_OPTIMIZER, opt)
 
-                                    keys = {}
-                                    keys["Policy"] = pol
-                                    keys["Seed"] = seed
-                                    keys["Optimizer"] = opt
-                                    keys["Functions"] = functions
-                                    keys["EdgeMemory"] = edge_memory
-                                    keys["EdgeEnabled"] = edge_enabled
-                                    keys["AdaptiveLocalMem"] = adaptive_local_mem
-                                    keys["PoissonArrivals"] = poisson_arrivals
+                                    if "probabilistic" in pol and "lp-relaxed" in opt:
+                                        adaptive_local_mem_values = [True,False]
+                                    else:
+                                        adaptive_local_mem_values = [False]
+                                    for adaptive_local_mem in adaptive_local_mem_values:
+                                        config.set(conf.SEC_POLICY, conf.ADAPTIVE_LOCAL_MEMORY, str(adaptive_local_mem))
 
-                                    run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
+                                        keys = {}
+                                        keys["Policy"] = pol
+                                        keys["Seed"] = seed
+                                        keys["Optimizer"] = opt
+                                        keys["Budget"] = budget
+                                        keys["Functions"] = functions
+                                        keys["EdgeMemory"] = edge_memory
+                                        keys["EdgeEnabled"] = edge_enabled
+                                        keys["AdaptiveLocalMem"] = adaptive_local_mem
+                                        keys["PoissonArrivals"] = poisson_arrivals
 
-                                    # Check if we can skip this run
-                                    if old_results is not None and not\
-                                            old_results[(old_results.Seed == seed) &\
-                                                (old_results.Optimizer == opt) &\
-                                                (old_results.AdaptiveLocalMem == adaptive_local_mem) &\
-                                                (old_results.EdgeEnabled == edge_enabled) &\
-                                                (old_results.Functions == functions) &\
-                                                (old_results.PoissonArrivals == poisson_arrivals) &\
-                                                (old_results.EdgeMemory == edge_memory) &\
-                                                (old_results.Policy == pol)].empty:
-                                        print("Skipping conf")
-                                        continue
+                                        run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
 
-                                    rng = default_rng(seed_sequence.spawn(1)[0])
-                                    temp_spec_file = generate_random_temp_spec (rng, n_functions=functions, edge_memory=edge_memory, force_poisson_arrivals=poisson_arrivals)
-                                    infra = default_infra(edge_cloud_latency=0.1)
-                                    stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
-                                    temp_spec_file.close()
-                                    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
-                                        stats.print(of)
+                                        # Check if we can skip this run
+                                        if old_results is not None and not\
+                                                old_results[(old_results.Seed == seed) &\
+                                                    (old_results.Optimizer == opt) &\
+                                                    (old_results.AdaptiveLocalMem == adaptive_local_mem) &\
+                                                    (old_results.EdgeEnabled == edge_enabled) &\
+                                                    (old_results.Functions == functions) &\
+                                                    (old_results.Budget == budget) &\
+                                                    (old_results.PoissonArrivals == poisson_arrivals) &\
+                                                    (old_results.EdgeMemory == edge_memory) &\
+                                                    (old_results.Policy == pol)].empty:
+                                            print("Skipping conf")
+                                            continue
 
-                                    result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
-                                    results.append(result)
-                                    print(result)
+                                        rng = default_rng(seed_sequence.spawn(1)[0])
+                                        temp_spec_file = generate_random_temp_spec (rng, n_functions=functions, edge_memory=edge_memory, force_poisson_arrivals=poisson_arrivals)
+                                        infra = default_infra(edge_cloud_latency=0.1)
+                                        stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
+                                        temp_spec_file.close()
+                                        with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                                            stats.print(of)
 
-                                    resultsDf = pd.DataFrame(results)
-                                    if old_results is not None:
-                                        resultsDf = pd.concat([old_results, resultsDf])
-                                    resultsDf.to_csv(outfile, index=False)
+                                        result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
+                                        results.append(result)
+                                        print(result)
+
+                                        resultsDf = pd.DataFrame(results)
+                                        if old_results is not None:
+                                            resultsDf = pd.concat([old_results, resultsDf])
+                                        resultsDf.to_csv(outfile, index=False)
     
     resultsDf = pd.DataFrame(results)
     if old_results is not None:

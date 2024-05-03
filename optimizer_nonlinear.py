@@ -9,6 +9,20 @@ INITIAL_GUESS_NONE=None
 INITIAL_GUESS_LP="lp"
 INITIAL_GUESS_LAST_SOL="last"
 
+DUMP_SOL=False
+
+def dump_solution (filename, x, EDGE_ENABLED):
+    i=0
+    j=0
+    with open(filename, "w") as of:
+        while i < x.shape[0]:
+            print(f"pL-{j}, {x[i]}", file=of)
+            print(f"pC-{j}, {x[i+1]}", file=of)
+            if EDGE_ENABLED:
+                print(f"pE-{j}, {x[i+2]}", file=of)
+            i+=3 if EDGE_ENABLED else 2
+            j+=1
+
 class NonlinearOptimizer (Optimizer):
 
     def __init__ (self, initial_guess="lp", method="trust-region", verbose=False):
@@ -16,6 +30,7 @@ class NonlinearOptimizer (Optimizer):
         self.initial_guess = initial_guess
         self.method = method
         self.last_solution = None
+
 
     def optimize (self, params, pDeadlineL, pDeadlineC, pDeadlineE, x0=None, lp_probs=None):
         FC=list(params.fun_classes())
@@ -33,6 +48,10 @@ class NonlinearOptimizer (Optimizer):
                     x0[NVARS*i+1] = lp_probs[fc][1]
                     if EDGE_ENABLED:
                         x0[NVARS*i+2] = lp_probs[fc][2]
+
+        if DUMP_SOL:
+            dump_solution("guesslinear.txt", x0, EDGE_ENABLED)
+            x0 = np.zeros(NVARS*N) # for debugging
 
 
         def kaufman (_p):
@@ -106,7 +125,7 @@ class NonlinearOptimizer (Optimizer):
             total=0
             for i,fc in enumerate(FC):
                 total += x[NVARS*i+1]*params.cloud.cost*params.arrival_rates[fc]*params.serv_time_cloud[fc[0]]*fc[0].memory/1024
-            if params.budget/3600 < total - 0.001:
+            if params.budget > 0 and params.budget/3600 < total - 0.001:
                 print("Budget")
                 return False
             if EDGE_ENABLED:
@@ -131,13 +150,16 @@ class NonlinearOptimizer (Optimizer):
                     A[i,NVARS*i+2]=1
             sumLC = LinearConstraint(A=A, lb=0, ub=1, keep_feasible=False)
             
-            A2 = np.zeros(NVARS*N)
-            for i,fc in enumerate(FC):
-                # cloud usage
-                A2[NVARS*i+1]=params.cloud.cost*params.arrival_rates[fc]*params.serv_time_cloud[fc[0]]*fc[0].memory/1024
-            budgetLC = LinearConstraint(A=A2, lb=0, ub=params.budget/3600, keep_feasible=False)
+            if params.budget > 0:
+                A2 = np.zeros(NVARS*N)
+                for i,fc in enumerate(FC):
+                    # cloud usage
+                    A2[NVARS*i+1]=params.cloud.cost*params.arrival_rates[fc]*params.serv_time_cloud[fc[0]]*fc[0].memory/1024
+                budgetLC = LinearConstraint(A=A2, lb=0, ub=params.budget/3600, keep_feasible=False)
 
-            constraints = [sumLC, budgetLC]
+                constraints = [sumLC, budgetLC]
+            else:
+                constraints = [sumLC]
             
             if EDGE_ENABLED:
                 A3 = np.zeros(NVARS*N)
@@ -167,7 +189,8 @@ class NonlinearOptimizer (Optimizer):
                 for i,fc in enumerate(FC):
                     total += x[NVARS*i+1]*params.cloud.cost*params.arrival_rates[fc]*params.serv_time_cloud[fc[0]]*fc[0].memory/1024
                 return params.budget/3600-total
-            constraints.append({"type":"ineq", "fun": cbudget})
+            if params.budget > 0:
+                constraints.append({"type":"ineq", "fun": cbudget})
 
             if EDGE_ENABLED:
                 def cedge(x):
@@ -198,6 +221,9 @@ class NonlinearOptimizer (Optimizer):
                         for i,fc in enumerate(FC)}
         print(probs)
 
+        
+        if DUMP_SOL:
+            dump_solution("nonlinear.txt", x, EDGE_ENABLED)
 
 
 
