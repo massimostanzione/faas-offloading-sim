@@ -106,11 +106,11 @@ class BasicPolicy(Policy):
 class BasicBudgetAwarePolicy(Policy):
 
     def schedule(self, f, c, offloaded_from):
-        budget_ok = self.simulation.stats.cost / self.simulation.t * 3600 < self.budget
+        budget_ok = self.budget < 0 or (self.simulation.stats.cost / self.simulation.t * 3600 < self.budget)
 
         if self.can_execute_locally(f):
             return (SchedulerDecision.EXEC, None)
-        elif self.simulation.stats.cost / self.simulation.t * 3600 < self.budget:
+        elif budget_ok:
             return (SchedulerDecision.OFFLOAD_CLOUD, None)
         else:
             return (SchedulerDecision.DROP, None)
