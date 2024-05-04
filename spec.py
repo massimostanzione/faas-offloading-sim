@@ -57,9 +57,29 @@ def generate_temp_spec (n_functions=5, load_coeff=1.0, dynamic_rate_coeff=1.0, a
     return ntemp
 
 def generate_random_temp_spec (rng, n_functions=5, load_coeff=1.0, dynamic_rate_coeff=1.0, arrivals_to_single_node=True,
-                   n_classes=4, cloud_cost=0.00005, cloud_speedup=1.0, n_edges=5, edge_memory=4096, force_poisson_arrivals=False):
+                   n_classes=4, cloud_cost=0.00005, cloud_speedup=1.0, n_edges=5, edge_memory=4096, force_poisson_arrivals=False,
+                   penalty_mode=None):
 
     classes = [{'name': 'critical', 'max_resp_time': 0.5, 'utility': 1.0, 'arrival_weight': 1.0}, {'name': 'standard', 'max_resp_time': 0.5, 'utility': 0.01, 'arrival_weight': 7.0}, {'name': 'batch', 'max_resp_time': 99.0, 'utility': 1.0, 'arrival_weight': 1.0}, {'name': 'criticalP', 'max_resp_time': 0.5, 'utility': 1.0, 'deadline_penalty': 0.75, 'drop_penalty': 0.75, 'arrival_weight': 1.0}]
+
+    if penalty_mode is not None and penalty_mode != "default":
+        if penalty_mode == "drop":
+            for c in classes:
+                c["drop_penalty"] = 0.75*c["utility"]
+                c["deadline_penalty"] = 0
+        elif penalty_mode == "deadline":
+            for c in classes:
+                c["deadline_penalty"] = 0.75*c["utility"]
+                c["drop_penalty"] = 0
+        elif penalty_mode == "both":
+            for c in classes:
+                c["deadline_penalty"] = 0.75*c["utility"]
+                c["drop_penalty"] = 0.75*c["utility"]
+        elif penalty_mode == "none":
+            for c in classes:
+                c["deadline_penalty"] = 0
+                c["drop_penalty"] = 0
+
     nodes = [{'name': 'edge1', 'region': 'edge', 'memory': edge_memory}, {'name': 'edge2', 'region': 'edge', 'memory': edge_memory}, {'name': 'edge3', 'region': 'edge', 'memory': edge_memory}, {'name': 'edge4', 'region': 'edge', 'memory': edge_memory}, {'name': 'edge5', 'region': 'edge', 'memory': edge_memory}, {'name': 'cloud1', 'region': 'cloud', 'cost': cloud_cost, 'speedup': cloud_speedup, 'memory': 128000}]
     functions = [{'name': 'f1', 'memory': 512, 'duration_mean': 0.4, 'duration_scv': 1.0, 'init_mean': 0.5}, {'name': 'f2', 'memory': 512, 'duration_mean': 0.2, 'duration_scv': 1.0, 'init_mean': 0.25}, {'name': 'f3', 'memory': 128, 'duration_mean': 0.3, 'duration_scv': 1.0, 'init_mean': 0.6}, {'name': 'f4', 'memory': 1024, 'duration_mean': 0.25, 'duration_scv': 1.0, 'init_mean': 0.25}, {'name': 'f5', 'memory': 256, 'duration_mean': 0.45, 'duration_scv': 1.0, 'init_mean': 0.5}]
    

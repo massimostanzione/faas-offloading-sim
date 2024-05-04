@@ -106,26 +106,25 @@ def experiment_main_comparison(args, config):
             config.set(conf.SEC_SIM, conf.SEED, str(seed))
             seed_sequence = SeedSequence(seed)
             for functions in [5]:
-                for budget in [-1, 0.1, 1]:
-                    config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
-                    for edge_enabled in [True,False]:
-                        config.set(conf.SEC_POLICY, conf.EDGE_OFFLOADING_ENABLED, str(edge_enabled))
-                        for edge_memory in [1024, 2048, 4096]:
-                            for pol in POLICIES:
-                                config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
-                                if "probabilistic" in pol:
-                                    optimizers = ["nonlinear", "nonlinear-lp-relaxed"]
-                                else:
-                                    optimizers = ["-"]
-                                for opt in optimizers:
-                                    config.set(conf.SEC_POLICY, conf.QOS_OPTIMIZER, opt)
-
-                                    if "probabilistic" in pol and "lp-relaxed" in opt:
-                                        adaptive_local_mem_values = [True,False]
+                for penalty_mode in ["default", "drop", "deadline", "none"]:
+                    for budget in [-1, 0.1, 1]:
+                        config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
+                        for edge_enabled in [True,False]:
+                            config.set(conf.SEC_POLICY, conf.EDGE_OFFLOADING_ENABLED, str(edge_enabled))
+                            for edge_memory in [1024, 2048, 4096]:
+                                for pol in POLICIES:
+                                    config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
+                                    if "probabilistic" in pol:
+                                        optimizers = ["nonlinear", "nonlinear-lp-relaxed"]
                                     else:
-                                        adaptive_local_mem_values = [False]
-                                    for adaptive_local_mem in adaptive_local_mem_values:
-                                        config.set(conf.SEC_POLICY, conf.ADAPTIVE_LOCAL_MEMORY, str(adaptive_local_mem))
+                                        optimizers = ["-"]
+                                    for opt in optimizers:
+                                        config.set(conf.SEC_POLICY, conf.QOS_OPTIMIZER, opt)
+
+                                        if "probabilistic" in pol and "lp-relaxed" in opt:
+                                            config.set(conf.SEC_POLICY, conf.ADAPTIVE_LOCAL_MEMORY, str(True))
+                                        else:
+                                            config.set(conf.SEC_POLICY, conf.ADAPTIVE_LOCAL_MEMORY, str(False))
 
                                         keys = {}
                                         keys["Policy"] = pol
@@ -135,7 +134,7 @@ def experiment_main_comparison(args, config):
                                         keys["Functions"] = functions
                                         keys["EdgeMemory"] = edge_memory
                                         keys["EdgeEnabled"] = edge_enabled
-                                        keys["AdaptiveLocalMem"] = adaptive_local_mem
+                                        keys["PenaltyMode"] = penalty_mode
                                         keys["PoissonArrivals"] = poisson_arrivals
 
                                         run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
@@ -144,7 +143,7 @@ def experiment_main_comparison(args, config):
                                         if old_results is not None and not\
                                                 old_results[(old_results.Seed == seed) &\
                                                     (old_results.Optimizer == opt) &\
-                                                    (old_results.AdaptiveLocalMem == adaptive_local_mem) &\
+                                                    (old_results.PenaltyMode == penalty_mode) &\
                                                     (old_results.EdgeEnabled == edge_enabled) &\
                                                     (old_results.Functions == functions) &\
                                                     (old_results.Budget == budget) &\
@@ -211,7 +210,7 @@ def experiment_optimizers(args, config):
             config.set(conf.SEC_POLICY, conf.EDGE_OFFLOADING_ENABLED, str(edge_enabled))
             for latency in [0.100]:
                 for functions in [2,3,5]:
-                    for budget in [0.1, 1]:
+                    for budget in [-1, 0.1, 1]:
                         config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
                         for opt in ["nonlinear", "nonlinear-noguess", "nonlinear-lp-relaxed"]:
                             config.set(conf.SEC_POLICY, conf.QOS_OPTIMIZER, opt)
