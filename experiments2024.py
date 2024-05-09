@@ -225,7 +225,7 @@ def experiment_optimizers(args, config):
                             for alg in algs:
                                 config.set(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, alg)
                                 for use_lp_for_bounds in use_lp_for_bounds_vals:
-                                    config.set(conf.SEC_POLICY, conf.NONLINEAR_USE_LP_FOR_BOUNDS, use_lp_for_bounds)
+                                    config.set(conf.SEC_POLICY, conf.NONLINEAR_USE_LP_FOR_BOUNDS, str(use_lp_for_bounds))
 
                                     keys = {}
                                     keys["Optimizer"] = opt
