@@ -25,11 +25,12 @@ def dump_solution (filename, x, EDGE_ENABLED):
 
 class NonlinearOptimizer (Optimizer):
 
-    def __init__ (self, initial_guess="lp", method="trust-region", verbose=False):
+    def __init__ (self, initial_guess="lp", method="trust-region", use_lp_for_bounds=False, verbose=False):
         super().__init__(verbose)
         self.initial_guess = initial_guess
         self.method = method
         self.last_solution = None
+        self.use_lp_for_bounds = use_lp_for_bounds
 
 
     def optimize (self, params, pDeadlineL, pDeadlineC, pDeadlineE, x0=None, lp_probs=None):
@@ -38,6 +39,7 @@ class NonlinearOptimizer (Optimizer):
         EDGE_ENABLED = True if params.aggregated_edge_memory > 0.0 else False
         NVARS = 3 if EDGE_ENABLED else 2
 
+        assert(lp_probs is not None or (not self.use_lp_for_bounds))
 
         if x0 is None:
             x0 = np.zeros(NVARS*N)
@@ -139,6 +141,10 @@ class NonlinearOptimizer (Optimizer):
         print(f"LP obj for x0: {obj(x0)} ({lp_obj(x0)})")
 
         bounds = [(0,1) for i in range(NVARS*N)]
+
+        if self.use_lp_for_bounds:
+            for i,fc in enumerate(FC):
+                bounds[NVARS*i] = (0,lp_probs[fc][0])
 
         if self.method == "trust-region":
             # sum <= 1
@@ -242,7 +248,7 @@ class NonlinearOptimizer (Optimizer):
 
         lp_probs = None
         x0 = None
-        if self.initial_guess == INITIAL_GUESS_LP or (self.initial_guess == INITIAL_GUESS_LAST_SOL and self.last_solution is None):
+        if self.initial_guess == INITIAL_GUESS_LP or (self.initial_guess == INITIAL_GUESS_LAST_SOL and self.last_solution is None) or self.use_lp_for_bounds:
             print("Computing initial LP sol")
             lp_probs, _ = lp_optimizer.LPOptimizer(verbose=False).optimize_probabilities(params)
         elif self.initial_guess == INITIAL_GUESS_LAST_SOL:

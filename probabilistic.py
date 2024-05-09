@@ -370,13 +370,16 @@ class ProbabilisticPolicy (Policy):
             opt = LPOptimizer(self.simulation.verbosity)
         elif optimizer_to_use == "nonlinear":
             method = self.simulation.config.get(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, fallback="trust-region")
-            opt = NonlinearOptimizer(initial_guess="lp", method=method, verbose=self.simulation.verbosity)
+            use_lp_for_bounds = self.simulation.config.getboolean(conf.SEC_POLICY, conf.NONLINEAR_USE_LP_FOR_BOUNDS, fallback=False)
+            opt = NonlinearOptimizer(initial_guess="lp", method=method, use_lp_for_bounds=use_lp_for_bounds, verbose=self.simulation.verbosity)
         elif optimizer_to_use == "nonlinear-warm":
             method = self.simulation.config.get(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, fallback="trust-region")
             opt = NonlinearOptimizer(initial_guess="last", method=method, verbose=self.simulation.verbosity)
         elif optimizer_to_use == "nonlinear-noguess":
             method = self.simulation.config.get(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, fallback="trust-region")
+            use_lp_for_bounds = self.simulation.config.getboolean(conf.SEC_POLICY, conf.NONLINEAR_USE_LP_FOR_BOUNDS, fallback=False)
             opt = NonlinearOptimizer(initial_guess=None, method=method,
+                    use_lp_for_bounds=use_lp_for_bounds,
                     verbose=self.simulation.verbosity)
         elif optimizer_to_use == "nonlinear-lp-relaxed":
             opt = NonlinearOptimizer(initial_guess="lp", method="none",

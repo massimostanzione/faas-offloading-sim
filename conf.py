@@ -30,6 +30,7 @@ SPLIT_BUDGET_AMONG_EDGE_NODES = "split-budget-edge"
 MULTIPLE_OFFLOADING_ALLOWED = "multiple-offloading-allowed"
 FALLBACK_ON_LOCAL_REJECTION = "local-rejection-fallback"
 NONLINEAR_OPT_ALGORITHM = "nonlinear-optimization-alg"
+NONLINEAR_USE_LP_FOR_BOUNDS = "nonlinear-use-lp-for-bounds"
 
 
 SEC_STATEFUL = "stateful"
