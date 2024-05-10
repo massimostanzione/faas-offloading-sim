@@ -4,11 +4,15 @@ import math
 import lp_optimizer 
 from optimization import OptProblemParams, Optimizer
 
+METHOD_ADAPTIVE_UTIL="adaptive-util"
+METHOD_GREEDY_REDUCTION="greedy-reduction"
+
 class IteratedLPOptimizer (Optimizer):
 
-    def __init__ (self, method="adaptive-util", verbose=False):
+    def __init__ (self, method=METHOD_ADAPTIVE_UTIL, max_p_block=0.01, verbose=False):
         super().__init__(verbose)
         self.method = method
+        self.max_p_block = max_p_block
 
 
 
@@ -68,29 +72,52 @@ class IteratedLPOptimizer (Optimizer):
 
         opt = lp_optimizer.LPOptimizer(verbose=False)
 
-        uLow=0.01
-        uHigh=1.0
+        if self.method == METHOD_ADAPTIVE_UTIL:
+            uLow=0.01
+            uHigh=1.0
 
-        pblock=1.0
-        bestU=None
-        bestSol=None
-        while uHigh - uLow > 0.001:
-            u = uLow + (uHigh-uLow)/2
-            params.usable_local_memory_coeff = u
-            sol, _ = opt.optimize_probabilities(params)
-            pblock = max(kaufman(sol))
-            obj_val = obj(sol)
-            #print(f"uH={uHigh} uL={uLow} pblock={pblock}; obj={obj_val}")
+            pblock=1.0
+            bestU=None
+            bestSol=None
+            while uHigh - uLow > 0.001:
+                u = uLow + (uHigh-uLow)/2
+                params.usable_local_memory_coeff = u
+                sol, _ = opt.optimize_probabilities(params)
+                pblock = max(kaufman(sol))
+                obj_val = obj(sol)
+                #print(f"uH={uHigh} uL={uLow} pblock={pblock}; obj={obj_val}")
 
-            if pblock > 0.01:
-                uHigh = u
-            else:
-                uLow = u
-                if bestU is None or u > bestU:
-                    bestU = u
-                    bestSol = sol
+                # TODO: try reasoning in terms of lost utility?
+                if pblock > self.max_p_block:
+                    uHigh = u
+                else:
+                    uLow = u
+                    if bestU is None or u > bestU:
+                        bestU = u
+                        bestSol = sol
 
-        probs = bestSol
+            probs = bestSol
+        elif self.method == METHOD_GREEDY_REDUCTION:
+            probs, _ = opt.optimize_probabilities(params)
+            pblock = kaufman(probs)
+
+            while max(pblock) > 0.01:
+                mem_demands = np.array([fc[0].memory*params.arrival_rates[fc]*probs[fc][0]*(1-pblock[i]) for i,fc in enumerate(FC)])
+                utilities = np.array([fc[1].utility*pDeadlineL[fc] - fc[1].deadline_penalty*(1-pDeadlineL[fc]) + fc[1].drop_penalty for fc in FC])
+                dem_util_ratio = utilities/mem_demands
+                i = np.argmin(dem_util_ratio)
+                i = np.argmax(mem_demands)
+                probs[FC[i]][0]*=0.9
+                pblock = kaufman(probs)
+                print(pblock)
+                print(probs)
+
+            # Solve LP fixing local exec probabilities
+            probs, _ = opt.optimize_probabilities(params, fixed_local_probs=probs)
+
+            obj_val = obj(probs)
+        print(obj_val)
+
 
         #Workaround to avoid numerical issues
         for f,c in params.fun_classes():

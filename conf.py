@@ -31,6 +31,7 @@ MULTIPLE_OFFLOADING_ALLOWED = "multiple-offloading-allowed"
 FALLBACK_ON_LOCAL_REJECTION = "local-rejection-fallback"
 NONLINEAR_OPT_ALGORITHM = "nonlinear-optimization-alg"
 NONLINEAR_USE_LP_FOR_BOUNDS = "nonlinear-use-lp-for-bounds"
+ITERATED_LP_MAX_PBLOCK = "iterated-lp-max-pblock"
 
 
 SEC_STATEFUL = "stateful"

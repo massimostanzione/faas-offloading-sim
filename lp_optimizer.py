@@ -49,7 +49,7 @@ class LPOptimizer(Optimizer):
     def __init__ (self, verbose=False):
         super().__init__(verbose)
 
-    def optimize_probabilities (self, params: OptProblemParams):
+    def optimize_probabilities (self, params: OptProblemParams, fixed_local_probs=None):
         F = params.functions
         C = params.classes
         F_C = [(f,c) for f in F for c in C]
@@ -101,6 +101,10 @@ class LPOptimizer(Optimizer):
                             (pL[f][c]*(1.0-deadline_satisfaction_prob_local[(f,c)])+\
                             pC[f][c]*(1.0-deadline_satisfaction_prob_cloud[(f,c)])) for f,c in F_C]) -\
                             pl.lpSum([c.drop_penalty*params.arrival_rates[(f,c)]*pD[f][c] for f,c in F_C]), "objUtilCost")
+
+        if fixed_local_probs is not None:
+            for f,c in F_C:
+                prob += (pL[f][c] == fixed_local_probs[(f,c)][0])
 
         # Probability
         if EDGE_ENABLED:

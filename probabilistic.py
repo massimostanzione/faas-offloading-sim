@@ -4,6 +4,7 @@ from pacsltk import perfmodel
 
 import conf
 from lp_optimizer import LPOptimizer
+import optimizer_iterated_lp
 from optimizer_iterated_lp import IteratedLPOptimizer
 from optimizer_nonlinear import NonlinearOptimizer
 from policy import Policy, SchedulerDecision, ColdStartEstimation, COLD_START_PROB_INITIAL_GUESS
@@ -386,7 +387,11 @@ class ProbabilisticPolicy (Policy):
             opt = NonlinearOptimizer(initial_guess="lp", method="none",
                     verbose=self.simulation.verbosity)
         elif optimizer_to_use == "iterated-lp":
-            opt = IteratedLPOptimizer(verbose=self.simulation.verbosity)
+            max_p_block = self.simulation.config.getfloat(conf.SEC_POLICY, conf.ITERATED_LP_MAX_PBLOCK, fallback=0.01)
+            opt = IteratedLPOptimizer(max_p_block=max_p_block, verbose=self.simulation.verbosity)
+        elif optimizer_to_use == "iterated-lp-greedy":
+            opt = IteratedLPOptimizer(method=optimizer_iterated_lp.METHOD_GREEDY_REDUCTION,
+                    verbose=self.simulation.verbosity)
         elif optimizer_to_use == "nonlinear-lp-relaxed-threshold":
             opt = NonlinearOptimizer(initial_guess="lp-threshold", method="none",
                     verbose=self.simulation.verbosity)
