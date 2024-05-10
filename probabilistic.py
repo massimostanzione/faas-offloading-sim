@@ -384,6 +384,9 @@ class ProbabilisticPolicy (Policy):
         elif optimizer_to_use == "nonlinear-lp-relaxed":
             opt = NonlinearOptimizer(initial_guess="lp", method="none",
                     verbose=self.simulation.verbosity)
+        elif optimizer_to_use == "nonlinear-lp-relaxed-threshold":
+            opt = NonlinearOptimizer(initial_guess="lp-threshold", method="none",
+                    verbose=self.simulation.verbosity)
         else:
             raise RuntimeError(f"Unknown optimizer: {optimizer_to_use}")
         return opt

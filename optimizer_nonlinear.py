@@ -7,6 +7,7 @@ from optimization import OptProblemParams, Optimizer
 
 INITIAL_GUESS_NONE=None
 INITIAL_GUESS_LP="lp"
+INITIAL_GUESS_LP_THRESHOLD="lp-threshold"
 INITIAL_GUESS_LAST_SOL="last"
 
 DUMP_SOL=False
@@ -251,6 +252,12 @@ class NonlinearOptimizer (Optimizer):
         if self.initial_guess == INITIAL_GUESS_LP or (self.initial_guess == INITIAL_GUESS_LAST_SOL and self.last_solution is None) or self.use_lp_for_bounds:
             print("Computing initial LP sol")
             lp_probs, _ = lp_optimizer.LPOptimizer(verbose=False).optimize_probabilities(params)
+        elif self.initial_guess == INITIAL_GUESS_LP_THRESHOLD:
+            print("Computing initial LP sol with threshold")
+            temp = params.local_usable_memory_coeff
+            params.local_usable_memory_coeff = 0.8 
+            lp_probs, _ = lp_optimizer.LPOptimizer(verbose=False).optimize_probabilities(params)
+            params.local_usable_memory_coeff = temp
         elif self.initial_guess == INITIAL_GUESS_LAST_SOL:
             x0 = self.last_solution
         elif self.initial_guess == "" or self.initial_guess is INITIAL_GUESS_NONE:
