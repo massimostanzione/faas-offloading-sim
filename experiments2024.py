@@ -212,7 +212,7 @@ def experiment_optimizers(args, config):
                 for functions in [2,3,5]:
                     for budget in [-1, 0.1, 1]:
                         config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
-                        for opt in ["nonlinear", "nonlinear-noguess", "nonlinear-lp-relaxed", "nonlinear-lp-relaxed-threshold"]:
+                        for opt in ["nonlinear", "nonlinear-noguess", "nonlinear-lp-relaxed", "nonlinear-lp-relaxed-threshold", "iterated-lp"]:
                             config.set(conf.SEC_POLICY, conf.QOS_OPTIMIZER, opt)
 
                             if "relaxed" in opt:
