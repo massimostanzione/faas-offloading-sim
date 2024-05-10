@@ -219,7 +219,7 @@ def experiment_optimizers(args, config):
                                 algs = ["-"]
                                 use_lp_for_bounds_vals = [False]
                                 max_p_block_vals = [0.0]
-                            elif: "iterated" in opt:
+                            elif "iterated" in opt:
                                 algs = ["-"]
                                 use_lp_for_bounds_vals = [False]
                                 max_p_block_vals = [0.01, 0.05, 0.1, 0.2]
