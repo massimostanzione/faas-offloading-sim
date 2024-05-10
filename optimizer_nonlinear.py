@@ -254,10 +254,10 @@ class NonlinearOptimizer (Optimizer):
             lp_probs, _ = lp_optimizer.LPOptimizer(verbose=False).optimize_probabilities(params)
         elif self.initial_guess == INITIAL_GUESS_LP_THRESHOLD:
             print("Computing initial LP sol with threshold")
-            temp = params.local_usable_memory_coeff
-            params.local_usable_memory_coeff = 0.8 
+            temp = params.usable_local_memory_coeff
+            params.usable_local_memory_coeff = 0.8 
             lp_probs, _ = lp_optimizer.LPOptimizer(verbose=False).optimize_probabilities(params)
-            params.local_usable_memory_coeff = temp
+            params.usable_local_memory_coeff = temp
         elif self.initial_guess == INITIAL_GUESS_LAST_SOL:
             x0 = self.last_solution
         elif self.initial_guess == "" or self.initial_guess is INITIAL_GUESS_NONE:
