@@ -115,7 +115,7 @@ def experiment_main_comparison(args, config):
                                 for pol in POLICIES:
                                     config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
                                     if "probabilistic" in pol:
-                                        optimizers = ["nonlinear", "nonlinear-lp-relaxed"]
+                                        optimizers = ["nonlinear", "nonlinear-lp-relaxed", "iterated-lp"]
                                     else:
                                         optimizers = ["-"]
                                     for opt in optimizers:
