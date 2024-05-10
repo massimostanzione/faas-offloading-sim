@@ -219,14 +219,17 @@ def experiment_optimizers(args, config):
                                 algs = ["-"]
                                 use_lp_for_bounds_vals = [False]
                                 max_p_block_vals = [0.0]
+                                approximation_vals = [False]
                             elif "iterated" in opt:
                                 algs = ["-"]
                                 use_lp_for_bounds_vals = [False]
                                 max_p_block_vals = [0.01, 0.05, 0.1, 0.2]
+                                approximation_vals = [False]
                             else:
                                 algs = ["trust-region", "slsqp"]
                                 use_lp_for_bounds_vals = [True, False]
                                 max_p_block_vals = [0.0]
+                                approximation_vals = [True,False]
 
                             for alg in algs:
                                 config.set(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, alg)
@@ -234,58 +237,62 @@ def experiment_optimizers(args, config):
                                     config.set(conf.SEC_POLICY, conf.NONLINEAR_USE_LP_FOR_BOUNDS, str(use_lp_for_bounds))
                                     for max_p_block in max_p_block_vals:
                                         config.set(conf.SEC_POLICY, conf.ITERATED_LP_MAX_PBLOCK, str(max_p_block))
+                                            for linear_blockin_approx in approximation_vals:
+                                                config.set(conf.SEC_POLICY, conf.NONLINEAR_APPROXIMATE_BLOCKING, str(linear_blockin_approx))
 
-                                        keys = {}
-                                        keys["Optimizer"] = opt
-                                        keys["Alg"] = alg
-                                        keys["Seed"] = seed
-                                        keys["Latency"] = latency
-                                        keys["MaxPBlock"] = max_p_block
-                                        keys["EdgeEnabled"] = edge_enabled
-                                        keys["Functions"] = functions
-                                        keys["Budget"] = budget
-                                        keys["UseLPForBounds"] = use_lp_for_bounds
+                                                keys = {}
+                                                keys["Optimizer"] = opt
+                                                keys["Alg"] = alg
+                                                keys["Seed"] = seed
+                                                keys["Latency"] = latency
+                                                keys["MaxPBlock"] = max_p_block
+                                                keys["EdgeEnabled"] = edge_enabled
+                                                keys["Functions"] = functions
+                                                keys["LinearBlockingApprox"] = linear_blockin_approx
+                                                keys["Budget"] = budget
+                                                keys["UseLPForBounds"] = use_lp_for_bounds
 
-                                        run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
+                                                run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
 
-                                        # Check if we can skip this run
-                                        if old_results is not None and not\
-                                                old_results[(old_results.Seed == seed) &\
-                                                    (old_results.Latency == latency) &\
-                                                    (old_results.Budget == budget) &\
-                                                    (old_results.Functions == functions) &\
-                                                    (old_results.Alg == alg) &\
-                                                    (old_results.MaxPBlock == max_p_block) &\
-                                                    (old_results.EdgeEnabled == edge_enabled) &\
-                                                    (old_results.UseLPForBounds == use_lp_for_bounds) &\
-                                                    (old_results.Optimizer == opt)].empty:
-                                            print("Skipping conf")
-                                            continue
+                                                # Check if we can skip this run
+                                                if old_results is not None and not\
+                                                        old_results[(old_results.Seed == seed) &\
+                                                            (old_results.Latency == latency) &\
+                                                            (old_results.Budget == budget) &\
+                                                            (old_results.Functions == functions) &\
+                                                            (old_results.Alg == alg) &\
+                                                            (old_results.MaxPBlock == max_p_block) &\
+                                                            (old_results.LinearBlockingApprox == linear_blockin_approx) &\
+                                                            (old_results.EdgeEnabled == edge_enabled) &\
+                                                            (old_results.UseLPForBounds == use_lp_for_bounds) &\
+                                                            (old_results.Optimizer == opt)].empty:
+                                                    print("Skipping conf")
+                                                    continue
 
-                                        rng = default_rng(seed_sequence.spawn(1)[0])
-                                        temp_spec_file = generate_random_temp_spec (rng, n_functions=functions)
-                                        infra = default_infra(edge_cloud_latency=latency)
+                                                rng = default_rng(seed_sequence.spawn(1)[0])
+                                                temp_spec_file = generate_random_temp_spec (rng, n_functions=functions)
+                                                infra = default_infra(edge_cloud_latency=latency)
 
-                                        t0 = time.time()
-                                        stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
-                                        temp_spec_file.close()
-                                        t1 = time.time()
+                                                t0 = time.time()
+                                                stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
+                                                temp_spec_file.close()
+                                                t1 = time.time()
 
-                                        with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
-                                            stats.print(of)
+                                                with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                                                    stats.print(of)
 
-                                        result=dict(list(keys.items()))# + list(relevant_stats_dict(stats).items()))
+                                                result=dict(list(keys.items()))# + list(relevant_stats_dict(stats).items()))
 
-                                        # NOTE: we assume that only 1 node solves the problem
-                                        result["Obj"] = max(stats.optimizer_obj_value.values())
-                                        result["ExecTime"] = t1-t0
-                                        results.append(result)
-                                        print(result)
+                                                # NOTE: we assume that only 1 node solves the problem
+                                                result["Obj"] = max(stats.optimizer_obj_value.values())
+                                                result["ExecTime"] = t1-t0
+                                                results.append(result)
+                                                print(result)
 
-                                        resultsDf = pd.DataFrame(results)
-                                        if old_results is not None:
-                                            resultsDf = pd.concat([old_results, resultsDf])
-                                        resultsDf.to_csv(outfile, index=False)
+                                                resultsDf = pd.DataFrame(results)
+                                                if old_results is not None:
+                                                    resultsDf = pd.concat([old_results, resultsDf])
+                                                resultsDf.to_csv(outfile, index=False)
     
     with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
         config.write(of)
