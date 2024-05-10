@@ -73,7 +73,7 @@ class IteratedLPOptimizer (Optimizer):
         opt = lp_optimizer.LPOptimizer(verbose=False)
 
         if self.method == METHOD_ADAPTIVE_UTIL:
-            uLow=0.01
+            uLow=0.0
             uHigh=1.0
 
             pblock=1.0
@@ -86,6 +86,9 @@ class IteratedLPOptimizer (Optimizer):
                 pblock = max(kaufman(sol))
                 obj_val = obj(sol)
                 #print(f"uH={uHigh} uL={uLow} pblock={pblock}; obj={obj_val}")
+
+                if bestSol is None:
+                    bestSol = sol
 
                 # TODO: try reasoning in terms of lost utility?
                 if pblock > self.max_p_block:
