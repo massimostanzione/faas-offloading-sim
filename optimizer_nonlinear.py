@@ -219,7 +219,7 @@ class NonlinearOptimizer (Optimizer):
                 constraints.append(edgeMemLC)
 
             fobj=obj if not self.linear_blocking_approximation else approx_obj
-            res = minimize(lambda x: -1*obj(x), x0, method="trust-constr", bounds=bounds, constraints=constraints, tol=1e-6, options={"maxiter": 200000})
+            res = minimize(lambda x: -1*fobj(x), x0, method="trust-constr", bounds=bounds, constraints=constraints, tol=1e-6, options={"maxiter": 200000})
             print(res)
             x = res.x
             obj_val = -res.fun
