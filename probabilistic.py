@@ -373,14 +373,19 @@ class ProbabilisticPolicy (Policy):
         elif optimizer_to_use == "nonlinear":
             method = self.simulation.config.get(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, fallback="trust-region")
             use_lp_for_bounds = self.simulation.config.getboolean(conf.SEC_POLICY, conf.NONLINEAR_USE_LP_FOR_BOUNDS, fallback=False)
-            opt = NonlinearOptimizer(initial_guess="lp", method=method, use_lp_for_bounds=use_lp_for_bounds, verbose=self.simulation.verbosity)
+            linear_blocking_approximation = self.simulation.config.getboolean(conf.SEC_POLICY, conf.NONLINEAR_APPROXIMATE_BLOCKING, fallback=False)
+            opt = NonlinearOptimizer(initial_guess="lp", method=method, 
+                    linear_blocking_approximation=linear_blocking_approximation,
+                    use_lp_for_bounds=use_lp_for_bounds, verbose=self.simulation.verbosity)
         elif optimizer_to_use == "nonlinear-warm":
             method = self.simulation.config.get(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, fallback="trust-region")
             opt = NonlinearOptimizer(initial_guess="last", method=method, verbose=self.simulation.verbosity)
         elif optimizer_to_use == "nonlinear-noguess":
             method = self.simulation.config.get(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, fallback="trust-region")
             use_lp_for_bounds = self.simulation.config.getboolean(conf.SEC_POLICY, conf.NONLINEAR_USE_LP_FOR_BOUNDS, fallback=False)
+            linear_blocking_approximation = self.simulation.config.getboolean(conf.SEC_POLICY, conf.NONLINEAR_APPROXIMATE_BLOCKING, fallback=False)
             opt = NonlinearOptimizer(initial_guess=None, method=method,
+                    linear_blocking_approximation=linear_blocking_approximation,
                     use_lp_for_bounds=use_lp_for_bounds,
                     verbose=self.simulation.verbosity)
         elif optimizer_to_use == "nonlinear-lp-relaxed":
@@ -391,9 +396,6 @@ class ProbabilisticPolicy (Policy):
             opt = IteratedLPOptimizer(max_p_block=max_p_block, verbose=self.simulation.verbosity)
         elif optimizer_to_use == "iterated-lp-greedy":
             opt = IteratedLPOptimizer(method=optimizer_iterated_lp.METHOD_GREEDY_REDUCTION,
-                    verbose=self.simulation.verbosity)
-        elif optimizer_to_use == "nonlinear-lp-relaxed-threshold":
-            opt = NonlinearOptimizer(initial_guess="lp-threshold", method="none",
                     verbose=self.simulation.verbosity)
         else:
             raise RuntimeError(f"Unknown optimizer: {optimizer_to_use}")

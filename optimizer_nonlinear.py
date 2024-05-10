@@ -7,8 +7,8 @@ from optimization import OptProblemParams, Optimizer
 
 INITIAL_GUESS_NONE=None
 INITIAL_GUESS_LP="lp"
-INITIAL_GUESS_LP_THRESHOLD="lp-threshold"
 INITIAL_GUESS_LAST_SOL="last"
+
 
 DUMP_SOL=False
 
@@ -26,12 +26,14 @@ def dump_solution (filename, x, EDGE_ENABLED):
 
 class NonlinearOptimizer (Optimizer):
 
-    def __init__ (self, initial_guess="lp", method="trust-region", use_lp_for_bounds=False, verbose=False):
+    def __init__ (self, initial_guess="lp", method="trust-region",
+            use_lp_for_bounds=False, linear_blocking_approximation=False, verbose=False):
         super().__init__(verbose)
         self.initial_guess = initial_guess
         self.method = method
         self.last_solution = None
         self.use_lp_for_bounds = use_lp_for_bounds
+        self.linear_blocking_approximation = linear_blocking_approximation
 
 
     def optimize (self, params, pDeadlineL, pDeadlineC, pDeadlineE, x0=None, lp_probs=None):
@@ -58,11 +60,15 @@ class NonlinearOptimizer (Optimizer):
 
 
         def kaufman (_p):
+            plocal = _p[0::NVARS]
+            return _kaufman(plocal)
+
+        def _kaufman (plocal):
             M = int(params.usable_local_memory_coeff*params.local_node.total_memory)
             mem_demands = [fc[0].memory for fc in FC]
             alpha = np.zeros(len(mem_demands))
             for i,fc in enumerate(FC):
-                alpha[i] = params.arrival_rates[fc]*_p[NVARS*i]*params.serv_time_local[fc[0]]
+                alpha[i] = params.arrival_rates[fc]*plocal[i]*params.serv_time_local[fc[0]]
 
             q = np.zeros(M+1)
             q[0] = 1
@@ -141,6 +147,42 @@ class NonlinearOptimizer (Optimizer):
 
         print(f"LP obj for x0: {obj(x0)} ({lp_obj(x0)})")
 
+        if self.linear_blocking_approximation:
+            from sklearn import datasets, linear_model
+            from sklearn.metrics import mean_squared_error, r2_score
+
+            Ntrain=5
+            coeffs = np.random.random_sample(Ntrain*N).reshape(Ntrain,N)
+            lp_local_probs = np.zeros(N)
+            for i,fc in enumerate(FC):
+                lp_local_probs[i] = lp_probs[fc][0]
+            X = coeffs*lp_local_probs
+            Y = np.zeros((Ntrain,N))
+            for i in range(Ntrain):
+                Y[i,:] = _kaufman(X[i,:])
+
+            # Create linear regression object
+            regr = linear_model.LinearRegression()
+            regr.fit(X, Y)
+
+            def approx_obj (_p):
+                blocking_p = regr.predict(_p[0::NVARS].reshape(1,-1))[0]
+                v = 0
+                for i,fc in enumerate(FC):
+                    f,c = fc
+                    gammaL = c.utility*pDeadlineL[fc] - c.deadline_penalty*(1-pDeadlineL[fc]) + c.drop_penalty
+                    gammaC = c.utility*pDeadlineC[fc] - c.deadline_penalty*(1-pDeadlineC[fc]) + c.drop_penalty
+                    gammaE = c.utility*pDeadlineE[fc] - c.deadline_penalty*(1-pDeadlineE[fc]) + c.drop_penalty
+                    v += params.arrival_rates[(f,c)] * (\
+                            _p[NVARS*i]*(1-blocking_p[i])*gammaL +\
+                            _p[NVARS*i+1]*gammaC)
+                    if EDGE_ENABLED:
+                        v += params.arrival_rates[(f,c)] * _p[NVARS*i+2]*gammaE
+                return v
+
+
+
+
         bounds = [(0,1) for i in range(NVARS*N)]
 
         if self.use_lp_for_bounds:
@@ -176,6 +218,7 @@ class NonlinearOptimizer (Optimizer):
                 edgeMemLC = LinearConstraint(A=A3, lb=0, ub=params.aggregated_edge_memory, keep_feasible=False)
                 constraints.append(edgeMemLC)
 
+            fobj=obj if not self.linear_blocking_approximation else approx_obj
             res = minimize(lambda x: -1*obj(x), x0, method="trust-constr", bounds=bounds, constraints=constraints, tol=1e-6, options={"maxiter": 200000})
             print(res)
             x = res.x
@@ -207,7 +250,8 @@ class NonlinearOptimizer (Optimizer):
                     return params.aggregated_edge_memory-total
                 constraints.append({"type":"ineq", "fun": cedge})
 
-            res = minimize(lambda x: -1*obj(x), x0, method="SLSQP", bounds=bounds, constraints=constraints, tol=1e-6, options={"maxiter": 200000})
+            fobj=obj if not self.linear_blocking_approximation else approx_obj
+            res = minimize(lambda x: -1*fobj(x), x0, method="SLSQP", bounds=bounds, constraints=constraints, tol=1e-6, options={"maxiter": 200000})
             print(res)
             x = res.x
             obj_val = -res.fun
@@ -249,15 +293,9 @@ class NonlinearOptimizer (Optimizer):
 
         lp_probs = None
         x0 = None
-        if self.initial_guess == INITIAL_GUESS_LP or (self.initial_guess == INITIAL_GUESS_LAST_SOL and self.last_solution is None) or self.use_lp_for_bounds:
+        if self.initial_guess == INITIAL_GUESS_LP or (self.initial_guess == INITIAL_GUESS_LAST_SOL and self.last_solution is None) or self.use_lp_for_bounds or self.linear_blocking_approximation:
             print("Computing initial LP sol")
             lp_probs, _ = lp_optimizer.LPOptimizer(verbose=False).optimize_probabilities(params)
-        elif self.initial_guess == INITIAL_GUESS_LP_THRESHOLD:
-            print("Computing initial LP sol with threshold")
-            temp = params.usable_local_memory_coeff
-            params.usable_local_memory_coeff = 0.8 
-            lp_probs, _ = lp_optimizer.LPOptimizer(verbose=False).optimize_probabilities(params)
-            params.usable_local_memory_coeff = temp
         elif self.initial_guess == INITIAL_GUESS_LAST_SOL:
             x0 = self.last_solution
         elif self.initial_guess == "" or self.initial_guess is INITIAL_GUESS_NONE:
