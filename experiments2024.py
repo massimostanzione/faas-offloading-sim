@@ -126,49 +126,59 @@ def experiment_main_comparison(args, config):
                                         else:
                                             config.set(conf.SEC_POLICY, conf.ADAPTIVE_LOCAL_MEMORY, str(False))
 
-                                        keys = {}
-                                        keys["Policy"] = pol
-                                        keys["Seed"] = seed
-                                        keys["Optimizer"] = opt
-                                        keys["Budget"] = budget
-                                        keys["Functions"] = functions
-                                        keys["EdgeMemory"] = edge_memory
-                                        keys["EdgeEnabled"] = edge_enabled
-                                        keys["PenaltyMode"] = penalty_mode
-                                        keys["PoissonArrivals"] = poisson_arrivals
+                                        if "probabilistic" in pol and opt == "nonlinear":
+                                            approximation_vals = [True,False]
+                                        else:
+                                            approximation_vals = [False]
 
-                                        run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
+                                        for linear_blockin_approx in approximation_vals:
+                                            config.set(conf.SEC_POLICY, conf.NONLINEAR_APPROXIMATE_BLOCKING, str(linear_blockin_approx))
 
-                                        # Check if we can skip this run
-                                        if old_results is not None and not\
-                                                old_results[(old_results.Seed == seed) &\
-                                                    (old_results.Optimizer == opt) &\
-                                                    (old_results.PenaltyMode == penalty_mode) &\
-                                                    (old_results.EdgeEnabled == edge_enabled) &\
-                                                    (old_results.Functions == functions) &\
-                                                    (old_results.Budget == budget) &\
-                                                    (old_results.PoissonArrivals == poisson_arrivals) &\
-                                                    (old_results.EdgeMemory == edge_memory) &\
-                                                    (old_results.Policy == pol)].empty:
-                                            print("Skipping conf")
-                                            continue
+                                            keys = {}
+                                            keys["Policy"] = pol
+                                            keys["Seed"] = seed
+                                            keys["Optimizer"] = opt
+                                            keys["Budget"] = budget
+                                            keys["Functions"] = functions
+                                            keys["EdgeMemory"] = edge_memory
+                                            keys["EdgeEnabled"] = edge_enabled
+                                            keys["PenaltyMode"] = penalty_mode
+                                            keys["PoissonArrivals"] = poisson_arrivals
+                                            keys["LinearBlockingApprox"] = linear_blockin_approx
 
-                                        rng = default_rng(seed_sequence.spawn(1)[0])
-                                        temp_spec_file = generate_random_temp_spec (rng, n_functions=functions, edge_memory=edge_memory, force_poisson_arrivals=poisson_arrivals)
-                                        infra = default_infra(edge_cloud_latency=0.1)
-                                        stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
-                                        temp_spec_file.close()
-                                        with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
-                                            stats.print(of)
+                                            run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
 
-                                        result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
-                                        results.append(result)
-                                        print(result)
+                                            # Check if we can skip this run
+                                            if old_results is not None and not\
+                                                    old_results[(old_results.Seed == seed) &\
+                                                        (old_results.Optimizer == opt) &\
+                                                        (old_results.PenaltyMode == penalty_mode) &\
+                                                        (old_results.EdgeEnabled == edge_enabled) &\
+                                                        (old_results.Functions == functions) &\
+                                                        (old_results.Budget == budget) &\
+                                                        (old_results.LinearBlockingApprox == linear_blockin_approx) &\
+                                                        (old_results.PoissonArrivals == poisson_arrivals) &\
+                                                        (old_results.EdgeMemory == edge_memory) &\
+                                                        (old_results.Policy == pol)].empty:
+                                                print("Skipping conf")
+                                                continue
 
-                                        resultsDf = pd.DataFrame(results)
-                                        if old_results is not None:
-                                            resultsDf = pd.concat([old_results, resultsDf])
-                                        resultsDf.to_csv(outfile, index=False)
+                                            rng = default_rng(seed_sequence.spawn(1)[0])
+                                            temp_spec_file = generate_random_temp_spec (rng, n_functions=functions, edge_memory=edge_memory, force_poisson_arrivals=poisson_arrivals)
+                                            infra = default_infra(edge_cloud_latency=0.1)
+                                            stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
+                                            temp_spec_file.close()
+                                            with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                                                stats.print(of)
+
+                                            result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
+                                            results.append(result)
+                                            print(result)
+
+                                            resultsDf = pd.DataFrame(results)
+                                            if old_results is not None:
+                                                resultsDf = pd.concat([old_results, resultsDf])
+                                            resultsDf.to_csv(outfile, index=False)
     
     resultsDf = pd.DataFrame(results)
     if old_results is not None:
