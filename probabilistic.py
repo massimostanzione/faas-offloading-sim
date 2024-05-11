@@ -373,9 +373,9 @@ class ProbabilisticPolicy (Policy):
         elif optimizer_to_use == "nonlinear":
             method = self.simulation.config.get(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, fallback="trust-region")
             use_lp_for_bounds = self.simulation.config.getboolean(conf.SEC_POLICY, conf.NONLINEAR_USE_LP_FOR_BOUNDS, fallback=False)
-            linear_blocking_approximation = self.simulation.config.getboolean(conf.SEC_POLICY, conf.NONLINEAR_APPROXIMATE_BLOCKING, fallback=False)
+            blocking_approximation = self.simulation.config.get(conf.SEC_POLICY, conf.NONLINEAR_APPROXIMATE_BLOCKING, fallback=None)
             opt = NonlinearOptimizer(initial_guess="lp", method=method, 
-                    linear_blocking_approximation=linear_blocking_approximation,
+                    blocking_approximation=blocking_approximation,
                     use_lp_for_bounds=use_lp_for_bounds, verbose=self.simulation.verbosity)
         elif optimizer_to_use == "nonlinear-warm":
             method = self.simulation.config.get(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, fallback="trust-region")
@@ -383,9 +383,9 @@ class ProbabilisticPolicy (Policy):
         elif optimizer_to_use == "nonlinear-noguess":
             method = self.simulation.config.get(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, fallback="trust-region")
             use_lp_for_bounds = self.simulation.config.getboolean(conf.SEC_POLICY, conf.NONLINEAR_USE_LP_FOR_BOUNDS, fallback=False)
-            linear_blocking_approximation = self.simulation.config.getboolean(conf.SEC_POLICY, conf.NONLINEAR_APPROXIMATE_BLOCKING, fallback=False)
+            blocking_approximation = self.simulation.config.get(conf.SEC_POLICY, conf.NONLINEAR_APPROXIMATE_BLOCKING, fallback=None)
             opt = NonlinearOptimizer(initial_guess=None, method=method,
-                    linear_blocking_approximation=linear_blocking_approximation,
+                    blocking_approximation=blocking_approximation,
                     use_lp_for_bounds=use_lp_for_bounds,
                     verbose=self.simulation.verbosity)
         elif optimizer_to_use == "nonlinear-lp-relaxed":

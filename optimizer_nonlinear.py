@@ -27,13 +27,13 @@ def dump_solution (filename, x, EDGE_ENABLED):
 class NonlinearOptimizer (Optimizer):
 
     def __init__ (self, initial_guess="lp", method="trust-region",
-            use_lp_for_bounds=False, linear_blocking_approximation=False, verbose=False):
+            use_lp_for_bounds=False, blocking_approximation=None, verbose=False):
         super().__init__(verbose)
         self.initial_guess = initial_guess
         self.method = method
         self.last_solution = None
         self.use_lp_for_bounds = use_lp_for_bounds
-        self.linear_blocking_approximation = linear_blocking_approximation
+        self.blocking_approximation = blocking_approximation
 
 
     def optimize (self, params, pDeadlineL, pDeadlineC, pDeadlineE, x0=None, lp_probs=None):
@@ -147,7 +147,7 @@ class NonlinearOptimizer (Optimizer):
 
         print(f"LP obj for x0: {obj(x0)} ({lp_obj(x0)})")
 
-        if self.linear_blocking_approximation:
+        if self.blocking_approximation == "linear":
             from sklearn import datasets, linear_model
             from sklearn.metrics import mean_squared_error, r2_score
 
@@ -167,6 +167,43 @@ class NonlinearOptimizer (Optimizer):
 
             def approx_obj (_p):
                 blocking_p = regr.predict(_p[0::NVARS].reshape(1,-1))[0]
+                v = 0
+                for i,fc in enumerate(FC):
+                    f,c = fc
+                    gammaL = c.utility*pDeadlineL[fc] - c.deadline_penalty*(1-pDeadlineL[fc]) + c.drop_penalty
+                    gammaC = c.utility*pDeadlineC[fc] - c.deadline_penalty*(1-pDeadlineC[fc]) + c.drop_penalty
+                    gammaE = c.utility*pDeadlineE[fc] - c.deadline_penalty*(1-pDeadlineE[fc]) + c.drop_penalty
+                    v += params.arrival_rates[(f,c)] * (\
+                            _p[NVARS*i]*(1-blocking_p[i])*gammaL +\
+                            _p[NVARS*i+1]*gammaC)
+                    if EDGE_ENABLED:
+                        v += params.arrival_rates[(f,c)] * _p[NVARS*i+2]*gammaE
+                return v
+        elif self.blocking_approximation == "poly":
+            from sklearn import datasets, linear_model
+            from sklearn.metrics import mean_squared_error, r2_score
+            from sklearn.preprocessing import PolynomialFeatures
+
+            Ntrain=10
+            coeffs = np.random.random_sample(Ntrain*N).reshape(Ntrain,N)
+            lp_local_probs = np.zeros(N)
+            for i,fc in enumerate(FC):
+                lp_local_probs[i] = lp_probs[fc][0]
+            X = coeffs*lp_local_probs
+            Y = np.zeros((Ntrain,N))
+            for i in range(Ntrain):
+                Y[i,:] = _kaufman(X[i,:])
+
+            poly = PolynomialFeatures(degree=3, include_bias=True) 
+            X2 = poly.fit_transform(X)
+
+            # Create linear regression object
+            regr = linear_model.LinearRegression()
+            regr.fit(X2, Y)
+
+            def approx_obj (_p):
+                x = poly.transform(_p[0::NVARS].reshape(1,-1))
+                blocking_p = regr.predict(x)[0]
                 v = 0
                 for i,fc in enumerate(FC):
                     f,c = fc
@@ -218,7 +255,7 @@ class NonlinearOptimizer (Optimizer):
                 edgeMemLC = LinearConstraint(A=A3, lb=0, ub=params.aggregated_edge_memory, keep_feasible=False)
                 constraints.append(edgeMemLC)
 
-            fobj=obj if not self.linear_blocking_approximation else approx_obj
+            fobj=obj if self.blocking_approximation is None else approx_obj
             res = minimize(lambda x: -1*fobj(x), x0, method="trust-constr", bounds=bounds, constraints=constraints, tol=1e-6, options={"maxiter": 200000})
             print(res)
             x = res.x
@@ -250,7 +287,7 @@ class NonlinearOptimizer (Optimizer):
                     return params.aggregated_edge_memory-total
                 constraints.append({"type":"ineq", "fun": cedge})
 
-            fobj=obj if not self.linear_blocking_approximation else approx_obj
+            fobj=obj if self.blocking_approximation is None else approx_obj
             res = minimize(lambda x: -1*fobj(x), x0, method="SLSQP", bounds=bounds, constraints=constraints, tol=1e-6, options={"maxiter": 200000})
             print(res)
             x = res.x
@@ -299,7 +336,7 @@ class NonlinearOptimizer (Optimizer):
 
         lp_probs = None
         x0 = None
-        if self.initial_guess == INITIAL_GUESS_LP or (self.initial_guess == INITIAL_GUESS_LAST_SOL and self.last_solution is None) or self.use_lp_for_bounds or self.linear_blocking_approximation:
+        if self.initial_guess == INITIAL_GUESS_LP or (self.initial_guess == INITIAL_GUESS_LAST_SOL and self.last_solution is None) or self.use_lp_for_bounds or self.blocking_approximation is not None:
             print("Computing initial LP sol")
             lp_probs, _ = lp_optimizer.LPOptimizer(verbose=False).optimize_probabilities(params)
         elif self.initial_guess == INITIAL_GUESS_LAST_SOL:

@@ -127,12 +127,12 @@ def experiment_main_comparison(args, config):
                                             config.set(conf.SEC_POLICY, conf.ADAPTIVE_LOCAL_MEMORY, str(False))
 
                                         if "probabilistic" in pol and opt == "nonlinear":
-                                            approximation_vals = [True,False]
+                                            approximation_vals = [None, "linear", "poly"]
                                         else:
-                                            approximation_vals = [False]
+                                            approximation_vals = [None]
 
-                                        for linear_blockin_approx in approximation_vals:
-                                            config.set(conf.SEC_POLICY, conf.NONLINEAR_APPROXIMATE_BLOCKING, str(linear_blockin_approx))
+                                        for blockin_approx in approximation_vals:
+                                            config.set(conf.SEC_POLICY, conf.NONLINEAR_APPROXIMATE_BLOCKING, str(blockin_approx))
 
                                             keys = {}
                                             keys["Policy"] = pol
@@ -144,7 +144,7 @@ def experiment_main_comparison(args, config):
                                             keys["EdgeEnabled"] = edge_enabled
                                             keys["PenaltyMode"] = penalty_mode
                                             keys["PoissonArrivals"] = poisson_arrivals
-                                            keys["LinearBlockingApprox"] = linear_blockin_approx
+                                            keys["BlockingApprox"] = blockin_approx
 
                                             run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
 
@@ -156,7 +156,7 @@ def experiment_main_comparison(args, config):
                                                         (old_results.EdgeEnabled == edge_enabled) &\
                                                         (old_results.Functions == functions) &\
                                                         (old_results.Budget == budget) &\
-                                                        (old_results.LinearBlockingApprox == linear_blockin_approx) &\
+                                                        (old_results.BlockingApprox == blockin_approx) &\
                                                         (old_results.PoissonArrivals == poisson_arrivals) &\
                                                         (old_results.EdgeMemory == edge_memory) &\
                                                         (old_results.Policy == pol)].empty:
