@@ -229,17 +229,17 @@ def experiment_optimizers(args, config):
                                 algs = ["-"]
                                 use_lp_for_bounds_vals = [False]
                                 max_p_block_vals = [0.0]
-                                approximation_vals = [False]
+                                approximation_vals = [None]
                             elif "iterated" in opt:
                                 algs = ["-"]
                                 use_lp_for_bounds_vals = [False]
                                 max_p_block_vals = [0.01, 0.05, 0.1, 0.2]
-                                approximation_vals = [False]
+                                approximation_vals = [None]
                             else:
                                 algs = ["trust-region", "slsqp"]
                                 use_lp_for_bounds_vals = [True, False]
                                 max_p_block_vals = [0.0]
-                                approximation_vals = [True,False]
+                                approximation_vals = [None, "linear", "poly"]
 
                             for alg in algs:
                                 config.set(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, alg)
@@ -247,8 +247,8 @@ def experiment_optimizers(args, config):
                                     config.set(conf.SEC_POLICY, conf.NONLINEAR_USE_LP_FOR_BOUNDS, str(use_lp_for_bounds))
                                     for max_p_block in max_p_block_vals:
                                         config.set(conf.SEC_POLICY, conf.ITERATED_LP_MAX_PBLOCK, str(max_p_block))
-                                        for linear_blockin_approx in approximation_vals:
-                                            config.set(conf.SEC_POLICY, conf.NONLINEAR_APPROXIMATE_BLOCKING, str(linear_blockin_approx))
+                                        for blockin_approx in approximation_vals:
+                                            config.set(conf.SEC_POLICY, conf.NONLINEAR_APPROXIMATE_BLOCKING, str(blockin_approx))
 
                                             keys = {}
                                             keys["Optimizer"] = opt
@@ -258,7 +258,7 @@ def experiment_optimizers(args, config):
                                             keys["MaxPBlock"] = max_p_block
                                             keys["EdgeEnabled"] = edge_enabled
                                             keys["Functions"] = functions
-                                            keys["LinearBlockingApprox"] = linear_blockin_approx
+                                            keys["BlockingApprox"] = blockin_approx
                                             keys["Budget"] = budget
                                             keys["UseLPForBounds"] = use_lp_for_bounds
 
@@ -272,7 +272,7 @@ def experiment_optimizers(args, config):
                                                         (old_results.Functions == functions) &\
                                                         (old_results.Alg == alg) &\
                                                         (old_results.MaxPBlock == max_p_block) &\
-                                                        (old_results.LinearBlockingApprox == linear_blockin_approx) &\
+                                                        (old_results.BlockingApprox == blockin_approx) &\
                                                         (old_results.EdgeEnabled == edge_enabled) &\
                                                         (old_results.UseLPForBounds == use_lp_for_bounds) &\
                                                         (old_results.Optimizer == opt)].empty:
