@@ -90,7 +90,7 @@ def experiment_main_comparison(args, config):
     config.set(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, "slsqp")
 
 
-    POLICIES = ["basic-budget", "probabilistic"]
+    POLICIES = ["basic-budget", "probabilistic", "probabilistic-offline"]
 
     # Check existing results
     old_results = None
