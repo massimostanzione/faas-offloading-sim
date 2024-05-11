@@ -34,6 +34,8 @@ class NonlinearOptimizer (Optimizer):
         self.last_solution = None
         self.use_lp_for_bounds = use_lp_for_bounds
         self.blocking_approximation = blocking_approximation
+        if self.blocking_approximation == "" or self.blocking_approximation == "none":
+            self.blocking_approximation = None
 
 
     def optimize (self, params, pDeadlineL, pDeadlineC, pDeadlineE, x0=None, lp_probs=None):
