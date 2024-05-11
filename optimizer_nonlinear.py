@@ -222,7 +222,7 @@ class NonlinearOptimizer (Optimizer):
             res = minimize(lambda x: -1*fobj(x), x0, method="trust-constr", bounds=bounds, constraints=constraints, tol=1e-6, options={"maxiter": 200000})
             print(res)
             x = res.x
-            obj_val = -res.fun
+            obj_val = obj(x)
         elif self.method == "slsqp":
             constraints = []
             for i in range(N):
@@ -254,7 +254,13 @@ class NonlinearOptimizer (Optimizer):
             res = minimize(lambda x: -1*fobj(x), x0, method="SLSQP", bounds=bounds, constraints=constraints, tol=1e-6, options={"maxiter": 200000})
             print(res)
             x = res.x
-            obj_val = -res.fun
+            obj_val = obj(x)
+
+            # approx pblock at optimum
+            print(f"Optimal value: {obj_val}")
+            #print("Blocking at optimum")
+            #print(regr.predict(x[0::NVARS].reshape(1,-1))[0])
+
 
         elif self.method == "none" or self.method is None:
             x = x0 
