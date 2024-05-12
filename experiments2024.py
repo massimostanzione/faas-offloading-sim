@@ -229,17 +229,17 @@ def experiment_optimizers(args, config):
                                 algs = ["-"]
                                 use_lp_for_bounds_vals = [False]
                                 max_p_block_vals = [0.0]
-                                approximation_vals = [None]
+                                approximation_vals = ["none"]
                             elif "iterated" in opt:
                                 algs = ["-"]
                                 use_lp_for_bounds_vals = [False]
                                 max_p_block_vals = [0.01, 0.05, 0.1, 0.2]
-                                approximation_vals = [None]
+                                approximation_vals = ["none"]
                             else:
                                 algs = ["trust-region", "slsqp"]
                                 use_lp_for_bounds_vals = [True, False]
                                 max_p_block_vals = [0.0]
-                                approximation_vals = [None, "linear", "poly"]
+                                approximation_vals = ["none", "linear", "poly"]
 
                             for alg in algs:
                                 config.set(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, alg)
