@@ -127,7 +127,7 @@ def experiment_main_comparison(args, config):
                                             config.set(conf.SEC_POLICY, conf.ADAPTIVE_LOCAL_MEMORY, str(False))
 
                                         if "probabilistic" in pol and opt == "nonlinear":
-                                            approximation_vals = [None, "linear", "poly", "poly2", "poly5"]
+                                            approximation_vals = [None, "linear", "poly2", "poly"]
                                         else:
                                             approximation_vals = [None]
 
