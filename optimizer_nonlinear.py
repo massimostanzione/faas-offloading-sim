@@ -211,8 +211,6 @@ class NonlinearOptimizer (Optimizer):
             regr.fit(X2, Y)
 
             ypred = regr.predict(X2)
-            print(Y)
-            print(ypred)
             print(f"R2: {r2_score(Y, ypred)}")
             print(f"MSE: {mean_squared_error(Y, ypred)}")
 
