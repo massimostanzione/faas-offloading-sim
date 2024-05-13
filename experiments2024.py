@@ -127,7 +127,7 @@ def experiment_main_comparison(args, config):
                                             config.set(conf.SEC_POLICY, conf.ADAPTIVE_LOCAL_MEMORY, str(False))
 
                                         if "probabilistic" in pol and opt == "nonlinear":
-                                            approximation_vals = [None, "linear", "poly", "poly5"]
+                                            approximation_vals = [None, "linear", "poly", "poly2", "poly5"]
                                         else:
                                             approximation_vals = [None]
 
@@ -239,7 +239,7 @@ def experiment_optimizers(args, config):
                                 algs = ["trust-region", "slsqp"]
                                 use_lp_for_bounds_vals = [True, False]
                                 max_p_block_vals = [0.0]
-                                approximation_vals = ["none", "linear", "poly", "poly5"]
+                                approximation_vals = ["none", "linear", "poly", "poly2", "poly5"]
 
                             for alg in algs:
                                 config.set(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, alg)

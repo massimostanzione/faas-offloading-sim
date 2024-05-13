@@ -186,14 +186,19 @@ class NonlinearOptimizer (Optimizer):
             from sklearn.metrics import mean_squared_error, r2_score
             from sklearn.preprocessing import PolynomialFeatures
 
-            deg=5 if self.blocking_approximation == "poly5" else 3
+            if self.blocking_approximation == "poly5":
+                deg=5
+            elif self.blocking_approximation == "poly2":
+                deg=2
+            else:
+                deg=3
 
-            Ntrain=25
+            Ntrain=100
             coeffs = np.random.random_sample(Ntrain*N).reshape(Ntrain,N)
             lp_local_probs = np.zeros(N)
             for i,fc in enumerate(FC):
                 lp_local_probs[i] = lp_probs[fc][0]
-            X = coeffs*lp_local_probs
+            X = coeffs*lp_local_probs*1.05
             Y = np.zeros((Ntrain,N))
             for i in range(Ntrain):
                 Y[i,:] = _kaufman(X[i,:])
@@ -204,6 +209,13 @@ class NonlinearOptimizer (Optimizer):
             # Create linear regression object
             regr = linear_model.LinearRegression()
             regr.fit(X2, Y)
+
+            ypred = regr.predict(X2)
+            print(Y)
+            print(ypred)
+            print(f"R2: {r2_score(Y, ypred)}")
+            print(f"MSE: {mean_squared_error(Y, ypred)}")
+
 
             def approx_obj (_p):
                 x = poly.transform(_p[0::NVARS].reshape(1,-1))
