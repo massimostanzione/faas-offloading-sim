@@ -153,7 +153,7 @@ class NonlinearOptimizer (Optimizer):
             from sklearn import datasets, linear_model
             from sklearn.metrics import mean_squared_error, r2_score
 
-            Ntrain=5
+            Ntrain=25
             coeffs = np.random.random_sample(Ntrain*N).reshape(Ntrain,N)
             lp_local_probs = np.zeros(N)
             for i,fc in enumerate(FC):
@@ -181,12 +181,14 @@ class NonlinearOptimizer (Optimizer):
                     if EDGE_ENABLED:
                         v += params.arrival_rates[(f,c)] * _p[NVARS*i+2]*gammaE
                 return v
-        elif self.blocking_approximation == "poly":
+        elif "poly" in self.blocking_approximation:
             from sklearn import datasets, linear_model
             from sklearn.metrics import mean_squared_error, r2_score
             from sklearn.preprocessing import PolynomialFeatures
 
-            Ntrain=10
+            deg=5 if self.blocking_approximation == "poly5" else 3
+
+            Ntrain=25
             coeffs = np.random.random_sample(Ntrain*N).reshape(Ntrain,N)
             lp_local_probs = np.zeros(N)
             for i,fc in enumerate(FC):
@@ -196,7 +198,7 @@ class NonlinearOptimizer (Optimizer):
             for i in range(Ntrain):
                 Y[i,:] = _kaufman(X[i,:])
 
-            poly = PolynomialFeatures(degree=3, include_bias=True) 
+            poly = PolynomialFeatures(degree=deg, include_bias=True) 
             X2 = poly.fit_transform(X)
 
             # Create linear regression object
