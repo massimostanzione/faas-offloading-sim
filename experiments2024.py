@@ -127,9 +127,9 @@ def experiment_main_comparison(args, config):
                                             config.set(conf.SEC_POLICY, conf.ADAPTIVE_LOCAL_MEMORY, str(False))
 
                                         if "probabilistic" in pol and opt == "nonlinear":
-                                            approximation_vals = [None, "linear", "poly2", "poly"]
+                                            approximation_vals = ["none", "linear", "poly2", "poly"]
                                         else:
-                                            approximation_vals = [None]
+                                            approximation_vals = ["none"]
 
                                         for blockin_approx in approximation_vals:
                                             config.set(conf.SEC_POLICY, conf.NONLINEAR_APPROXIMATE_BLOCKING, str(blockin_approx))
