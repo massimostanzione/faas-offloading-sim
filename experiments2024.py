@@ -239,7 +239,7 @@ def experiment_optimizers(args, config):
                                 algs = ["trust-region", "slsqp"]
                                 use_lp_for_bounds_vals = [True, False]
                                 max_p_block_vals = [0.0]
-                                approximation_vals = ["none", "linear", "poly"]
+                                approximation_vals = ["none", "linear", "poly", "poly5"]
 
                             for alg in algs:
                                 config.set(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, alg)
