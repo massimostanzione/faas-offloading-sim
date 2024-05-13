@@ -188,17 +188,23 @@ class NonlinearOptimizer (Optimizer):
 
             if self.blocking_approximation == "poly5":
                 deg=5
-            elif self.blocking_approximation == "poly2":
+            elif self.blocking_approximation == "poly2" or self.blocking_approximation == "poly2-allx":
                 deg=2
             else:
                 deg=3
 
-            Ntrain=100
-            coeffs = np.random.random_sample(Ntrain*N).reshape(Ntrain,N)
-            lp_local_probs = np.zeros(N)
-            for i,fc in enumerate(FC):
-                lp_local_probs[i] = lp_probs[fc][0]
-            X = coeffs*lp_local_probs*1.05
+
+            if not "allx" in self.blocking_approximation:
+                Ntrain=100
+                coeffs = np.random.random_sample(Ntrain*N).reshape(Ntrain,N)
+
+                lp_local_probs = np.zeros(N)
+                for i,fc in enumerate(FC):
+                    lp_local_probs[i] = lp_probs[fc][0]
+                X = coeffs*lp_local_probs*1.05
+            else:
+                Ntrain=15*N
+                X = np.random.random_sample(Ntrain*N).reshape(Ntrain,N)
             Y = np.zeros((Ntrain,N))
             for i in range(Ntrain):
                 Y[i,:] = _kaufman(X[i,:])
