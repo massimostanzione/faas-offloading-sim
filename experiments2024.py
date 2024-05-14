@@ -90,7 +90,7 @@ def experiment_main_comparison(args, config):
     config.set(conf.SEC_POLICY, conf.NONLINEAR_OPT_ALGORITHM, "slsqp")
 
 
-    POLICIES = ["basic-budget", "probabilistic", "probabilistic-offline"]
+    POLICIES = ["basic-budget", "probabilistic"]
 
     # Check existing results
     old_results = None
@@ -127,7 +127,7 @@ def experiment_main_comparison(args, config):
                                             config.set(conf.SEC_POLICY, conf.ADAPTIVE_LOCAL_MEMORY, str(False))
 
                                         if "probabilistic" in pol and opt == "nonlinear":
-                                            approximation_vals = ["none", "linear", "poly2", "poly2-allx", "poly"]
+                                            approximation_vals = ["none", "poly2-allx", "linear", "poly2", "poly"]
                                         else:
                                             approximation_vals = ["none"]
 
