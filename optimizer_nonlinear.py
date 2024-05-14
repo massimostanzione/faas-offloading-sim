@@ -181,7 +181,7 @@ class NonlinearOptimizer (Optimizer):
                     if EDGE_ENABLED:
                         v += params.arrival_rates[(f,c)] * _p[NVARS*i+2]*gammaE
                 return v
-        elif "poly" in self.blocking_approximation:
+        elif self.blocking_approximation is not None and "poly" in self.blocking_approximation:
             from sklearn import datasets, linear_model
             from sklearn.metrics import mean_squared_error, r2_score
             from sklearn.preprocessing import PolynomialFeatures

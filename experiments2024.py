@@ -390,6 +390,118 @@ def experiment_scalability (args, config):
         config.write(of)
 
 
+def experiment_varying_arrivals (args, config):
+    results = []
+    exp_tag = "varyingArrivals"
+    outfile=os.path.join(DEFAULT_OUT_DIR,f"{exp_tag}.csv")
+
+    config.set(conf.SEC_POLICY, conf.CLOUD_COLD_START_EST_STRATEGY, "pacs")
+    config.set(conf.SEC_POLICY, conf.EDGE_COLD_START_EST_STRATEGY, "pacs")
+    config.set(conf.SEC_SIM, conf.RATE_UPDATE_INTERVAL, str(120))
+
+
+
+    POLICIES = ["basic-budget", "probabilistic", "greedy-budget"]
+
+    # Check existing results
+    old_results = None
+    if not args.force:
+        try:
+            old_results = pd.read_csv(outfile)
+        except:
+            pass
+
+    for dyn_rate_coeff in [5,10,2]:
+        for seed in SEEDS:
+            seed_sequence = SeedSequence(seed)
+            config.set(conf.SEC_SIM, conf.SEED, str(seed))
+            for budget in [1,10]:
+                config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
+                for policy_update_interval in [60, 120]:
+                    config.set(conf.SEC_POLICY, conf.POLICY_UPDATE_INTERVAL, str(policy_update_interval))
+                    for alpha in [0.3, 0.5]: 
+                        config.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, str(alpha))
+                        for pol in POLICIES:
+                            config.set(conf.SEC_POLICY, conf.POLICY_NAME, pol)
+
+                            if "probabilistic" in pol:
+                                optimizers = ["nonlinear", "nonlinear-lp-relaxed", "iterated-lp"]
+                            else:
+                                optimizers = ["-"]
+                            for opt in optimizers:
+                                config.set(conf.SEC_POLICY, conf.QOS_OPTIMIZER, opt)
+
+                                if "probabilistic" in pol and "lp-relaxed" in opt:
+                                    config.set(conf.SEC_POLICY, conf.ADAPTIVE_LOCAL_MEMORY, str(True))
+                                else:
+                                    config.set(conf.SEC_POLICY, conf.ADAPTIVE_LOCAL_MEMORY, str(False))
+
+                                if "probabilistic" in pol and opt == "nonlinear":
+                                    approximation_vals = ["poly2-allx"]
+                                else:
+                                    approximation_vals = ["none"]
+
+                                for blockin_approx in approximation_vals:
+                                    config.set(conf.SEC_POLICY, conf.NONLINEAR_APPROXIMATE_BLOCKING, str(blockin_approx))
+
+                                    if alpha > 0.3 and (not "probabilistic" in pol):
+                                        continue
+                                    if policy_update_interval != 120 and (not "probabilistic" in pol):
+                                        continue
+
+                                    if "greedy" in pol:
+                                        config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, "full-knowledge")
+                                    else:
+                                        config.set(conf.SEC_POLICY, conf.LOCAL_COLD_START_EST_STRATEGY, "naive-per-function")
+
+
+                                    keys = {}
+                                    keys["Policy"] = pol
+                                    keys["Seed"] = seed
+                                    keys["PolicyUpdInterval"] = policy_update_interval
+                                    keys["Alpha"] = alpha
+                                    keys["Budget"] = budget
+                                    keys["DynCoeff"] = dyn_rate_coeff
+                                    keys["Optimizer"] = opt
+                                    keys["BlockingApprox"] = blockin_approx
+
+                                    run_string = "_".join([f"{k}{v}" for k,v in keys.items()])
+
+                                    # Check if we can skip this run
+                                    if old_results is not None and not\
+                                            old_results[(old_results.Seed == seed) &\
+                                                (old_results.Alpha == alpha) &\
+                                                (old_results.Budget == budget) &\
+                                                (old_results.Optimizer == opt) &\
+                                                (old_results.BlockingApprox == blockin_approx) &\
+                                                (old_results.PolicyUpdInterval == policy_update_interval) &\
+                                                (old_results.DynCoeff == dyn_rate_coeff) &\
+                                                (old_results.Policy == pol)].empty:
+                                        print("Skipping conf")
+                                        continue
+
+                                    rng = default_rng(seed_sequence.spawn(1)[0])
+                                    temp_spec_file = generate_random_temp_spec (rng, dynamic_rate_coeff=dyn_rate_coeff)
+                                    infra = default_infra()
+                                    stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
+
+                                    temp_spec_file.close()
+                                    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_{run_string}.json"), "w") as of:
+                                        stats.print(of)
+
+                                    result=dict(list(keys.items()) + list(relevant_stats_dict(stats).items()))
+                                    results.append(result)
+                                    print(result)
+
+                                    resultsDf = pd.DataFrame(results)
+                                    if old_results is not None:
+                                        resultsDf = pd.concat([old_results, resultsDf])
+                                    resultsDf.to_csv(outfile, index=False)
+        
+    temp_spec_file.close()
+
+    with open(os.path.join(DEFAULT_OUT_DIR, f"{exp_tag}_conf.ini"), "w") as of:
+        config.write(of)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -418,6 +530,8 @@ if __name__ == "__main__":
         experiment_optimizers(args, config)
     elif args.experiment.lower() == "s":
         experiment_scalability(args, config)
+    elif args.experiment.lower() == "v":
+        experiment_varying_arrivals(args, config)
     else:
         print("Unknown experiment!")
         exit(1)
