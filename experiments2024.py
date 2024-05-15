@@ -72,6 +72,11 @@ def relevant_stats_dict (stats):
     result["NetUtility"] = stats.utility-stats.penalty
     result["Cost"] = stats.cost
     result["BudgetExcessPerc"] = max(0, (stats.cost-stats.budget)/stats.budget*100)
+    for n,a in stats._memory_usage_area.items():
+        if repr(n) != "edge1":
+            continue
+        result[f"AvgMemUsage"] = a/DEFAULT_DURATION
+    result["RejectedReqs"] = stats.rejected_requests
     return result
 
 
@@ -102,12 +107,12 @@ def experiment_main_comparison(args, config):
 
 
     for poisson_arrivals in [True, False]:
-        for seed in SEEDS:
-            config.set(conf.SEC_SIM, conf.SEED, str(seed))
-            seed_sequence = SeedSequence(seed)
-            for functions in [5]:
-                for penalty_mode in ["default", "drop", "deadline", "none"]:
-                    for budget in [-1, 0.1, 1]:
+        for penalty_mode in ["none", "default", "drop", "deadline"]:
+            for seed in SEEDS:
+                config.set(conf.SEC_SIM, conf.SEED, str(seed))
+                seed_sequence = SeedSequence(seed)
+                for functions in [5]:
+                    for budget in [0.1, 1, -1]:
                         config.set(conf.SEC_POLICY, conf.HOURLY_BUDGET, str(budget))
                         for edge_enabled in [True,False]:
                             config.set(conf.SEC_POLICY, conf.EDGE_OFFLOADING_ENABLED, str(edge_enabled))
@@ -164,7 +169,7 @@ def experiment_main_comparison(args, config):
                                                 continue
 
                                             rng = default_rng(seed_sequence.spawn(1)[0])
-                                            temp_spec_file = generate_random_temp_spec (rng, n_functions=functions, edge_memory=edge_memory, force_poisson_arrivals=poisson_arrivals)
+                                            temp_spec_file = generate_random_temp_spec (rng, n_functions=functions, edge_memory=edge_memory, force_poisson_arrivals=poisson_arrivals, penalty_mode=penalty_mode)
                                             infra = default_infra(edge_cloud_latency=0.1)
                                             stats = _experiment(config, seed_sequence, infra, temp_spec_file.name)
                                             temp_spec_file.close()

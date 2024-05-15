@@ -95,6 +95,7 @@ class ProbabilisticPolicy (Policy):
         # Local rejection due to lack of resources
         if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
             self.curr_local_blocked_reqs += 1
+            self.simulation.stats.rejected_requests += 1
 
             if self.local_rejection_fallback == "fgcs24" or self.local_rejection_fallback == "reschedule":
                 probabilities[SchedulerDecision.EXEC.value-1] = 0

@@ -45,6 +45,7 @@ class Stats:
         self._policy_updates = {x: 0 for x in self.nodes}
         self._mig_policy_update_time_sum = 0.0
         self._mig_policy_updates = 0
+        self.rejected_requests = 0
 
         self.budget = self.sim.config.getfloat(conf.SEC_POLICY, conf.HOURLY_BUDGET, fallback=-1.0)
 
