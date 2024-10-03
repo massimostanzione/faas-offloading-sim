@@ -47,8 +47,9 @@ def read_spec_file (spec_file_name, infra, config):
             speedup = n["speedup"] if "speedup" in n else 1.0
             cost = n["cost"] if "cost" in n else 0.0
             custom_policy = n["policy"] if "policy" in n else None
+            queue_capacity = n["queue_capacity"] if "queue_capacity" in n else 0
             node = faas.Node(node_name, memory, speedup, reg, cost=cost,
-                             custom_sched_policy=custom_policy,
+                             custom_sched_policy=custom_policy, queue_capacity=queue_capacity,
                              peer_exposed_memory_fraction=peer_exposed_memory_fraction)
             node_names[node_name] = node
             infra.add_node(node, reg)

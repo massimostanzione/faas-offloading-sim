@@ -53,13 +53,19 @@ class Policy:
     def update(self):
         pass
 
-    def can_execute_locally(self, f, reclaim_memory=True):
+    def can_immediately_execute(self, f, reclaim_memory=True):
         if f in self.node.warm_pool or self.node.curr_memory >= f.memory:
             return True
         if reclaim_memory:
             reclaimed = self.node.warm_pool.reclaim_memory(f.memory - self.node.curr_memory)
             self.node.curr_memory += reclaimed
         return self.node.curr_memory >= f.memory
+
+    def can_accept_locally(self, f, c):
+        if self.node.queue_capacity == 0 or len(self.node.get_queue(f,c)) == 0:
+            return self.can_immediately_execute(f)
+        else:
+            return self.node.curr_memory >= f.memory or len(self.node.get_queue(f,c)) < self.node.queue_capacity
 
     def _get_edge_peers (self):
         if self.__edge_peers is None:
@@ -98,7 +104,7 @@ class Policy:
 class BasicPolicy(Policy):
 
     def schedule(self, f, c, offloaded_from):
-        if self.can_execute_locally(f):
+        if self.can_accept_locally(f, c):
             return (SchedulerDecision.EXEC, None)
         else:
             return (SchedulerDecision.OFFLOAD_CLOUD, None)
@@ -108,7 +114,7 @@ class BasicBudgetAwarePolicy(Policy):
     def schedule(self, f, c, offloaded_from):
         budget_ok = self.budget < 0 or (self.simulation.stats.cost / self.simulation.t * 3600 < self.budget)
 
-        if self.can_execute_locally(f):
+        if self.can_accept_locally(f, c):
             return (SchedulerDecision.EXEC, None)
         elif budget_ok:
             return (SchedulerDecision.OFFLOAD_CLOUD, None)
@@ -118,7 +124,7 @@ class BasicBudgetAwarePolicy(Policy):
 class BasicEdgePolicy(Policy):
 
     def schedule(self, f, c, offloaded_from):
-        if self.can_execute_locally(f):
+        if self.can_accept_locally(f):
             return (SchedulerDecision.EXEC, None)
         elif len(offloaded_from) == 0:
             return (SchedulerDecision.OFFLOAD_EDGE, self.pick_edge_node(f,c))
@@ -128,7 +134,7 @@ class BasicEdgePolicy(Policy):
 class CloudPolicy(Policy):
 
     def schedule(self, f, c, offloaded_from):
-        if self.can_execute_locally(f):
+        if self.can_accept_locally(f, c):
             return (SchedulerDecision.EXEC, None)
         else:
             return (SchedulerDecision.DROP, None)
@@ -179,7 +185,7 @@ class GreedyPolicy(Policy):
     def schedule(self, f, c, offloaded_from):
         latency_local, latency_cloud = self._estimate_latency(f,c)
 
-        if self.can_execute_locally(f) and latency_local < latency_cloud:
+        if self.can_immediately_execute(f) and latency_local < latency_cloud:
             return (SchedulerDecision.EXEC, None)
         else:
             return (SchedulerDecision.OFFLOAD_CLOUD, self.cloud)
@@ -268,7 +274,7 @@ class GreedyBudgetAware(GreedyPolicy):
 
     def schedule(self, f, c, offloaded_from):
         latency_local, latency_cloud = self._estimate_latency(f,c)
-        local_ok = self.can_execute_locally(f)
+        local_ok = self.can_immediately_execute(f)
         budget_ok = self.simulation.stats.cost / self.simulation.t * 3600 < self.budget
 
         if not budget_ok and not local_ok:
@@ -309,13 +315,13 @@ class GreedyPolicyWithCostMinimization(GreedyPolicy):
                         self.cold_start_prob.get((f, self.cloud), 1) * self.simulation.init_time[(f,self.cloud)] +\
                         f.inputSizeMean*8/1000/1000/self.simulation.infra.get_bandwidth(self.node, self.cloud)
 
-        if latency_local < c.max_rt and self.can_execute_locally(f):
+        if latency_local < c.max_rt and self.can_immediately_execute(f):
             # Choose the configuration with minimum cost (edge execution) if both configuration can execute within
             # the deadline
             sched_decision = SchedulerDecision.EXEC, None
         elif latency_cloud < c.max_rt:
             sched_decision = SchedulerDecision.OFFLOAD_CLOUD, self.cloud
-        elif self.can_execute_locally(f):
+        elif self.can_immediately_execute(f):
             sched_decision = SchedulerDecision.EXEC, None
         else:
             sched_decision = SchedulerDecision.OFFLOAD_CLOUD, self.cloud

@@ -422,8 +422,22 @@ class Simulation:
             print(f"{f},{c},{n},{event.offloaded_from != None and len(event.offloaded_from) > 0},{event.cold},{dat},{rt}", file=self.resp_times_file)
 
         n.warm_pool.append((f, self.t + self.expiration_timeout))
+        n.busy_memory -= f.memory
         if self.external_arrivals_allowed:
             self.schedule(self.t + self.expiration_timeout, CheckExpiredContainers(n)) 
+
+        # dequeue
+        if n.queue_capacity > 0:
+            if n.queue_policy == QUEUE_POLICY_UTILIY_BASED:
+                sorted_keys = sorted(n.queue.keys(), key=lambda x: x[1].utility, reverse=True)
+                for fc in sorted_keys:
+                    while len(n.queue[fc]) > 0 and (n.total_memory - n.busy_memory) >= fc[0].memory:
+                        n.reclaim_warm_memory(fc[0].memory)
+                        event = n.queue[fc].pop(0)
+                        self.execute(event)
+                        print("++ Executing from queue")
+                    if len(n.queue[fc]) > 0:
+                        break
 
 
     def do_offload (self, arrival, target_node):
@@ -434,6 +448,26 @@ class Simulation:
         remote_arv.original_arrival_time = self.t
 
         self.schedule(self.t + latency + OFFLOADING_OVERHEAD + transfer_time, remote_arv)
+
+    def execute (self, event):
+        n = event.node 
+        f = event.function
+        c = event.qos_class
+
+        n.busy_memory += f.memory
+        duration, data_access_time = self.next_function_duration(f, n)
+        # check warm or cold
+        if f in n.warm_pool:
+            n.warm_pool.remove(f)
+            init_time = 0
+        else:
+            self.stats.update_memory_usage(n, self.t)
+            assert(n.curr_memory >= f.memory)
+            n.curr_memory -= f.memory
+            self.stats.cold_starts[(f,n)] += 1
+            init_time = self.init_time[(f,n)]
+        arrival_time = self.t if event.original_arrival_time is None else event.original_arrival_time
+        self.schedule(float(self.t + init_time + duration), Completion(arrival_time, f,c, n, init_time > 0, duration, event.offloaded_from, data_access_time))
 
     def handle_arrival (self, event):
         n = event.node 
@@ -450,19 +484,16 @@ class Simulation:
         sched_decision, target_node = node_policy.schedule(f,c,event.offloaded_from)
 
         if sched_decision == SchedulerDecision.EXEC:
-            duration, data_access_time = self.next_function_duration(f, n)
-            # check warm or cold
-            if f in n.warm_pool:
-                n.warm_pool.remove(f)
-                init_time = 0
+            print(f"Before: {n.curr_memory}")
+            n.reclaim_warm_memory(f.memory)
+            print(f"After: {n.curr_memory}")
+            if n.queue_capacity == 0 or (len(n.get_queue(f,c)) == 0 and n.curr_memory >= f.memory):
+                self.execute(event)
             else:
-                self.stats.update_memory_usage(event.node, self.t)
-                assert(n.curr_memory >= f.memory)
-                n.curr_memory -= f.memory
-                self.stats.cold_starts[(f,n)] += 1
-                init_time = self.init_time[(f,n)]
-            arrival_time = self.t if event.original_arrival_time is None else event.original_arrival_time
-            self.schedule(float(self.t + init_time + duration), Completion(arrival_time, f,c, n, init_time > 0, duration, event.offloaded_from, data_access_time))
+                # Add to queue
+                print(f"[{n}] Adding to queue ({f}-{c}), queue={n.queue} {n.curr_memory}")
+                n.get_queue(f,c).append(event)
+                assert(len(n.get_queue(f,c)) <= n.queue_capacity)
         elif sched_decision == SchedulerDecision.DROP:
             self.stats.dropped_reqs[(f,c,n)] += 1
             self.stats.penalty += c.drop_penalty

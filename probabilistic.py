@@ -93,7 +93,7 @@ class ProbabilisticPolicy (Policy):
             self.curr_local_reqs += 1
 
         # Local rejection due to lack of resources
-        if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
+        if decision == SchedulerDecision.EXEC and not self.can_immediately_execute(f):
             self.curr_local_blocked_reqs += 1
             self.simulation.stats.rejected_requests += 1
 
@@ -510,7 +510,7 @@ class RandomPolicy(Policy):
     def schedule(self, f, c, offloaded_from):
         decision = self.rng.choice(self.decisions)
 
-        if decision == SchedulerDecision.EXEC and not self.can_execute_locally(f):
+        if decision == SchedulerDecision.EXEC and not self.can_immediately_execute(f):
             decision = self.rng.choice(self.decisions[1:])
         return (decision, None)
 

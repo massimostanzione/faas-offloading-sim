@@ -1,6 +1,8 @@
 from dataclasses import dataclass,field
 from enum import Enum
 
+QUEUE_POLICY_UTILIY_BASED = "utility-based"
+
 class ContainerPool:
 
     def __init__ (self):
@@ -49,18 +51,35 @@ class Node:
 
     def __init__ (self, name, memory, speedup, region, cost=0.0,
                   custom_sched_policy=None,
-                  peer_exposed_memory_fraction=1.0):
+                  peer_exposed_memory_fraction=1.0,
+                  queue_capacity=0, queue_policy=QUEUE_POLICY_UTILIY_BASED):
         self.name = name
         self.total_memory = memory
         self.curr_memory = memory
+        self.busy_memory = 0.0
         self.peer_exposed_memory_fraction = peer_exposed_memory_fraction
         self.speedup = speedup
         self.region = region
         self.cost = cost
         self.custom_sched_policy = custom_sched_policy
+        self.queue_capacity = queue_capacity
+        self.queue_policy = queue_policy
 
         self.warm_pool = ContainerPool()
         self.kv_store = {}
+        self.queue = {}
+
+    def get_queue (self, f, c):
+        if self.queue_capacity < 1:
+            return None
+        if not (f,c) in self.queue:
+            self.queue[(f,c)] = []
+        return self.queue[(f,c)]
+
+    def reclaim_warm_memory (self, neeeded_memory):
+        if self.curr_memory >= neeeded_memory or self.total_memory - self.busy_memory < neeeded_memory:
+            return # do nothing
+        self.curr_memory += self.warm_pool.reclaim_memory(neeeded_memory)
 
     def __repr__ (self):
         return self.name

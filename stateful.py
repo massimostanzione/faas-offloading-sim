@@ -625,7 +625,7 @@ class AlwaysOffloadStatefulPolicy(offloading_policy.Policy):
 
     def schedule(self, f, c, offloaded_from):
         if len(offloaded_from) > 2:
-            if self.can_execute_locally(f):
+            if self.can_immediately_execute(f):
                 return offloading_policy.SchedulerDecision.EXEC, None
             else:
                 return offloading_policy.SchedulerDecision.DROP, None
@@ -644,7 +644,7 @@ class AlwaysOffloadStatefulPolicy(offloading_policy.Policy):
         sorted_nodes = sorted(remote_nodes.items(), key=lambda x: x[1], reverse=True)
         best_node = sorted_nodes[0][0]
 
-        if best_node == self.node and not self.can_execute_locally(f):
+        if best_node == self.node and not self.can_immediately_execute(f):
             if len(sorted_nodes) > 1:
                 best_node = sorted_nodes[1][0]
             else:
@@ -680,12 +680,12 @@ class StateAwareOffloadingPolicy(offloading_policy.GreedyPolicy):
         # XXX: We do not consider cold start here
 
         if len(offloaded_from) > 2:
-            if self.can_execute_locally(f):
+            if self.can_immediately_execute(f):
                 return offloading_policy.SchedulerDecision.EXEC, None
             else:
                 return offloading_policy.SchedulerDecision.DROP, None
 
-        if not self.can_execute_locally(f):
+        if not self.can_immediately_execute(f):
             latency_local = LatencyEstimation(float("inf"), float("inf"))
         else:
             duration = f.serviceMean/self.node.speedup
@@ -754,7 +754,7 @@ class RandomStatefulOffloadingPolicy(StateAwareOffloadingPolicy):
         if self.rng.uniform(0,1) > 0.5:
             return super().schedule(f,c,offloaded_from)
         else:
-            if self.can_execute_locally(f):
+            if self.can_immediately_execute(f):
                 return (offloading_policy.SchedulerDecision.EXEC, None)
             else:
                 return (offloading_policy.SchedulerDecision.OFFLOAD_CLOUD, None)
