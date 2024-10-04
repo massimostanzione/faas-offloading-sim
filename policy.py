@@ -103,6 +103,11 @@ class BasicPolicy(Policy):
         else:
             return (SchedulerDecision.OFFLOAD_CLOUD, None)
 
+class LocalPolicy(Policy):
+
+    def schedule(self, f, c, offloaded_from):
+        return (SchedulerDecision.EXEC, None)
+
 class BasicBudgetAwarePolicy(Policy):
 
     def schedule(self, f, c, offloaded_from):

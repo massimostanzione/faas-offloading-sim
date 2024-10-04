@@ -49,7 +49,7 @@ class Node:
 
     def __init__ (self, name, memory, speedup, region, cost=0.0,
                   custom_sched_policy=None,
-                  peer_exposed_memory_fraction=1.0):
+                  peer_exposed_memory_fraction=1.0, queue_capacity=0):
         self.name = name
         self.total_memory = memory
         self.curr_memory = memory
@@ -61,6 +61,25 @@ class Node:
 
         self.warm_pool = ContainerPool()
         self.kv_store = {}
+        self.queues = {}
+        self.queue_capacity = queue_capacity
+
+    def can_allocate_memory (self, required_mem):
+        if self.curr_memory >= required_mem:
+            return True
+        else:
+            self.curr_memory += self.warm_pool.reclaim_memory(required_mem)
+            return self.curr_memory >= required_mem
+
+    def get_queue (self, func, qos_class):
+        if not (func, qos_class) in self.queues:
+            self.queues[(func, qos_class)] = []
+        return self.queues[(func, qos_class)]
+
+    def get_next_from_queue (self):
+        # TODO
+        pass
+
 
     def __repr__ (self):
         return self.name
