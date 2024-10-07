@@ -35,7 +35,6 @@ NONLINEAR_APPROXIMATE_BLOCKING = "nonlinear-approximate-blocking"
 ITERATED_LP_MAX_PBLOCK = "iterated-lp-max-pblock"
 
 
-SEC_STATEFUL = "stateful"
 
 import configparser
 

@@ -12,11 +12,6 @@ class Stats:
         fun_classes = [(f,c) for f in functions for c in classes]
         fcn = [(f,c,n) for f in functions for c in classes for n in self.nodes]
         
-        keys = set()
-        for f in functions:
-            for k,_ in f.accessed_keys:
-                keys.add(k)
-
         self.arrivals = {x: 0 for x in fcn}
         self.ext_arrivals = {x: 0 for x in fcn}
         self.offloaded = {x: 0 for x in fcn}
@@ -33,18 +28,11 @@ class Stats:
         self.utility = 0.0
         self.utility_detail = {x: 0.0 for x in fcn}
         self.penalty = 0.0
-        self.data_access_count = {(k,f,n): 0 for k in keys for f in functions for n in self.nodes}
-        self.data_access_violations = {f: 0 for f in functions}
-        self.data_access_tardiness = 0.0
-        self.data_migrations_count = 0
-        self.data_migrated_bytes = 0.0
         self.optimizer_obj_value = {x: 0.0 for x in self.nodes}
         self._memory_usage_area = {x: 0.0 for x in self.nodes}
         self._memory_usage_t0 = {x: 0.0 for x in self.nodes}
         self._policy_update_time_sum = {x: 0.0 for x in self.nodes}
         self._policy_updates = {x: 0 for x in self.nodes}
-        self._mig_policy_update_time_sum = 0.0
-        self._mig_policy_updates = 0
         self.rejected_requests = 0
 
         self.budget = self.sim.config.getfloat(conf.SEC_POLICY, conf.HOURLY_BUDGET, fallback=-1.0)
@@ -103,11 +91,6 @@ class Stats:
                 avg_policy_upd_time[repr(n)] = self._policy_update_time_sum[n]/self._policy_updates[n]
         stats["avgPolicyUpdateTime"] = avg_policy_upd_time
 
-        avg_mig_policy_upd_time = 0
-        if self._mig_policy_updates > 0:
-            avg_mig_policy_upd_time = self._mig_policy_update_time_sum/self._mig_policy_updates
-        stats["avgMigPolicyUpdateTime"] = avg_mig_policy_upd_time
-
 
         return stats
     
@@ -119,10 +102,6 @@ class Stats:
     def update_policy_upd_time (self, node, t):
         self._policy_update_time_sum[node] += t
         self._policy_updates[node] += 1
-
-    def update_mig_policy_upd_time (self, t):
-        self._mig_policy_update_time_sum += t
-        self._mig_policy_updates += 1
 
     def print (self, out_file):
         print(json.dumps(self.to_dict(), indent=4, sort_keys=True), file=out_file)

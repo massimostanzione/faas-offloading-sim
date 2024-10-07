@@ -58,9 +58,9 @@ class Node:
         self.region = region
         self.cost = cost
         self.custom_sched_policy = custom_sched_policy
+        self.scheduler = None
 
         self.warm_pool = ContainerPool()
-        self.kv_store = {}
         self.queues = {}
         self.queue_capacity = queue_capacity
 
@@ -71,15 +71,13 @@ class Node:
             self.curr_memory += self.warm_pool.reclaim_memory(required_mem)
             return self.curr_memory >= required_mem
 
+    def can_execute_function (self, f):
+        return f in self.warm_pool or self.can_allocate_memory(f.memory)
+
     def get_queue (self, func, qos_class):
         if not (func, qos_class) in self.queues:
             self.queues[(func, qos_class)] = []
         return self.queues[(func, qos_class)]
-
-    def get_next_from_queue (self):
-        # TODO
-        pass
-
 
     def __repr__ (self):
         return self.name
@@ -127,8 +125,6 @@ class Function:
     serviceSCV: float = 1.0
     initMean: float = 0.500
     inputSizeMean: float = 100
-    accessed_keys: [] = field(default_factory=lambda: [])
-    max_data_access_time: float = None 
     
     def __repr__ (self):
         return self.name

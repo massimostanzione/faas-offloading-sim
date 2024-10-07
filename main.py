@@ -5,7 +5,6 @@ import yaml
 
 import faas
 import conf
-import stateful
 from arrivals import PoissonArrivalProcess, TraceArrivalProcess, MAPArrivalProcess
 from numpy.random import SeedSequence, default_rng
 from simulation import Simulation
@@ -63,17 +62,8 @@ def read_spec_file (spec_file_name, infra, config):
             duration_scv = f["duration_scv"] if "duration_scv" in f else 1.0
             init_mean = f["init_mean"] if "init_mean" in f else 0.500
             input_mean = f["input_mean"] if "input_mean" in f else 1024
-            keys_spec = f["keys"] if "keys" in f else []
-            max_data_access_time = f["max_data_access_time"] if "max_data_access_time" in f else None 
-            keys=[]
-            for ks in keys_spec:
-                key = ks["key"]
-                p = float(ks.get("probability", "1.0"))
-                assert(p <= 1.0)
-                assert(p >= 0.0)
-                keys.append((key, p))
 
-            fun = faas.Function(fname, memory, serviceMean=duration_mean, serviceSCV=duration_scv, initMean=init_mean, inputSizeMean=input_mean, accessed_keys=keys, max_data_access_time=max_data_access_time)
+            fun = faas.Function(fname, memory, serviceMean=duration_mean, serviceSCV=duration_scv, initMean=init_mean, inputSizeMean=input_mean)
             function_names[fname] = fun
             functions.append(fun)
 
