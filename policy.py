@@ -46,9 +46,27 @@ class Policy:
             nodes = len(simulation.infra.get_edge_nodes())
             self.local_budget = self.budget / nodes
 
+        self.sorted_fc = None # cached for next_from_queues()
+
 
     def schedule(self, function, qos_class, offloaded_from):
         pass
+
+    def next_from_queues (self):
+        n = self.node
+        # Schedule from the queues: basic policy where
+        # we sort queues by utility
+        if self.sorted_fc is None:
+            qflows = [(f,c) for f,c in n.queues.keys()]
+            self.sorted_fc = sorted(qflows, key=lambda fc: fc[1].utility, reverse=True)
+
+        # check if can execute
+        for f,c in self.sorted_fc:
+            q = n.get_queue(f, c)
+            if len(q) > 0 and n.can_execute_function(f):
+                return q.pop(0)
+
+        return None
 
     def update(self):
         pass

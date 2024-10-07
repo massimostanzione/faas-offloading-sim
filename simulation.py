@@ -369,18 +369,10 @@ class Simulation:
         something_to_execute = True
         while something_to_execute:
             something_to_execute = False
-            # TODO: we sort queues by utility (operation could be cached too)
-            qflows = [(_f,_c) for _f,_c in n.queues.keys() if len(n.get_queue(_f,_c)) > 0]
-            qflows = sorted(qflows, key=lambda fc: c.utility, reverse=True)
-            if len(qflows) == 0:
-                break
-            # check if can execute
-            for f,c in qflows:
-                q = n.get_queue(f, c)
-                if len(q) > 0 and n.can_execute_function(f):
-                    event = q.pop(0)
-                    self.execute(event)
-                    something_to_execute = True
+            event = n.scheduler.next_from_queues()
+            if event is not None:
+                self.execute(event)
+                something_to_execute = True
                 
 
 
