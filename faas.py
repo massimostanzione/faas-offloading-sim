@@ -74,6 +74,12 @@ class Node:
     def can_execute_function (self, f):
         return f in self.warm_pool or self.can_allocate_memory(f.memory)
 
+    def can_execute_or_enqueue (self, f, c):
+        if self.queue_capacity < 1:
+            return self.can_execute_function(f)
+        return len(self.get_queue(f,c)) < self.queue_capacity
+
+
     def get_queue (self, func, qos_class):
         if not (func, qos_class) in self.queues:
             self.queues[(func, qos_class)] = []

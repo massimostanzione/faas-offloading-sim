@@ -71,14 +71,6 @@ class Policy:
     def update(self):
         pass
 
-    def can_execute_locally(self, f, reclaim_memory=True):
-        if f in self.node.warm_pool or self.node.curr_memory >= f.memory:
-            return True
-        if reclaim_memory:
-            reclaimed = self.node.warm_pool.reclaim_memory(f.memory - self.node.curr_memory)
-            self.node.curr_memory += reclaimed
-        return self.node.curr_memory >= f.memory
-
     def _get_edge_peers (self):
         if self.__edge_peers is None:
             # TODO: need to refresh over time?
@@ -116,7 +108,7 @@ class Policy:
 class BasicPolicy(Policy):
 
     def schedule(self, f, c, offloaded_from):
-        if self.can_execute_locally(f):
+        if self.node.can_execute_or_enqueue(f,c):
             return (SchedulerDecision.EXEC, None)
         else:
             return (SchedulerDecision.OFFLOAD_CLOUD, None)
@@ -131,7 +123,7 @@ class BasicBudgetAwarePolicy(Policy):
     def schedule(self, f, c, offloaded_from):
         budget_ok = self.budget < 0 or (self.simulation.stats.cost / self.simulation.t * 3600 < self.budget)
 
-        if self.can_execute_locally(f):
+        if self.node.can_execute_or_enqueue(f,c):
             return (SchedulerDecision.EXEC, None)
         elif budget_ok:
             return (SchedulerDecision.OFFLOAD_CLOUD, None)
@@ -141,7 +133,7 @@ class BasicBudgetAwarePolicy(Policy):
 class BasicEdgePolicy(Policy):
 
     def schedule(self, f, c, offloaded_from):
-        if self.can_execute_locally(f):
+        if self.node.can_execute_or_enqueue(f,c):
             return (SchedulerDecision.EXEC, None)
         elif len(offloaded_from) == 0:
             return (SchedulerDecision.OFFLOAD_EDGE, self.pick_edge_node(f,c))
@@ -151,7 +143,7 @@ class BasicEdgePolicy(Policy):
 class CloudPolicy(Policy):
 
     def schedule(self, f, c, offloaded_from):
-        if self.can_execute_locally(f):
+        if self.node.can_execute_or_enqueue(f,c):
             return (SchedulerDecision.EXEC, None)
         else:
             return (SchedulerDecision.DROP, None)
@@ -202,7 +194,7 @@ class GreedyPolicy(Policy):
     def schedule(self, f, c, offloaded_from):
         latency_local, latency_cloud = self._estimate_latency(f,c)
 
-        if self.can_execute_locally(f) and latency_local < latency_cloud:
+        if latency_local < latency_cloud and self.node.can_execute_function(f):
             return (SchedulerDecision.EXEC, None)
         else:
             return (SchedulerDecision.OFFLOAD_CLOUD, self.cloud)
