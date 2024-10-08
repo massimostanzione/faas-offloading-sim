@@ -11,6 +11,7 @@ import utils.plot
 from policy import SchedulerDecision
 import policy
 import probabilistic
+import credit
 from faas import *
 from arrivals import ArrivalProcess
 from infrastructure import *
@@ -146,6 +147,8 @@ class Simulation:
             return probabilistic.OfflineProbabilisticPolicy(self, node)
         elif configured_policy == "probabilistic-offline-strict":
             return probabilistic.OfflineProbabilisticPolicy(self, node, True)
+        elif configured_policy == "credit":
+            return credit.CreditBasedPolicy(self, node)
         elif configured_policy == "greedy":
             return policy.GreedyPolicy(self, node)
         elif configured_policy == "greedy-budget":
@@ -230,6 +233,9 @@ class Simulation:
             self.stats.print(sys.stdout)
         else:
             print(self.stats.utility - self.stats.penalty)
+
+        if self.config.getboolean(conf.SEC_SIM, conf.PRINT_FINAL_UTILITY, fallback=True):
+            print(f"Total utility: {self.stats.utility-self.stats.penalty}")
 
         if self.resp_times_file is not None:
             self.resp_times_file.close()
@@ -364,6 +370,8 @@ class Simulation:
         n.warm_pool.append((f, self.t + self.expiration_timeout))
         if self.external_arrivals_allowed:
             self.schedule(self.t + self.expiration_timeout, CheckExpiredContainers(n)) 
+
+        n.scheduler.notify_completion(f,c,rt,duration)
 
         # Schedule from the queues...
         something_to_execute = True

@@ -103,6 +103,9 @@ class Policy:
             return None
         return self.simulation.node_choice_rng.choice(peers, p=probs)
 
+    def notify_completion (self, f, c, resp_time, duration):
+        pass
+
 
 
 class BasicPolicy(Policy):
