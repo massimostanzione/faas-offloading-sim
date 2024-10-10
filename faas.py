@@ -61,8 +61,14 @@ class Node:
         self.scheduler = None
 
         self.warm_pool = ContainerPool()
-        self.queues = {}
+        
+        self.use_single_queue = True # TODO
         self.queue_capacity = queue_capacity
+
+        if self.use_single_queue:
+            self._queue = []
+        else:
+            self._queues = {}
 
     def can_allocate_memory (self, required_mem):
         if self.curr_memory >= required_mem:
@@ -80,10 +86,16 @@ class Node:
         return len(self.get_queue(f,c)) < self.queue_capacity
 
 
-    def get_queue (self, func, qos_class):
-        if not (func, qos_class) in self.queues:
-            self.queues[(func, qos_class)] = []
-        return self.queues[(func, qos_class)]
+    def get_queue (self, func=None, qos_class=None):
+        if not self.use_single_queue:
+            assert(func is not None)
+            assert(qos_class is not None)
+        else:
+            return self._queue
+
+        if not (func, qos_class) in self._queues:
+            self._queues[(func, qos_class)] = []
+        return self._queues[(func, qos_class)]
 
     def __repr__ (self):
         return self.name

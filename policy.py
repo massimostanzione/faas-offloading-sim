@@ -54,19 +54,24 @@ class Policy:
 
     def next_from_queues (self):
         n = self.node
-        # Schedule from the queues: basic policy where
-        # we sort queues by utility
-        if self.sorted_fc is None:
-            qflows = [(f,c) for f,c in n.queues.keys()]
-            self.sorted_fc = sorted(qflows, key=lambda fc: fc[1].utility, reverse=True)
-
-        # check if can execute
-        for f,c in self.sorted_fc:
-            q = n.get_queue(f, c)
-            if len(q) > 0 and n.can_execute_function(f):
+        if n.use_single_queue:
+            q = n.get_queue()
+            if len(q) > 0 and n.can_execute_function(q[0].function):
                 return q.pop(0)
+        else:
+            # Schedule from the queues: basic policy where
+            # we sort queues by utility
+            if self.sorted_fc is None:
+                qflows = [(f,c) for f,c in n._queues]
+                self.sorted_fc = sorted(qflows, key=lambda fc: fc[1].utility, reverse=True)
 
-        return None
+            # check if can execute
+            for f,c in self.sorted_fc:
+                q = n.get_queue(f, c)
+                if len(q) > 0 and n.can_execute_function(f):
+                    return q.pop(0)
+
+            return None
 
     def update(self):
         pass
