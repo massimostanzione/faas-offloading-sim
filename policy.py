@@ -53,11 +53,17 @@ class Policy:
         pass
 
     def next_from_queues (self):
+        BACKFILLING=True
+
         n = self.node
         if n.use_single_queue:
             q = n.get_queue()
-            if len(q) > 0 and n.can_execute_function(q[0].function):
+            if not BACKFILLING and len(q) > 0 and n.can_execute_function(q[0].function):
                 return q.pop(0)
+            elif BACKFILLING:
+                for i,ev in enumerate(q):
+                    if n.can_execute_function(q[i].function):
+                        return q.pop(i)
         else:
             # Schedule from the queues: basic policy where
             # we sort queues by utility
@@ -70,6 +76,8 @@ class Policy:
                 q = n.get_queue(f, c)
                 if len(q) > 0 and n.can_execute_function(f):
                     return q.pop(0)
+                if not BACKFILLING:
+                    break
 
             return None
 
