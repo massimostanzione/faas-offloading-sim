@@ -1,6 +1,7 @@
 from dataclasses import dataclass,field
 from enum import Enum
 
+
 class ContainerPool:
 
     def __init__ (self):
@@ -45,6 +46,7 @@ class ContainerPool:
     def __repr__ (self):
         return repr(self.pool)
 
+
 class Node:
 
     def __init__ (self, name, memory, speedup, region, cost=0.0,
@@ -75,8 +77,6 @@ class Node:
         return hash(self.name)
 
 
-
-
 @dataclass
 class QoSClass:
     name: str
@@ -100,6 +100,7 @@ class QoSClass:
     def __le__(self,other):
         return self.name <= other.name
 
+
 @dataclass
 class Function:
     name: str
@@ -122,6 +123,7 @@ class Function:
 
     def __le__(self,other):
         return self.name <= other.name
+
 
 @dataclass
 class Container:
