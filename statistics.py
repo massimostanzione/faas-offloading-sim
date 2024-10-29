@@ -8,8 +8,8 @@ class Stats:
         self.infra = infra
         self.functions = functions
         self.classes = classes
-        self.nodes = infra.get_nodes()
-        fun_classes = [(f,c) for f in functions for c in classes]
+        self.nodes = infra.get_nodes(ignore_non_processing=False)
+        #fun_classes = [(f,c) for f in functions for c in classes]
         fcn = [(f,c,n) for f in functions for c in classes for n in self.nodes]
         
         keys = set()
@@ -46,6 +46,10 @@ class Stats:
         self._mig_policy_updates = 0
 
         self.budget = self.sim.config.getfloat(conf.SEC_POLICY, conf.HOURLY_BUDGET, fallback=-1.0)
+
+        self.cloud_arrivals = {x: 0 for x in [(f,c,n) for f in functions for c in classes for n in infra.get_nodes(ignore_non_processing=True)]}
+
+        self.do_snapshot() # create initial snapshot for the MAB agent
 
     def to_dict (self):
         stats = {}
@@ -92,7 +96,10 @@ class Stats:
 
         avgMemUtil = {}
         for n in self._memory_usage_t0:
-            avgMemUtil[repr(n)] = self._memory_usage_area[n]/self.sim.t/n.total_memory
+            if n.total_memory != 0:
+                avgMemUtil[repr(n)] = self._memory_usage_area[n]/self.sim.t/n.total_memory
+            else:
+                avgMemUtil[repr(n)] = 0
         stats["avgMemoryUtilization"] = avgMemUtil
 
         avg_policy_upd_time = {}
@@ -105,7 +112,6 @@ class Stats:
         if self._mig_policy_updates > 0:
             avg_mig_policy_upd_time = self._mig_policy_update_time_sum/self._mig_policy_updates
         stats["avgMigPolicyUpdateTime"] = avg_mig_policy_upd_time
-
 
         return stats
     
@@ -124,3 +130,37 @@ class Stats:
 
     def print (self, out_file):
         print(json.dumps(self.to_dict(), indent=4, sort_keys=True), file=out_file)
+
+    def do_snapshot(self):
+        # Create a snapshot of the statistics for MAB agent
+        self.ss_arrivals = self.arrivals.copy()
+        self.ss_ext_arrivals = self.ext_arrivals.copy()
+        self.ss_offloaded = self.offloaded.copy()
+        self.ss_dropped_reqs = self.dropped_reqs.copy()
+        self.ss_dropped_offloaded = self.dropped_offloaded.copy()
+        self.ss_completions = self.completions.copy()
+        self.ss_violations = self.violations.copy()
+        self.ss_resp_time_sum = self.resp_time_sum.copy()
+        self.ss_cold_starts = self.cold_starts.copy()
+        self.ss_execution_time_sum = self.execution_time_sum.copy()
+        self.ss_node2completions = self.node2completions.copy()
+        self.ss_cost = self.cost
+        self.ss_raw_utility = self.raw_utility
+        self.ss_utility = self.utility
+        self.ss_utility_detail = self.utility_detail.copy()
+        self.ss_penalty = self.penalty
+        self.ss_data_access_count = self.data_access_count.copy()
+        self.ss_data_access_violations = self.data_access_violations.copy()
+        self.ss_data_access_tardiness = self.data_access_tardiness
+        self.ss_data_migrations_count = self.data_migrations_count
+        self.ss_data_migrated_bytes = self.data_migrated_bytes
+        self._ss_memory_usage_area = self._memory_usage_area.copy()
+        self._ss_memory_usage_t0 = self._memory_usage_t0.copy()
+        self._ss_policy_update_time_sum = self._policy_update_time_sum.copy()
+        self._ss_policy_updates = self._policy_updates.copy()
+        self._ss_mig_policy_update_time_sum = self._mig_policy_update_time_sum
+        self._ss_mig_policy_updates = self._mig_policy_updates
+        self.ss_budget = self.sim.config.getfloat(conf.SEC_POLICY, conf.HOURLY_BUDGET, fallback=-1.0)
+        self.ss_cloud_arrivals = self.cloud_arrivals.copy()
+    
+# type: ignore

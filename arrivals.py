@@ -1,12 +1,14 @@
 from faas import Function, QoSClass
 
+from typing import List
+
 import numpy as np
 import numpy.matlib as ml
 from map import SamplesFromMAP, MapMean
 
 class ArrivalProcess:
 
-    def __init__ (self, function: Function, classes: [QoSClass]):
+    def __init__ (self, function: Function, classes: List[QoSClass]):
         self.function = function
         self.classes = classes
 
@@ -45,7 +47,7 @@ class ArrivalProcess:
 
 class PoissonArrivalProcess (ArrivalProcess):
 
-    def __init__ (self, function: Function, classes: [QoSClass], rate: float,
+    def __init__ (self, function: Function, classes: List[QoSClass], rate: float,
                   dynamic_rate_coeff: float = 0.0):
         super().__init__(function, classes) 
         self.rate = rate
@@ -74,7 +76,7 @@ class PoissonArrivalProcess (ArrivalProcess):
 
 class DeterministicArrivalProcess (PoissonArrivalProcess):
 
-    def __init__ (self, function: Function, classes: [QoSClass], rate: float,
+    def __init__ (self, function: Function, classes: List[QoSClass], rate: float,
                   dynamic_rate_coeff: float = 0.0):
         super().__init__(function, classes, rate, dynamic_rate_coeff) 
 
@@ -87,7 +89,7 @@ class DeterministicArrivalProcess (PoissonArrivalProcess):
 
 class TraceArrivalProcess (ArrivalProcess):
 
-    def __init__ (self, function: Function, classes: [QoSClass], trace: str):
+    def __init__ (self, function: Function, classes: List[QoSClass], trace: str):
         super().__init__(function, classes) 
         self.trace = open(trace, "r")
 
@@ -103,7 +105,7 @@ class TraceArrivalProcess (ArrivalProcess):
 
 class MAPArrivalProcess (ArrivalProcess):
 
-    def __init__ (self, function: Function, classes: [QoSClass], D0, D1):
+    def __init__ (self, function: Function, classes: List[QoSClass], D0, D1):
         super().__init__(function, classes) 
         self.state = 0
         self.D0 = D0

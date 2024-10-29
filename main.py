@@ -76,7 +76,6 @@ def read_spec_file (spec_file_name, infra, config):
             function_names[fname] = fun
             functions.append(fun)
 
-
         node2arrivals = {}
         for f in spec["arrivals"]:
             node = node_names[f["node"]]
@@ -142,6 +141,7 @@ def init_simulation (config):
 
     sim = Simulation(config, seed_sequence, infra, functions, classes, node2arrivals)
     return sim
+
 
 def main():
     DEFAULT_CONFIG_FILE = "config.ini"

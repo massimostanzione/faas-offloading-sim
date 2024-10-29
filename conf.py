@@ -30,8 +30,26 @@ SPLIT_BUDGET_AMONG_EDGE_NODES = "split-budget-edge"
 MULTIPLE_OFFLOADING_ALLOWED = "multiple-offloading-allowed"
 FALLBACK_ON_LOCAL_REJECTION = "local-rejection-fallback"
 
-
 SEC_STATEFUL = "stateful"
+
+# Load Balancer
+SEC_LB = "lb"
+LB_POLICY = "lb-policy"
+
+# Multi-Armed Bandit
+SEC_MAB = "mab"
+MAB_UPDATE_INTERVAL = "mab-update-interval"
+MAB_LB_POLICIES = "mab-lb-policies"
+MAB_STRATEGY = "mab-strategy"
+MAB_EPSILON = "mab-epsilon"
+MAB_UCB_EXPLORATION_FACTOR = "mab-ucb-exploration-factor"
+MAB_RUCB_INTERVAL = "mab-rucb-interval"
+MAB_SWUCB_WINDOW_SIZE = "mab-swucb-window-size"
+MAB_REWARD_ALPHA = "mab-reward-alpha"
+MAB_REWARD_BETA = "mab-reward-beta"
+MAB_REWARD_GAMMA = "mab-reward-gamma"
+MAB_REWARD_DELTA = "mab-reward-delta"
+
 
 import configparser
 

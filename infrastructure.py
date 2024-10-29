@@ -1,5 +1,6 @@
 from faas import Node
 
+
 class Region:
 
     def __init__ (self, name: str, default_cloud = None):
@@ -17,6 +18,7 @@ class Region:
 
     def __repr__ (self):
         return self.name
+
 
 class Infrastructure:
 
@@ -40,7 +42,6 @@ class Infrastructure:
             return self.latency[(x, y)]
         else:
             return self.get_region_latency(x.region, y.region)
-
 
     def get_region_latency (self, x: Region, y: Region):
         if x == y and not (x,y) in self.latency:
@@ -67,7 +68,6 @@ class Infrastructure:
             return self.bandwidth_mbps[(x, y)]
         else:
             return self.get_region_bandwidth(x.region, y.region)
-
 
     def get_region_bandwidth (self, x: Region, y: Region):
         if (x, y) in self.bandwidth_mbps:
@@ -125,6 +125,14 @@ class Infrastructure:
         else:
             return peers
 
+    def get_load_balancers(self):
+        nodes = []
+        for r in self.regions:
+            if r.is_cloud():
+                reg_nodes = [n for n in self.region_nodes[r] if n.total_memory == 0]
+                nodes.extend(reg_nodes)
+        return nodes
+
     def __repr__ (self):
         s=""
         for r in self.regions:
@@ -132,4 +140,3 @@ class Infrastructure:
             for n in self.region_nodes[r]:
                 s += repr(n) + "\n"
         return s
-

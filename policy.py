@@ -1,15 +1,23 @@
 from enum import Enum, auto
 from pacsltk import perfmodel
 
+from faas import Node
+
 import conf
 
+import hashlib
+import bisect
+
+
 COLD_START_PROB_INITIAL_GUESS = 0.0
+
 
 class SchedulerDecision(Enum):
     EXEC = 1
     OFFLOAD_CLOUD = 2
     OFFLOAD_EDGE = 3
     DROP = 4
+
 
 class ColdStartEstimation(Enum):
     NO = auto()
@@ -94,7 +102,6 @@ class Policy:
         return self.simulation.node_choice_rng.choice(peers, p=probs)
 
 
-
 class BasicPolicy(Policy):
 
     def schedule(self, f, c, offloaded_from):
@@ -102,6 +109,7 @@ class BasicPolicy(Policy):
             return (SchedulerDecision.EXEC, None)
         else:
             return (SchedulerDecision.OFFLOAD_CLOUD, None)
+
 
 class BasicBudgetAwarePolicy(Policy):
 
@@ -115,6 +123,7 @@ class BasicBudgetAwarePolicy(Policy):
         else:
             return (SchedulerDecision.DROP, None)
 
+
 class BasicEdgePolicy(Policy):
 
     def schedule(self, f, c, offloaded_from):
@@ -125,6 +134,7 @@ class BasicEdgePolicy(Policy):
         else:
             return (SchedulerDecision.DROP, None)
 
+
 class CloudPolicy(Policy):
 
     def schedule(self, f, c, offloaded_from):
@@ -132,7 +142,6 @@ class CloudPolicy(Policy):
             return (SchedulerDecision.EXEC, None)
         else:
             return (SchedulerDecision.DROP, None)
-
 
 
 class GreedyPolicy(Policy):
@@ -261,6 +270,7 @@ class GreedyPolicy(Policy):
 
         self.update_cold_start(stats)
 
+
 class GreedyBudgetAware(GreedyPolicy):
 
     def __init__ (self, simulation, node):
@@ -322,3 +332,270 @@ class GreedyPolicyWithCostMinimization(GreedyPolicy):
 
         return sched_decision
 
+
+# LOAD BALANCER: Random  
+class RandomLBPolicy(Policy):
+    def __init__(self, simulation, node):
+        super().__init__(simulation, node)
+        self.rng = self.simulation.random_lb_rng
+        print("[RandomPolicy]: Random policy is active")
+
+    def schedule(self, f, c, offloaded_from):
+        nodes = self.simulation.infra.get_cloud_nodes()
+        # print("[Random]: available could nodes -> ", nodes)
+        selected_node = self.rng.choice(nodes)
+        # print("[Random]: selected cloud node -> ", nodes.index(selected_node))
+        return (SchedulerDecision.OFFLOAD_CLOUD, selected_node)
+
+
+# LOAD BALANCER: Round-Robin
+class RoundRobinLBPolicy(Policy):
+    def __init__(self, simulation, node):
+        super().__init__(simulation, node)
+        # Index to keep track of round robin server selection
+        self.round_robin_index = 0
+        print("[RoundRobin]: Round Robin policy is active")
+
+    def schedule(self, f, c, offloaded_from):
+        nodes = self.simulation.infra.get_cloud_nodes()
+        #print("[RoundRobin]: available cloud nodes -> ", nodes)
+        node_index = self.round_robin_index % len(nodes)
+        # To avoid potential overflows
+        self.round_robin_index = node_index
+        self.round_robin_index += 1
+        #print("[RoundRobin]: selected cloud node -> ", node_index)
+        return (SchedulerDecision.OFFLOAD_CLOUD, nodes[node_index])
+
+
+# LOAD BALANCER: MA/MA (Sophon: max_mem_available either for warm and cold start)
+class MAMALBPolicy(Policy):
+    def __init__(self, simulation, node):
+        super().__init__(simulation, node)
+        print("[MAMA]: MAMA policy is active")
+
+    def schedule(self, f, c, offloaded_from):
+        nodes = self.simulation.infra.get_cloud_nodes()
+        # Prendo i container warm per quella funzione presenti sui nodi
+        nodes_warm = []
+        for n in nodes:
+            if f in n.warm_pool:
+                nodes_warm.append(n)
+        if len(nodes_warm) == 0: # Nessun container warm disponibile (cold start)
+            node = self._get_node_with_max_available_mem(nodes)
+        else: # Container warm disponibili (warm start)
+            node = self._get_node_with_max_available_mem(nodes_warm)
+        #print("selected_node: ", node.name)
+        return (SchedulerDecision.OFFLOAD_CLOUD, node)
+    
+    def _get_node_with_max_available_mem(self, nodes):
+        node = nodes[0]       
+        for n in nodes:
+            if n.curr_memory > node.curr_memory:
+                node = n
+        return node
+
+"""
+# LOAD BALANCER: Weighted Round Robin (speedup, memory)
+class WeightedRoundRobinLBPolicy(Policy):
+    def __init__(self, simulation, node):
+        super().__init__(simulation, node)
+        self.MULT_FACTOR = 10
+        self.ALPHA = 0.3
+        self.BETA = 0.7
+        self.GAMMA = 0.3
+        # Index to keep track of round robin server selection
+        self.round_robin_index = 0
+        self.counter = 0
+        self.max_speedup = 0
+        self.max_memory = 0
+        self.max_cost = 0
+        self.node2weight = []
+        self._init()
+        print("[WRR]: Weighted Round Robin policy is active")
+  
+    def schedule(self, f, c, offloaded_from):
+        nodes = self.simulation.infra.get_cloud_nodes()
+        node_index = self.round_robin_index % len(nodes)
+        self.counter += 1
+        if self.counter >= list(self.node2weight[node_index].values())[0]:
+            self.counter = 0
+            # To avoid potential overflows
+            self.round_robin_index = node_index
+            self.round_robin_index += 1
+        return (SchedulerDecision.OFFLOAD_CLOUD, nodes[node_index])
+
+    def _init(self):
+        nodes = self.simulation.infra.get_cloud_nodes()
+        self.max_speedup = nodes[0].speedup
+        self.max_memory = nodes[0].total_memory
+        self.max_cost = nodes[0].cost
+        # Recupera lo speedup, la memoria e il costo massimi
+        for n in nodes:
+            self.max_speedup = max(n.speedup, self.max_speedup)
+            self.max_memory = max(n.total_memory, self.max_memory)
+            self.max_cost = max(n.cost, self.max_cost)
+        # Calcola punteggi
+        for n in nodes:
+            self.node2weight.append({n:self._get_weight(n)})
+        self.node2weight = sorted(self.node2weight, key=lambda x: list(x.values())[0], reverse=False)
+
+    def _get_weight(self, node: Node):
+        node_weight = int(self.MULT_FACTOR * \
+            (self.ALPHA * (node.speedup / self.max_speedup) \
+            + self.BETA * (node.total_memory / self.max_memory)))
+        return node_weight
+"""
+
+# LOAD BALANCER: Weighted Round Robin (speedup, memory)
+class WeightedRoundRobinLBPolicy(Policy):
+    def __init__(self, simulation, node):
+        super().__init__(simulation, node)
+        self.MULT_FACTOR = 10
+        # Index to keep track of round robin server selection
+        self.round_robin_index = 0
+        self.counter = 0
+        self.node2weight = {}
+        self.node2count = {}
+  
+    def schedule(self, f, c, offloaded_from):
+        nodes = self.simulation.infra.get_cloud_nodes()
+        node_index = self.round_robin_index % len(nodes)
+        i = 0
+        while self.node2count[nodes[node_index]] == 0:
+            # To avoid potential overflows
+            self.round_robin_index = node_index
+            self.round_robin_index += 1
+            node_index = self.round_robin_index % len(nodes)
+            i += 1
+            if i == len(nodes):
+                # reset self.node2count
+                self.node2count = self.node2weight.copy()
+                node_index = 0
+        self.node2count[nodes[node_index]] -= 1
+        self.round_robin_index = node_index
+        self.round_robin_index += 1
+        #print("[RoundRobin]: selected cloud node -> ", node_index)
+        return (SchedulerDecision.OFFLOAD_CLOUD, nodes[node_index])
+
+
+# LOAD BALANCER: WRR-speedup
+class WRRSpeedupLBPolicy(WeightedRoundRobinLBPolicy):
+    def __init__(self, simulation, node):
+        super().__init__(simulation, node)
+        self.max_speedup = 0
+        self._init()
+        print("[WRRSpeedup]: WRRSpeedup is active")
+    
+    def schedule(self, f, c, offloaded_from):
+        return super().schedule(f, c, offloaded_from)
+
+    def _init(self):
+        nodes = self.simulation.infra.get_cloud_nodes()
+        self.max_speedup = nodes[0].speedup
+        # Recupera lo speedup massimo
+        for n in nodes:
+            self.max_speedup = max(n.speedup, self.max_speedup)
+        # Calcola punteggi
+        for n in nodes:
+            weight = self._get_weight(n)
+            if weight < 1:
+                weight = 1
+            self.node2weight[n] = weight
+            self.node2count = self.node2weight.copy()
+
+    def _get_weight(self, node: Node):
+        node_weight = int(self.MULT_FACTOR * (node.speedup / self.max_speedup))
+        return node_weight
+    
+
+# LOAD BALANCER: WRR-memory
+class WRRMemoryLBPolicy(WeightedRoundRobinLBPolicy):
+    def __init__(self, simulation, node):
+        super().__init__(simulation, node)
+        self.max_memory = 0
+        self._init()
+        print("[WRRMemory]: WRRMemory is active")
+    
+    def schedule(self, f, c, offloaded_from):
+        return super().schedule(f, c, offloaded_from)
+
+    def _init(self):
+        nodes = self.simulation.infra.get_cloud_nodes()
+        self.max_memory = nodes[0].total_memory
+        # Recupera la memoria massima
+        for n in nodes:
+            self.max_memory = max(n.total_memory, self.max_memory)
+        # Calcola punteggi
+        for n in nodes:
+            weight = self._get_weight(n)
+            if weight < 1:
+                weight = 1
+            self.node2weight[n] = weight
+            self.node2count = self.node2weight.copy()
+
+    def _get_weight(self, node: Node):
+        node_weight = int(self.MULT_FACTOR * (node.total_memory / self.max_memory))
+        return node_weight
+    
+
+# LOAD BALANCER: WRR-cost
+class WRRCostLBPolicy(WeightedRoundRobinLBPolicy):
+    def __init__(self, simulation, node):
+        super().__init__(simulation, node)
+        self.min_cost = 0
+        self._init()
+        print("[WRRCost]: WRRCost is active")
+    
+    def schedule(self, f, c, offloaded_from):
+        return super().schedule(f, c, offloaded_from)
+
+    def _init(self):
+        nodes = self.simulation.infra.get_cloud_nodes()
+        self.min_cost = nodes[0].cost
+        # Recupera il costo minimo
+        for n in nodes:
+            self.min_cost = min(n.cost, self.min_cost)
+        # Calcola punteggi
+        for n in nodes:
+            weight = self._get_weight(n)
+            if weight < 1:
+                weight = 1
+            self.node2weight[n] = weight
+            self.node2count = self.node2weight.copy()
+
+    def _get_weight(self, node: Node):
+        node_weight = int(self.MULT_FACTOR * (self.min_cost / node.cost))
+        return node_weight
+    
+
+# LOAD BALANCER: Consistent Hashing & Memory Available
+class ConsistentHashingLBPolicy(Policy):
+    def __init__(self, simulation, node):
+        super().__init__(simulation, node)
+        self.nodes = self.simulation.infra.get_cloud_nodes()
+        self.ring = []
+        for node in self.nodes:
+            self._add_node(node)
+        print("[CH]: Consistent Hashing policy is active")
+
+    def schedule(self, f, c, offloaded_from):
+        node = self._get_node(f)
+        #print("selected_node: ", node)
+        return (SchedulerDecision.OFFLOAD_CLOUD, node)
+    
+    def _hash(self, key):
+        return int(hashlib.sha256(key.encode()).hexdigest(), 16)
+
+    def _add_node(self, node):
+        key = self._hash(str(node.name))
+        self.ring.append((key, node))
+        self.ring.sort()
+    
+    def _get_node(self, f):
+        key = self._hash(f.name)
+        start_index = bisect.bisect_right(self.ring, (key,))
+        for _, node in self.ring[start_index:] + self.ring[:start_index]:
+            if (f in node.warm_pool) or (node.curr_memory >= f.memory):
+                return node
+        return self.nodes[start_index]
+    
