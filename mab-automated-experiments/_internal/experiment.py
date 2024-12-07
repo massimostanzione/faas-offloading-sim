@@ -109,6 +109,7 @@ def generate_outfile_name(prefix, strategy, axis_pre, axis_post, params_names, p
 
 def filter_params_for_strategy(params: List[MABExperiment_Param], strategy: str, include_ef=True) -> List[
     MABExperiment_Param]:
+    if strategy=="KL-UCBsp": include_ef=False
     parammap = {
         "UCBTuned": [conf.MAB_UCB_EXPLORATION_FACTOR],
         "UCB2": [conf.MAB_UCB_EXPLORATION_FACTOR, conf.MAB_UCB2_ALPHA],

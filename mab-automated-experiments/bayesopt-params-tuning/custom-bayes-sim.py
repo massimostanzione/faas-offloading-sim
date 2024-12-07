@@ -71,14 +71,14 @@ def obj_klucb(ef, c, strat, ax_pre, ax_post):
 def obj_klucbsp(c, strat, ax_pre, ax_post):
     print(f"computing for {strat}, {ax_pre} > {ax_post}, c={c}\n")
     for _ in range(num_simulations):
-        path = write_custom_configfile(EXPNAME, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C],
+        path = write_custom_configfile(EXPNAME, strat, ax_pre, ax_post, [MAB_KL_UCB_C],
                                        [c])
 
         statsfile = generate_outfile_name(
-            consts.PREFIX_STATSFILE, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C], [ef, c]
+            consts.PREFIX_STATSFILE, strat, ax_pre, ax_post, [MAB_KL_UCB_C], [c]
         ) + consts.SUFFIX_STATSFILE
         mabfile = generate_outfile_name(
-            consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C], [ef, c]
+            consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post, [MAB_KL_UCB_C], [c]
         ) + consts.SUFFIX_MABSTATSFILE
 
     return compute_total_reward(mabfile, statsfile) / num_simulations
