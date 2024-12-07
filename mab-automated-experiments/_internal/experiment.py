@@ -4,6 +4,7 @@ import json
 import os
 import re
 from json import JSONDecodeError
+from multiprocessing.pool import Pool
 from pathlib import Path
 from typing import List
 
@@ -69,6 +70,7 @@ def write_custom_configfile(expname: str, strategy: str, axis_pre: str, axis_pos
     outconfig.set(conf.SEC_MAB, conf.MAB_REWARD_ZETA_POST,
                   str(1) if axis_post == consts.RewardFnAxis.VIOLATIONS.value else str(0))
     config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", expname, "results", consts.CONFIG_FILE))
+    config_path+="-pid"+str(os.getpid())
 
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
 
@@ -143,7 +145,8 @@ def extract_params(config):
 class MABExperiment:
     def __init__(self, name: str, strategies: List[str], axis_pre: List[str] = None, axis_post: List[str] = None,
                  params: MABExperiment_Param = None, graphs: List[str] = None,
-                 rundup: str = consts.RundupBehavior.SKIP_EXISTENT.value):
+                 rundup: str = consts.RundupBehavior.SKIP_EXISTENT.value,
+                 max_parallel_executions: int = 1):
         self.name = name
         self.strategies = strategies
         self.axis_pre = axis_pre
@@ -151,6 +154,7 @@ class MABExperiment:
         self.params = params
         self.graphs = graphs
         self.rundup = rundup
+        self.max_parallel_executions = max_parallel_executions
 
     def _generate_config(self, strategy: str, axis_pre: str, axis_post: str, param_names: List[str],
                          param_values: List[float]):
@@ -160,67 +164,79 @@ class MABExperiment:
         return filter_params_for_strategy(self.params, strategy)
 
     def run(self):
-        rundup = self.rundup
         print(f"Starting experiment {self.name}...")
-        for strategy in self.strategies:
-            for ax_pre in self.axis_pre:
-                for ax_post in self.axis_post:
-                    filtered_params = self._filter_params(strategy)
-                    ranges = [np.arange(param.start, param.end + param.step, param.step) for param in filtered_params]
-                    param_combinations = itertools.product(*ranges)
-                    for combination in param_combinations:
-                        rounded_combination = [round(value, 2) for value in combination]
-                        param_names = [p.name for p in filtered_params]
-                        current_values = [p for p in rounded_combination]
+        max_procs = self.max_parallel_executions
 
-                        print()
-                        print("============================================")
-                        print(f"Running experiment \"{self.name}\"")
-                        print(f"with the following configuration")
-                        print(f"\tStrategy:\t{strategy}")
-                        print(f"\tAxis:\t\t{ax_pre} -> {ax_post}")
-                        print(f"\tParameters:")
-                        for i, _ in enumerate(param_names):
-                            print(f"\t\t> {param_names[i]} = {current_values[i]}")
-                        print("--------------------------------------------")
+        # iterate among {strategies x axis_pre x axis_post}
+        all_combinations = list(itertools.product(self.strategies, self.axis_pre, self.axis_post))
+        chunk_size = len(all_combinations) // max_procs + (len(all_combinations) % max_procs > 0)
+        chunks = [all_combinations[i:i + chunk_size] for i in range(0, len(all_combinations), chunk_size)]
 
-                        path = self._generate_config(strategy, ax_pre, ax_post, param_names, current_values)
+        with Pool(processes=max_procs) as pool:
+            pool.map(self._parall_run, chunks)
 
-                        statsfile = generate_outfile_name(
-                            consts.PREFIX_STATSFILE, strategy, ax_pre, ax_post, param_names, current_values
-                        ) + consts.SUFFIX_STATSFILE
+        # la funzione parallela
+    def _parall_run(self, params):
+        rundup = self.rundup
+        for strategy, ax_pre, ax_post in params:
+            print(f"Processing strategy={strategy}, ax_pre={ax_pre}, ax_post={ax_post}")
+            filtered_params = self._filter_params(strategy)
+            ranges = [np.arange(param.start, param.end + param.step, param.step) for param in filtered_params]
+            param_combinations = itertools.product(*ranges)
+            for combination in param_combinations:
+                rounded_combination = [round(value, 2) for value in combination]
+                param_names = [p.name for p in filtered_params]
+                current_values = [p for p in rounded_combination]
 
-                        mabfile = generate_outfile_name(
-                            consts.PREFIX_MABSTATSFILE, strategy, ax_pre, ax_post, param_names, current_values
-                        ) + consts.SUFFIX_MABSTATSFILE
+                print()
+                print("============================================")
+                print(f"Running experiment \"{self.name}\"")
+                print(f"with the following configuration")
+                print(f"\tStrategy:\t{strategy}")
+                print(f"\tAxis:\t\t{ax_pre} -> {ax_post}")
+                print(f"\tParameters:")
+                for i, _ in enumerate(param_names):
+                    print(f"\t\t> {param_names[i]} = {current_values[i]}")
+                print("--------------------------------------------")
 
-                        run_simulation = None
-                        if rundup == consts.RundupBehavior.ALWAYS.value:
-                            run_simulation = True
-                        elif rundup == consts.RundupBehavior.NO.value:
-                            run_simulation = False
-                        elif rundup == consts.RundupBehavior.SKIP_EXISTENT.value:
-                            if Path(statsfile).exists():
-                                # make sure that the file is not only existent, but also not incomplete
-                                # (i.e. correctly JSON-readable until the EOF)
-                                with open(mabfile, 'r', encoding='utf-8') as r:
-                                    try:
-                                        json.load(r)
-                                    except JSONDecodeError:
-                                        print(
-                                            "mab-stats file non existent or JSON parsing error, running simulation...")
-                                        run_simulation = True
-                                    else:
-                                        print("parseable stats- and mab-stats file found, skipping simulation.")
-                                        run_simulation = False
-                            else:
-                                print("stats-file non not found, running simulation...")
+                path = self._generate_config(strategy, ax_pre, ax_post, param_names, current_values)
+
+                statsfile = generate_outfile_name(
+                    consts.PREFIX_STATSFILE, strategy, ax_pre, ax_post, param_names, current_values
+                ) + consts.SUFFIX_STATSFILE
+
+                mabfile = generate_outfile_name(
+                    consts.PREFIX_MABSTATSFILE, strategy, ax_pre, ax_post, param_names, current_values
+                ) + consts.SUFFIX_MABSTATSFILE
+
+                run_simulation = None
+                if rundup == consts.RundupBehavior.ALWAYS.value:
+                    run_simulation = True
+                elif rundup == consts.RundupBehavior.NO.value:
+                    run_simulation = False
+                elif rundup == consts.RundupBehavior.SKIP_EXISTENT.value:
+                    if Path(statsfile).exists():
+                        # make sure that the file is not only existent, but also not incomplete
+                        # (i.e. correctly JSON-readable until the EOF)
+                        with open(mabfile, 'r', encoding='utf-8') as r:
+                            try:
+                                json.load(r)
+                            except JSONDecodeError:
+                                print(
+                                    "mab-stats file non existent or JSON parsing error, running simulation...")
                                 run_simulation = True
-                        if run_simulation is None:
-                            print("Something is really odd...")
-                            exit(1)
+                            else:
+                                print("parseable stats- and mab-stats file found, skipping simulation.")
+                                run_simulation = False
+                    else:
+                        print("stats-file non not found, running simulation...")
+                        run_simulation = True
+                if run_simulation is None:
+                    print("Something is really odd...")
+                    exit(1)
 
-                        if run_simulation:
-                            main(path)
+                if run_simulation:
+                    main(path)
 
-                        print("end.")
+                os.remove(path)
+                print("end.")

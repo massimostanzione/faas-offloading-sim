@@ -32,7 +32,8 @@ if __name__ == "__main__":
                             config["reward_fn"]["axis_post"].split(consts.DELIMITER_COMMA),
                             extract_params(config),
                             [],
-                            config["output"]["run-duplicates"]
+                            config["output"]["run-duplicates"],
+                            config.getint("experiment", "max-parallel-execution")
                         )
                         exp.run()
 
