@@ -568,3 +568,71 @@ class KLUCB(MABAgent):
         if self.curr_lb_policy == selected_policy:
             return None
         return selected_policy
+
+# KL-UCB Strategy, with single parameter
+class KLUCBsp(MABAgent):
+    def __init__(self, simulation, lb_policies: List[str], reward_config, c: float):
+        super().__init__(simulation, lb_policies, reward_config)
+        self.c = c                              # KL constant
+        self.cumQ = np.zeros(len(lb_policies))  # Sum of rewards
+
+    def __kl(self, p, q):
+        if p == q:
+            return 0.0
+        elif q == 0 or q == 1:
+            return np.inf
+        return (p*math.log(p/q))+((1-p)*math.log((1-p)/(1-q)))
+
+    def __q(self, index):
+        t=sum(self.N)
+        shifted_reward = self.Q[index] + 1  # in order to have the reward into [0, 1], as required by KL
+        upper_limit = 1.0
+        lower_limit = shifted_reward
+        epsilon = 1e-6  # tolerance
+        target = (np.log(t) + self.c * np.log(np.log(t))) / self.N[index]
+
+        # find the q value via binary searhc
+        while upper_limit - lower_limit > epsilon:
+            q = (upper_limit + lower_limit) / 2
+            if self.__kl(-(self.cumQ[index])/self.N[index], q) <= target:
+                lower_limit = q
+            else:
+                upper_limit = q
+        return (upper_limit + lower_limit) / 2
+
+    def update_model(self, lb_policy: str, mab_stats_file:str, last_update=False):
+        self.curr_lb_policy = lb_policy
+        reward = self._compute_reward()
+        policy_index = self.lb_policies.index(lb_policy)
+        self.N[policy_index] += 1
+        self.Q[policy_index] += (reward - self.Q[policy_index]) / self.N[policy_index]
+        self.cumQ[policy_index]+=reward
+        print("[MAB]: Q updated -> ", self.Q)
+        print("[MAB]: N updated -> ", self.N)
+        print("[MAB]: cumQ updated -> ", self.cumQ)
+        if not last_update:
+            self._print_stats(reward, mab_stats_file, end=False)
+        else:
+            self._print_stats(reward, mab_stats_file, end=True)
+        self.simulation.stats.do_snapshot()
+
+    def select_policy(self) -> str:
+        # init: in the first execution, play each arm once
+        #       without any further computation
+        #       Oss.: setting "inf" in the last loop for the initialization
+        #             does not prevent q computation for the default policy,
+        #             resulting in a "divide by zero" error.
+        for index, label in enumerate(self.lb_policies):
+            if self.N[index] == 0:
+                print("[MAB] INIT: selecting", label, "(", index, ") for the first time")
+                return self.lb_policies[index]
+
+        total_count = sum(self.N)
+        ucb_values = [0.0 for _ in self.lb_policies]
+        for p in self.lb_policies:
+            policy_index = self.lb_policies.index(p)
+            ucb_values[policy_index] = self.__q(policy_index)
+        selected_policy = self.lb_policies[ucb_values.index(max(ucb_values))]
+        if self.curr_lb_policy == selected_policy:
+            return None
+        return selected_policy

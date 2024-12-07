@@ -19,7 +19,7 @@ from infrastructure import *
 from statistics import Stats # type: ignore
 from typing import List
 
-from mab import EpsilonGreedy, UCB, ResetUCB, SlidingWindowUCB, UCB2, UCBTuned, KLUCB
+from mab import EpsilonGreedy, UCB, ResetUCB, SlidingWindowUCB, UCB2, UCBTuned, KLUCB, KLUCBsp
 
 @dataclass
 class Event:
@@ -276,6 +276,9 @@ class Simulation:
             exploration_factor = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB_EXPLORATION_FACTOR, fallback=0.05)
             c = self.config.getfloat(conf.SEC_MAB, conf.MAB_KL_UCB_C, fallback=1.0)
             return KLUCB(self, lb_policies, exploration_factor, reward_config, c)
+        elif strategy == "KL-UCBsp":
+            c = self.config.getfloat(conf.SEC_MAB, conf.MAB_KL_UCB_C, fallback=1.0)
+            return KLUCBsp(self, lb_policies, reward_config, c)
         else:
             print("Unknown MAB strategy\n")
             exit(1)

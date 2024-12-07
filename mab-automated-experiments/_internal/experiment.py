@@ -112,7 +112,8 @@ def filter_params_for_strategy(params: List[MABExperiment_Param], strategy: str,
     parammap = {
         "UCBTuned": [conf.MAB_UCB_EXPLORATION_FACTOR],
         "UCB2": [conf.MAB_UCB_EXPLORATION_FACTOR, conf.MAB_UCB2_ALPHA],
-        "KL-UCB": [conf.MAB_UCB_EXPLORATION_FACTOR, conf.MAB_KL_UCB_C]
+        "KL-UCB": [conf.MAB_UCB_EXPLORATION_FACTOR, conf.MAB_KL_UCB_C],
+        "KL-UCBsp": [conf.MAB_KL_UCB_C]
     }
 
     required_params = parammap.get(strategy, [])

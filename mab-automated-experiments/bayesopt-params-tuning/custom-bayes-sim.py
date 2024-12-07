@@ -68,6 +68,21 @@ def obj_klucb(ef, c, strat, ax_pre, ax_post):
 
     return compute_total_reward(mabfile, statsfile) / num_simulations
 
+def obj_klucbsp(c, strat, ax_pre, ax_post):
+    print(f"computing for {strat}, {ax_pre} > {ax_post}, c={c}\n")
+    for _ in range(num_simulations):
+        path = write_custom_configfile(EXPNAME, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C],
+                                       [c])
+
+        statsfile = generate_outfile_name(
+            consts.PREFIX_STATSFILE, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C], [ef, c]
+        ) + consts.SUFFIX_STATSFILE
+        mabfile = generate_outfile_name(
+            consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C], [ef, c]
+        ) + consts.SUFFIX_MABSTATSFILE
+
+    return compute_total_reward(mabfile, statsfile) / num_simulations
+
 
 def compute_total_reward(mabfile, statsfile):
     total_reward = 0
@@ -124,6 +139,9 @@ def _parall_run(params):
         def objwrapper_klucb(ef, c):
             return obj_klucb(ef, c, strat, ax_pre, ax_post)
 
+        def objwrapper_klucbsp(c):
+            return obj_klucbsp(c, strat, ax_pre, ax_post)
+
         print(f"Processing strategy={strat}, ax_pre={ax_pre}, ax_post={ax_post}")
         if strat == "UCBTuned":
             pbounds = {'ef': (ef_lower, ef_upper)}
@@ -136,6 +154,9 @@ def _parall_run(params):
             pbounds = {'ef': (ef_lower, ef_upper),
                        'c': (config["parameters"]["klucb-c-lower"], config["parameters"]["klucb-c-upper"])}
             selected_obj_fn = objwrapper_klucb
+        elif strat == "KL-UCBsp":
+            pbounds = {'c': (config["parameters"]["klucb-c-lower"], config["parameters"]["klucb-c-upper"])}
+            selected_obj_fn = objwrapper_klucbsp
         else:
             print("what?")
             exit(1)

@@ -46,6 +46,15 @@ def main():
             paramstep = config.getfloat("parameters", "mab-kl-ucb-c-step")
             paramname = get_param_simple_name(MAB_KL_UCB_C)
 
+        elif strat == "KL-UCBsp":
+            efstart=1
+            efstep=1
+            efend=1
+            paramstart = config.getfloat("parameters", "mab-kl-ucb-c-start")
+            paramend = config.getfloat("parameters", "mab-kl-ucb-c-end")
+            paramstep = config.getfloat("parameters", "mab-kl-ucb-c-step")
+            paramname = get_param_simple_name(MAB_KL_UCB_C)
+
         elif strat == "UCB2":
             paramstart = config.getfloat("parameters", "mab-ucb2-alpha-start")
             paramend = config.getfloat("parameters", "mab-ucb2-alpha-end")
