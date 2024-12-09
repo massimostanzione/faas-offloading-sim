@@ -159,7 +159,7 @@ class MABExperiment:
                  params: MABExperiment_Param = None, graphs: List[str] = None,
                  rundup: str = consts.RundupBehavior.SKIP_EXISTENT.value,
                  max_parallel_executions: int = 1,
-                 seeds=None):
+                 seeds:List[int]=None):
         self.name = name
         self.strategies = strategies
         self.axis_pre = axis_pre
@@ -253,5 +253,5 @@ class MABExperiment:
                 if run_simulation:
                     main(path)
 
-                os.remove(path)
-                print("end.")
+        os.remove(path)
+        print("end.")

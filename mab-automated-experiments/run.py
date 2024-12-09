@@ -34,7 +34,7 @@ if __name__ == "__main__":
                             [],
                             config["output"]["run-duplicates"],
                             config.getint("experiment", "max-parallel-execution"),
-                            config.getint("parameters", "seeds")
+                            config["parameters"]["seeds"].split(consts.DELIMITER_COMMA),
                         )
                         exp.run()
 
