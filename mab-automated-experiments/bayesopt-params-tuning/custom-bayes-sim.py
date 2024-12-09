@@ -25,15 +25,6 @@ from main import main
 manager = multiprocessing.Manager()
 jsondata = manager.list()
 
-def _is_already_computed(strategy, ax_pre, ax_post):
-    paramfile=EXPNAME + "/results/output.json"
-    if os.path.exists(paramfile):
-        with open(paramfile, 'r') as f:
-            data = json.load(f)
-            for d in data:
-                if d["strategy"]==strategy and d["axis_pre"]==ax_pre and d["axis_post"]== ax_post: return True
-    return False
-
 def obj_ucbtuned(ef, strat, ax_pre, ax_post, seed):
     print(f"computing for {strat}, {ax_pre} > {ax_post}, seed={seed}, ef={ef}\n")
     for _ in range(num_simulations):
@@ -100,7 +91,6 @@ def obj_klucbsp(c, strat, ax_pre, ax_post, seed):
 def compute_total_reward(mabfile, statsfile, strat, ax_pre, ax_post):
     total_reward = 0
     run_simulation = None
-    skip_already_computed = config.getboolean("parameters", "skip-already-computed")
     if rundup == consts.RundupBehavior.ALWAYS.value:
         run_simulation = True
     elif rundup == consts.RundupBehavior.NO.value:
@@ -119,14 +109,8 @@ def compute_total_reward(mabfile, statsfile, strat, ax_pre, ax_post):
                     print("parseable stats- and mab-stats file found, skipping simulation.")
                     run_simulation = False
         else:
-            # questo è non standard
-            if skip_already_computed and _is_already_computed(strat, ax_pre, ax_post):
-                print(
-                    f"stats-file not found, but already computed combination {{{strat}, {ax_pre}, {ax_post}}}: skipping, values should differ by just a negligible quantity")
-                run_simulation = False
-            else:
-                print("stats-file non not found, also not already computed, running simulation...")
-                run_simulation = True
+            print("stats-file non not found, running simulation...")
+            run_simulation = True
     if run_simulation is None:
         print("Something is really odd...")
         exit(1)
