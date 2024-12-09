@@ -1,6 +1,7 @@
 import datetime
 import itertools
 import json
+import multiprocessing
 import os
 import sys
 from json import JSONDecodeError
@@ -21,6 +22,18 @@ from _internal.experiment import write_custom_configfile
 from _internal import consts
 from main import main
 
+manager = multiprocessing.Manager()
+jsondata = manager.list()
+
+def _is_already_computed(strategy, ax_pre, ax_post):
+    paramfile=EXPNAME + "/results/output.json"
+    if os.path.exists(paramfile):
+        with open(paramfile, 'r') as f:
+            data = json.load(f)
+            for d in data:
+                if d["strategy"]==strategy and d["axis_pre"]==ax_pre and d["axis_post"]== ax_post: return True
+    return False
+
 def obj_ucbtuned(ef, strat, ax_pre, ax_post):
     print(f"computing for {strat}, {ax_pre} > {ax_post}, ef={ef}\n")
     for _ in range(num_simulations):
@@ -33,7 +46,7 @@ def obj_ucbtuned(ef, strat, ax_pre, ax_post):
             consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR], [ef]
         ) + consts.SUFFIX_MABSTATSFILE
 
-    return compute_total_reward(mabfile, statsfile) / num_simulations
+    return compute_total_reward(mabfile, statsfile, strat, ax_pre, ax_post) / num_simulations
 
 
 def obj_ucb2(ef, alpha, strat, ax_pre, ax_post):
@@ -50,7 +63,7 @@ def obj_ucb2(ef, alpha, strat, ax_pre, ax_post):
             [ef, alpha]
         ) + consts.SUFFIX_MABSTATSFILE
 
-        return compute_total_reward(mabfile, statsfile) / num_simulations
+        return compute_total_reward(mabfile, statsfile, strat, ax_pre, ax_post) / num_simulations
 
 
 def obj_klucb(ef, c, strat, ax_pre, ax_post):
@@ -66,7 +79,7 @@ def obj_klucb(ef, c, strat, ax_pre, ax_post):
             consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C], [ef, c]
         ) + consts.SUFFIX_MABSTATSFILE
 
-    return compute_total_reward(mabfile, statsfile) / num_simulations
+    return compute_total_reward(mabfile, statsfile, strat, ax_pre, ax_post) / num_simulations
 
 def obj_klucbsp(c, strat, ax_pre, ax_post):
     print(f"computing for {strat}, {ax_pre} > {ax_post}, c={c}\n")
@@ -81,12 +94,13 @@ def obj_klucbsp(c, strat, ax_pre, ax_post):
             consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post, [MAB_KL_UCB_C], [c]
         ) + consts.SUFFIX_MABSTATSFILE
 
-    return compute_total_reward(mabfile, statsfile) / num_simulations
+    return compute_total_reward(mabfile, statsfile, strat, ax_pre, ax_post) / num_simulations
 
 
-def compute_total_reward(mabfile, statsfile):
+def compute_total_reward(mabfile, statsfile, strat, ax_pre, ax_post):
     total_reward = 0
     run_simulation = None
+    skip_already_computed = config.getboolean("parameters", "skip-already-computed")
     if rundup == consts.RundupBehavior.ALWAYS.value:
         run_simulation = True
     elif rundup == consts.RundupBehavior.NO.value:
@@ -105,15 +119,22 @@ def compute_total_reward(mabfile, statsfile):
                     print("parseable stats- and mab-stats file found, skipping simulation.")
                     run_simulation = False
         else:
-            print("stats-file non not found, running simulation...")
-            run_simulation = True
+            # questo è non standard
+            if skip_already_computed and _is_already_computed(strat, ax_pre, ax_post):
+                print(
+                    f"stats-file not found, but already computed combination {{{strat}, {ax_pre}, {ax_post}}}: skipping, values should differ by just a negligible quantity")
+                run_simulation = False
+            else:
+                print("stats-file non not found, also not already computed, running simulation...")
+                run_simulation = True
     if run_simulation is None:
         print("Something is really odd...")
         exit(1)
+
+    configname = EXPNAME + "/results/" + consts.CONFIG_FILE + "-pid" + str(os.getpid())
     if run_simulation:
-        configname=EXPNAME + "/results/" + consts.CONFIG_FILE+"-pid"+str(os.getpid())
         main(configname)
-        os.remove(configname)
+    os.remove(configname)
     with open(mabfile, 'r') as f:
         data = json.load(f)
     rewards = []
@@ -200,14 +221,25 @@ def _parall_run(params):
             actual_iters=i
             best_value = current_best
 
-        output_file = (EXPNAME + "/results/OUTPUT")
-        needs_header = not os.path.exists(output_file)
+        #output_file_mp = (EXPNAME + "/results/output.json")
         valprint = {key: float(value) for key, value in optimizer.max['params'].items()}
-        with open(output_file, "a") as file:
+
+        data = {}
+        data["strategy"]=strat
+        data["axis_pre"]=ax_pre
+        data["axis_post"]=ax_post
+        data["parameters"] = valprint
+        jsondata.append(data)
+        # write to text file (human-readable)
+
+        output_file_hr = (EXPNAME + "/results/output-humanreadable")
+        needs_header = not os.path.exists(output_file_hr)
+
+        with open(output_file_hr, "a") as mp_file:
             if needs_header:
-                file.write("startdate  starttim sta ran min max act strategy axis_pre   > axis_post  output\n")
-                file.write("------------------------------------------------------------------------------------------------------------------------\n")
-            file.write('{0:19} {1:3} {2:3} {3:3} {4:3} {5:3} {6:8} {7:10} > {8:10} {9}\n'
+                mp_file.write("startdate  starttim sta ran min max act strategy axis_pre   > axis_post  output\n")
+                mp_file.write("------------------------------------------------------------------------------------------------------------------------\n")
+            mp_file.write('{0:19} {1:3} {2:3} {3:3} {4:3} {5:3} {6:8} {7:10} > {8:10} {9}\n'
                        .format(str(timestamp),
                                config.getint("parameters", "objfn-stabilizations-iterations"),
                                config.getint("parameters", "rand-points"),
@@ -240,6 +272,12 @@ if __name__ == "__main__":
     all_combinations = list(itertools.product(strategies, axis_pre, axis_post))
     chunk_size = len(all_combinations) // max_parallel_executions + (len(all_combinations) % max_parallel_executions > 0)
     chunks = [all_combinations[i:i + chunk_size] for i in range(0, len(all_combinations), chunk_size)]
+    output_file_mp = (EXPNAME + "/results/output.json")
 
+    # the parallel run
     with Pool(processes=max_parallel_executions) as pool:
         pool.map(_parall_run, chunks)
+
+    with open(output_file_mp, "w") as mp_file:
+        #mp_file.write("[\n")
+        json.dump(list(jsondata), mp_file, indent=4, ensure_ascii=False)
