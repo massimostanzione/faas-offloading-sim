@@ -63,7 +63,8 @@ def plot_rewards(time_frames, rewards, policies, title):
     # Mostra il grafico
     plt.tight_layout()
     plt.grid(axis="y")
-    plt.show()
+    #plt.show()
+    return plt
 
 def plot_time_rewards(time_frames, rewards, policies, title):
     # Estrai politiche uniche e corrispondenti colori
@@ -224,9 +225,9 @@ def plot_number_selected(data: dict, title):
     plt.xlabel('Load Balancing Policies')
     plt.ylabel('Policy Usage Count')
     plt.title(f'Policy Invocation Frequency ({title} nodes)')
-
+    return plt
     # Mostra il grafico
-    plt.show()
+    #plt.show()
 
 def plot_dropped_reqs(time_frames, server_1_dropped_reqs, server_2_dropped_reqs, server_3_dropped_reqs, server_4_dropped_reqs, server_5_dropped_reqs, server_6_dropped_reqs, title):
     
