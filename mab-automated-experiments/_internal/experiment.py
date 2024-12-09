@@ -17,11 +17,11 @@ from . import consts
 
 
 def write_custom_configfile(expname: str, strategy: str, axis_pre: str, axis_post: str, params_names: List[str],
-                            params_values: List[float]):
+                            params_values: List[float], seed:int):
     outfile_stats = generate_outfile_name(consts.PREFIX_STATSFILE, strategy, axis_pre, axis_post, params_names,
-                                          params_values) + consts.SUFFIX_STATSFILE
+                                          params_values, seed) + consts.SUFFIX_STATSFILE
     outfile_mabstats = generate_outfile_name(consts.PREFIX_MABSTATSFILE, strategy, axis_pre, axis_post, params_names,
-                                             params_values) + consts.SUFFIX_MABSTATSFILE
+                                             params_values, seed) + consts.SUFFIX_MABSTATSFILE
 
     outconfig = configparser.ConfigParser()
 
@@ -33,7 +33,7 @@ def write_custom_configfile(expname: str, strategy: str, axis_pre: str, axis_pos
     outconfig.set(conf.SEC_SIM, "mab-stats-print-file", outfile_mabstats)
     outconfig.set(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, str(28800))
     outconfig.set(conf.SEC_SIM, conf.PLOT_RESP_TIMES, "false")
-    outconfig.set(conf.SEC_SIM, conf.SEED, str(123))
+    outconfig.set(conf.SEC_SIM, conf.SEED, str(seed))
     outconfig.set(conf.SEC_SIM, conf.EDGE_EXPOSED_FRACTION, str(0.25))
     outconfig.add_section(conf.SEC_POLICY)
     outconfig.set(conf.SEC_POLICY, conf.POLICY_NAME, "basic")
@@ -106,11 +106,12 @@ def get_param_full_name(simple_name: str) -> str:
     return simple_name
 
 
-def generate_outfile_name(prefix, strategy, axis_pre, axis_post, params_names, params_values):
+def generate_outfile_name(prefix, strategy, axis_pre, axis_post, params_names, params_values, seed):
     output_suffix = consts.DELIMITER_HYPHEN.join([prefix, strategy, consts.DELIMITER_AXIS.join([axis_pre, axis_post])])
     for i, param_name in enumerate(params_names):
         output_suffix = consts.DELIMITER_HYPHEN.join(
             [output_suffix, consts.DELIMITER_PARAMS.join([get_param_simple_name(param_name), "{}".format(float(params_values[i]))])])
+    output_suffix=consts.DELIMITER_HYPHEN.join([output_suffix, consts.DELIMITER_PARAMS.join(["seed", seed])])
     config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../_stats", output_suffix))
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     return config_path
@@ -157,7 +158,8 @@ class MABExperiment:
     def __init__(self, name: str, strategies: List[str], axis_pre: List[str] = None, axis_post: List[str] = None,
                  params: MABExperiment_Param = None, graphs: List[str] = None,
                  rundup: str = consts.RundupBehavior.SKIP_EXISTENT.value,
-                 max_parallel_executions: int = 1):
+                 max_parallel_executions: int = 1,
+                 seeds=None):
         self.name = name
         self.strategies = strategies
         self.axis_pre = axis_pre
@@ -166,10 +168,11 @@ class MABExperiment:
         self.graphs = graphs
         self.rundup = rundup
         self.max_parallel_executions = max_parallel_executions
+        self.seeds=[123] if seeds==None else seeds
 
     def _generate_config(self, strategy: str, axis_pre: str, axis_post: str, param_names: List[str],
-                         param_values: List[float]):
-        return write_custom_configfile(self.name, strategy, axis_pre, axis_post, param_names, param_values)
+                         param_values: List[float], seed:int):
+        return write_custom_configfile(self.name, strategy, axis_pre, axis_post, param_names, param_values, seed)
 
     def _filter_params(self, strategy: str) -> List[MABExperiment_Param]:
         return filter_params_for_strategy(self.params, strategy)
@@ -179,7 +182,7 @@ class MABExperiment:
         max_procs = self.max_parallel_executions
 
         # iterate among {strategies x axis_pre x axis_post}
-        all_combinations = list(itertools.product(self.strategies, self.axis_pre, self.axis_post))
+        all_combinations = list(itertools.product(self.strategies, self.axis_pre, self.axis_post, self.seeds))
         chunk_size = len(all_combinations) // max_procs + (len(all_combinations) % max_procs > 0)
         chunks = [all_combinations[i:i + chunk_size] for i in range(0, len(all_combinations), chunk_size)]
 
@@ -189,8 +192,8 @@ class MABExperiment:
         # la funzione parallela
     def _parall_run(self, params):
         rundup = self.rundup
-        for strategy, ax_pre, ax_post in params:
-            print(f"Processing strategy={strategy}, ax_pre={ax_pre}, ax_post={ax_post}")
+        for strategy, ax_pre, ax_post, seed in params:
+            print(f"Processing strategy={strategy}, ax_pre={ax_pre}, ax_post={ax_post}, seed={seed}")
             filtered_params = self._filter_params(strategy)
             ranges = [np.arange(param.start, param.end + param.step, param.step) for param in filtered_params]
             param_combinations = itertools.product(*ranges)
@@ -205,19 +208,20 @@ class MABExperiment:
                 print(f"with the following configuration")
                 print(f"\tStrategy:\t{strategy}")
                 print(f"\tAxis:\t\t{ax_pre} -> {ax_post}")
+                print(f"\tSeed:\t\t{seed}")
                 print(f"\tParameters:")
                 for i, _ in enumerate(param_names):
                     print(f"\t\t> {param_names[i]} = {current_values[i]}")
                 print("--------------------------------------------")
 
-                path = self._generate_config(strategy, ax_pre, ax_post, param_names, current_values)
+                path = self._generate_config(strategy, ax_pre, ax_post, param_names, current_values, seed)
 
                 statsfile = generate_outfile_name(
-                    consts.PREFIX_STATSFILE, strategy, ax_pre, ax_post, param_names, current_values
+                    consts.PREFIX_STATSFILE, strategy, ax_pre, ax_post, param_names, current_values, seed
                 ) + consts.SUFFIX_STATSFILE
 
                 mabfile = generate_outfile_name(
-                    consts.PREFIX_MABSTATSFILE, strategy, ax_pre, ax_post, param_names, current_values
+                    consts.PREFIX_MABSTATSFILE, strategy, ax_pre, ax_post, param_names, current_values, seed
                 ) + consts.SUFFIX_MABSTATSFILE
 
                 run_simulation = None

@@ -36,6 +36,7 @@ def mainn():
 
     axis_pre = config["reward_fn"]["axis_pre"].split(consts.DELIMITER_COMMA)
     axis_post = config["reward_fn"]["axis_post"].split(consts.DELIMITER_COMMA)
+    seeds = config["parameters"]["seeds"].split(consts.DELIMITER_COMMA)
 
 
     graphs_ctr = -1
@@ -46,15 +47,16 @@ def mainn():
         strategy_map = {value: index for index, value in enumerate(strategies)}
         axis_pre_map = {value: index for index, value in enumerate(axis_pre)}
         axis_post_map = {value: index for index, value in enumerate(axis_post)}
+        seed_post_map = {value: index for index, value in enumerate(seeds)}
 
         def custom_sort_key(obj):
             return (
-                strategy_map.get(obj.get("strategy"), float('inf')),  # Default a inf se non trovato
-                axis_pre_map.get(obj.get("axis_pre"), float('inf')),  # Default a inf se non trovato
-                axis_post_map.get(obj.get("axis_post"), float('inf'))  # Default a inf se non trovato
+                strategy_map.get(obj.get("strategy"), float('inf')),
+                axis_pre_map.get(obj.get("axis_pre"), float('inf')),
+                axis_post_map.get(obj.get("axis_post"), float('inf')),
+                seed_post_map.get(obj.get("seeds"), float('inf'))
             )
 
-        # Ordinamento dei dati
         data = sorted(data, key=custom_sort_key)
 
         for d in data:
@@ -65,12 +67,13 @@ def mainn():
             strat=d["strategy"]
             ax_pre=d["axis_pre"]
             ax_post=d["axis_post"]
-            print(strat, ax_pre, ax_post)
+            seed=d["seed"]
+            print(strat, ax_pre, ax_post, seed)
             params=d["parameters"]
             mabfile = generate_outfile_name(
                 consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post,
                 list(params.keys()),
-                list(params.values())
+                list(params.values()), seed
             ) + consts.SUFFIX_MABSTATSFILE
             with open(mabfile, 'r') as f:
                 data = json.load(f)
@@ -87,7 +90,7 @@ def mainn():
                 time_frames.append(dd['time'])
                 policies.append(dd['policy'])
                 rewards.append(dd['reward'])
-            fig =  plot_rewards(time_frames, rewards, policies, strat+" "+ax_pre+" "+ax_post)
+            fig =  plot_rewards(time_frames, rewards, policies, strat+" seed="+seed+" "+ax_pre+" -> "+ax_post)
 
             graphs_ctr += 1
             fig.savefig(os.path.join(SCRIPT_DIR, "results",

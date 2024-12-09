@@ -34,64 +34,64 @@ def _is_already_computed(strategy, ax_pre, ax_post):
                 if d["strategy"]==strategy and d["axis_pre"]==ax_pre and d["axis_post"]== ax_post: return True
     return False
 
-def obj_ucbtuned(ef, strat, ax_pre, ax_post):
-    print(f"computing for {strat}, {ax_pre} > {ax_post}, ef={ef}\n")
+def obj_ucbtuned(ef, strat, ax_pre, ax_post, seed):
+    print(f"computing for {strat}, {ax_pre} > {ax_post}, seed={seed}, ef={ef}\n")
     for _ in range(num_simulations):
-        write_custom_configfile(EXPNAME, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR], [ef])
+        write_custom_configfile(EXPNAME, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR], [ef], seed)
 
         statsfile = generate_outfile_name(
-            consts.PREFIX_STATSFILE, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR], [ef]
+            consts.PREFIX_STATSFILE, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR], [ef], seed
         ) + consts.SUFFIX_STATSFILE
         mabfile = generate_outfile_name(
-            consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR], [ef]
+            consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR], [ef], seed
         ) + consts.SUFFIX_MABSTATSFILE
 
     return compute_total_reward(mabfile, statsfile, strat, ax_pre, ax_post) / num_simulations
 
 
-def obj_ucb2(ef, alpha, strat, ax_pre, ax_post):
-    print(f"computing for {strat}, {ax_pre} > {ax_post}, ef={ef}, alpha={alpha}\n")
+def obj_ucb2(ef, alpha, strat, ax_pre, ax_post, seed):
+    print(f"computing for {strat}, {ax_pre} > {ax_post}, seed={seed}, ef={ef}, alpha={alpha}\n")
     for _ in range(num_simulations):
         write_custom_configfile(EXPNAME, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA],
-                                [ef, alpha])
+                                [ef, alpha], seed)
 
         statsfile = generate_outfile_name(
-            consts.PREFIX_STATSFILE, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA], [ef, alpha]
+            consts.PREFIX_STATSFILE, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA], [ef, alpha], seed
         ) + consts.SUFFIX_STATSFILE
         mabfile = generate_outfile_name(
             consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA],
-            [ef, alpha]
+            [ef, alpha], seed
         ) + consts.SUFFIX_MABSTATSFILE
 
         return compute_total_reward(mabfile, statsfile, strat, ax_pre, ax_post) / num_simulations
 
 
-def obj_klucb(ef, c, strat, ax_pre, ax_post):
-    print(f"computing for {strat}, {ax_pre} > {ax_post}, ef={ef}, c={c}\n")
+def obj_klucb(ef, c, strat, ax_pre, ax_post, seed):
+    print(f"computing for {strat}, {ax_pre} > {ax_post}, seed={seed}, ef={ef}, c={c}\n")
     for _ in range(num_simulations):
         path = write_custom_configfile(EXPNAME, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C],
-                                       [ef, c])
+                                       [ef, c], seed)
 
         statsfile = generate_outfile_name(
-            consts.PREFIX_STATSFILE, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C], [ef, c]
+            consts.PREFIX_STATSFILE, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C], [ef, c], seed
         ) + consts.SUFFIX_STATSFILE
         mabfile = generate_outfile_name(
-            consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C], [ef, c]
+            consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C], [ef, c], seed
         ) + consts.SUFFIX_MABSTATSFILE
 
     return compute_total_reward(mabfile, statsfile, strat, ax_pre, ax_post) / num_simulations
 
-def obj_klucbsp(c, strat, ax_pre, ax_post):
-    print(f"computing for {strat}, {ax_pre} > {ax_post}, c={c}\n")
+def obj_klucbsp(c, strat, ax_pre, ax_post, seed):
+    print(f"computing for {strat}, {ax_pre} > {ax_post}, seed={seed}, c={c}\n")
     for _ in range(num_simulations):
         path = write_custom_configfile(EXPNAME, strat, ax_pre, ax_post, [MAB_KL_UCB_C],
-                                       [c])
+                                       [c], seed)
 
         statsfile = generate_outfile_name(
-            consts.PREFIX_STATSFILE, strat, ax_pre, ax_post, [MAB_KL_UCB_C], [c]
+            consts.PREFIX_STATSFILE, strat, ax_pre, ax_post, [MAB_KL_UCB_C], [c], seed
         ) + consts.SUFFIX_STATSFILE
         mabfile = generate_outfile_name(
-            consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post, [MAB_KL_UCB_C], [c]
+            consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post, [MAB_KL_UCB_C], [c], seed
         ) + consts.SUFFIX_MABSTATSFILE
 
     return compute_total_reward(mabfile, statsfile, strat, ax_pre, ax_post) / num_simulations
@@ -146,24 +146,25 @@ def compute_total_reward(mabfile, statsfile, strat, ax_pre, ax_post):
 
 def _parall_run(params):
     selected_obj_fn = None
-    for stratp, ax_prep, ax_postp in params:
+    for stratp, ax_prep, ax_postp, seed in params:
         strat=stratp
         ax_pre=ax_prep
         ax_post=ax_postp
 
+
         def objwrapper_ucbtuned(ef):
-            return obj_ucbtuned(ef, strat, ax_pre, ax_post)
+            return obj_ucbtuned(ef, strat, ax_pre, ax_post, seed)
 
         def objwrapper_ucb2(ef, alpha):
-            return obj_ucb2(ef, alpha, strat, ax_pre, ax_post)
+            return obj_ucb2(ef, alpha, strat, ax_pre, ax_post, seed)
 
         def objwrapper_klucb(ef, c):
-            return obj_klucb(ef, c, strat, ax_pre, ax_post)
+            return obj_klucb(ef, c, strat, ax_pre, ax_post, seed)
 
         def objwrapper_klucbsp(c):
-            return obj_klucbsp(c, strat, ax_pre, ax_post)
+            return obj_klucbsp(c, strat, ax_pre, ax_post, seed)
 
-        print(f"Processing strategy={strat}, ax_pre={ax_pre}, ax_post={ax_post}")
+        print(f"Processing strategy={strat}, ax_pre={ax_pre}, ax_post={ax_post}, seed={seed}")
         if strat == "UCBTuned":
             pbounds = {'ef': (ef_lower, ef_upper)}
             selected_obj_fn = objwrapper_ucbtuned
@@ -229,6 +230,7 @@ def _parall_run(params):
         data["axis_pre"]=ax_pre
         data["axis_post"]=ax_post
         data["parameters"] = valprint
+        data["seed"] = seed
         jsondata.append(data)
         # write to text file (human-readable)
 
@@ -237,9 +239,9 @@ def _parall_run(params):
 
         with open(output_file_hr, "a") as mp_file:
             if needs_header:
-                mp_file.write("startdate  starttim sta ran min max act strategy axis_pre   > axis_post  output\n")
+                mp_file.write("startdate  starttim seed sta ran min max act strategy axis_pre   > axis_post  output\n")
                 mp_file.write("------------------------------------------------------------------------------------------------------------------------\n")
-            mp_file.write('{0:19} {1:3} {2:3} {3:3} {4:3} {5:3} {6:8} {7:10} > {8:10} {9}\n'
+            mp_file.write('{0:19} {10:4} {1:3} {2:3} {3:3} {4:3} {5:3} {6:8} {7:10} > {8:10} {9}\n'
                        .format(str(timestamp),
                                config.getint("parameters", "objfn-stabilizations-iterations"),
                                config.getint("parameters", "rand-points"),
@@ -248,7 +250,8 @@ def _parall_run(params):
                                actual_iters,
                                strat,
                                ax_pre, ax_post,
-                               valprint
+                               valprint,
+                               seed
                                ))
 
 
@@ -263,13 +266,14 @@ if __name__ == "__main__":
     axis_post = config["reward_fn"]["axis_post"].split(consts.DELIMITER_COMMA)
     ef_lower = config["parameters"]["ef-lower"]
     ef_upper = config["parameters"]["ef-upper"]
+    seeds = config["parameters"]["seeds"].split(consts.DELIMITER_COMMA)
     num_simulations = config.getint("parameters", "objfn-stabilizations-iterations")
 
     # qui gestito custom
     max_parallel_executions = config.getint("experiment", "max-parallel-execution")
 
     # iterate among {strategies x axis_pre x axis_post}
-    all_combinations = list(itertools.product(strategies, axis_pre, axis_post))
+    all_combinations = list(itertools.product(strategies, axis_pre, axis_post, seeds))
     chunk_size = len(all_combinations) // max_parallel_executions + (len(all_combinations) % max_parallel_executions > 0)
     chunks = [all_combinations[i:i + chunk_size] for i in range(0, len(all_combinations), chunk_size)]
     output_file_mp = (EXPNAME + "/results/output.json")

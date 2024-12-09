@@ -33,7 +33,8 @@ if __name__ == "__main__":
                             extract_params(config),
                             [],
                             config["output"]["run-duplicates"],
-                            config.getint("experiment", "max-parallel-execution")
+                            config.getint("experiment", "max-parallel-execution"),
+                            config.getint("parameters", "seeds")
                         )
                         exp.run()
 

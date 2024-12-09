@@ -27,7 +27,7 @@ def _parall_run(params):
         ax_pre = d["axis_pre"]
         ax_post = d["axis_post"]
         #configname = EXPNAME + "/results/" + consts.CONFIG_FILE + "-pid" + str(os.getpid())
-        configname=write_custom_configfile(EXPNAME, strat, ax_pre, ax_post, list(params.keys()), list(params.values()))
+        configname=write_custom_configfile(EXPNAME, strat, ax_pre, ax_post, list(params.keys()), list(params.values()), seed)
         main(configname)
         os.remove(configname)
 
@@ -43,6 +43,7 @@ def mainn():
     max_parallel_executions = config.getint("experiment", "max-parallel-execution")
 
     strategies = config["strategies"]["strategies"].split(consts.DELIMITER_COMMA)
+    seeds = config["parameters"]["seeds"].split(consts.DELIMITER_COMMA)
 
     axis_pre = config["reward_fn"]["axis_pre"].split(consts.DELIMITER_COMMA)
     axis_post = config["reward_fn"]["axis_post"].split(consts.DELIMITER_COMMA)
@@ -61,17 +62,18 @@ def mainn():
                         strat=d["strategy"]
                         ax_pre=d["axis_pre"]
                         ax_post=d["axis_post"]
-                        print(strat, params, list(params.keys()), list(params.values()))
+                        seed=d["seed"]
+                        print(strat, params, list(params.keys()), list(params.values()), seed)
 
 
                         statsfile = generate_outfile_name(
                             consts.PREFIX_STATSFILE, strat, ax_pre, ax_post,
-                            list(params.keys()),list(params.values())
+                            list(params.keys()),list(params.values()), seed
                         ) + consts.SUFFIX_STATSFILE
                         mabfile = generate_outfile_name(
                             consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post,
                             list(params.keys()),
-                            list(params.values())
+                            list(params.values()), seed
                         ) + consts.SUFFIX_MABSTATSFILE
                         print(rundup, mabfile)
                         run_simulation = None
