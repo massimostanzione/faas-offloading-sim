@@ -6,7 +6,8 @@ from datetime import datetime
 import numpy as np
 
 import conf
-from conf import MAB_KL_UCB_C, MAB_UCB2_ALPHA
+from conf import MAB_KL_UCB_C, MAB_UCB2_ALPHA, MAB_UCB_EXPLORATION_FACTOR
+from my_plot_stats import plot_number_selected
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
@@ -69,6 +70,64 @@ def main():
 
         params = extract_params(config)
         filtered_params = filter_params_for_strategy(params, strat, False)
+        for ax_pre in axis_pre:
+            glob_var_coeff = {}
+            time_frames=[]
+            policies=[]
+            for param_iter in [1] if strat=="KL-UCBsp" else np.arange(paramstart, paramend + paramstep, paramstep):
+                for ax_post in axis_post:
+                    local_var_coeff = []
+                    for espl_fact in np.arange(paramstart, paramend + paramstep, paramstep) if strat=="KL-UCBsp" else np.arange(efstart, efend + efstep, efstep):
+
+                        paramnames=[param.name for param in filtered_params]
+                        paramvalues=[]
+                        for i, param_name in enumerate(filtered_params):
+                            if param_name.name==MAB_UCB_EXPLORATION_FACTOR: paramvalues.append(espl_fact)
+                            elif param_name.name==MAB_KL_UCB_C and strat=="KL-UCBsp": paramvalues.append(espl_fact)
+                            else: paramvalues.append(param_iter)
+                        #print(paramnames, paramvalues)
+
+                        mabfile = (generate_outfile_name(consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post, paramnames, paramvalues)
+                                   + consts.SUFFIX_MABSTATSFILE)
+                        with open(mabfile, 'r') as f:
+                            data = json.load(f)
+
+                        pol_fr_prev = {"random-lb": 0, "round-robin-lb": 0, "mama-lb": 0, "const-hash-lb": 0,
+                                       "wrr-speedup-lb": 0,
+                                       "wrr-memory-lb": 0, "wrr-cost-lb": 0}
+                        for d in data:
+                            # todo pre/post if d['time'] < 9000:
+                            pol_fr_prev[d['policy']] += 1
+                            time_frames.append(d['time'])
+                            policies.append(d['policy'])
+                        #print(pol_fr_prev)
+                        #print(policies)
+                        listr = []
+                        for value in pol_fr_prev.values():
+                            listr.append(value)
+
+                        var_coeff = np.std(listr) / np.average(listr)
+                        local_var_coeff.append(var_coeff)
+                        """fig1=plot_number_selected(pol_fr_prev, title=strat+", ef="+str(espl_fact)+", "+ax_pre+">"+ax_post)
+                        graphs_ctr += 1
+                        fig1.savefig(os.path.join(SCRIPT_DIR, "results",
+                                                     consts.DELIMITER_HYPHEN.join([str(timestamp), str(graphs_ctr)]).replace(' ',
+                                                                                                                             '-') + ".svg"))
+                        fig1.clf()"""
+                        #plot_number_selected(pol_fr_post, title=NODE_TYPE)
+                    suffix="" if paramname=="" or strat=="KL-UCBsp" else (", param=" + str(param_iter))
+                    glob_var_coeff["-> "+ax_post+suffix] = {"x": np.arange(paramstart, paramend + paramstep, paramstep) if strat=="KL-UCBsp" else np.arange(efstart, efend + efstep, efstep),
+                                                          "y": local_var_coeff}
+
+            fig = line_graph(glob_var_coeff, title=strat + " " + ax_pre )
+
+            graphs_ctr += 1
+            fig.savefig(os.path.join(SCRIPT_DIR, "results",
+                                         consts.DELIMITER_HYPHEN.join([str(timestamp), str(graphs_ctr)]).replace(' ',
+                                                                                                                 '-') + ".svg"))
+            fig.clf()
+
+        """
         ranges = [np.arange(param.start, param.end + param.step, param.step) for param in filtered_params]
         for ax_pre in axis_pre:
             for ax_post in axis_post:
@@ -119,7 +178,7 @@ def main():
                 fig.savefig(os.path.join(SCRIPT_DIR, "results",
                                          consts.DELIMITER_HYPHEN.join([str(timestamp), str(graphs_ctr)]).replace(' ',
                                                                                                                  '-') + ".svg"))
-                fig.clf()
+                fig.clf()"""
 
 
 if __name__ == "__main__":
