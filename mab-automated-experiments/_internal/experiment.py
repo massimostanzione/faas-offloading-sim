@@ -49,7 +49,7 @@ def write_custom_configfile(expname: str, strategy: str, axis_pre: str, axis_pos
     outconfig.set(conf.SEC_MAB, conf.MAB_STRATEGY, strategy)
 
     for i, param_name in enumerate(params_names):
-        outconfig.set(conf.SEC_MAB, param_name, str(params_values[i]))
+        outconfig.set(conf.SEC_MAB, get_param_full_name(param_name), str(params_values[i]))
 
     # stationary
     outconfig.set(conf.SEC_MAB, conf.MAB_REWARD_ALPHA, str(1) if axis_pre == consts.RewardFnAxis.LOADIMB.value else str(0))
@@ -96,12 +96,21 @@ def get_param_simple_name(full_name: str) -> str:
         return "c"
     return full_name
 
+def get_param_full_name(simple_name: str) -> str:
+    if simple_name == "ef":
+        return MAB_UCB_EXPLORATION_FACTOR
+    elif simple_name == "alpha":
+        return MAB_UCB2_ALPHA
+    elif simple_name == "c":
+        return MAB_KL_UCB_C
+    return simple_name
+
 
 def generate_outfile_name(prefix, strategy, axis_pre, axis_post, params_names, params_values):
     output_suffix = consts.DELIMITER_HYPHEN.join([prefix, strategy, consts.DELIMITER_AXIS.join([axis_pre, axis_post])])
     for i, param_name in enumerate(params_names):
         output_suffix = consts.DELIMITER_HYPHEN.join(
-            [output_suffix, consts.DELIMITER_PARAMS.join([get_param_simple_name(param_name), str(params_values[i])])])
+            [output_suffix, consts.DELIMITER_PARAMS.join([get_param_simple_name(param_name), "{}".format(float(params_values[i]))])])
     config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../_stats", output_suffix))
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     return config_path
