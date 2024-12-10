@@ -223,9 +223,9 @@ def _parall_run(params):
 
         with open(output_file_hr, "a") as mp_file:
             if needs_header:
-                mp_file.write("startdate  starttim seed sta ran min max act strategy axis_pre   > axis_post  output\n")
+                mp_file.write("startdate  starttim seed   sta ran min max act strategy axis_pre   > axis_post  output\n")
                 mp_file.write("------------------------------------------------------------------------------------------------------------------------\n")
-            mp_file.write('{0:19} {10:4} {1:6} {2:3} {3:3} {4:3} {5:3} {6:8} {7:10} > {8:10} {9}\n'
+            mp_file.write('{0:19} {10:6} {1:3} {2:3} {3:3} {4:3} {5:3} {6:8} {7:10} > {8:10} {9}\n'
                        .format(str(timestamp),
                                config.getint("parameters", "objfn-stabilizations-iterations"),
                                config.getint("parameters", "rand-points"),
