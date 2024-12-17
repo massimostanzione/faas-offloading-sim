@@ -25,11 +25,14 @@ if __name__ == "__main__":
                         print("Simulations skipped")
 
                     elif mode_simulations == consts.ExecMode.AUTOMATED.value:
+                        axis_pre = config["reward_fn"]["axis_pre"].split(consts.DELIMITER_COMMA)
+                        axis_post = config["reward_fn"]["axis_post"].split(consts.DELIMITER_COMMA)
+                        is_single_axis = axis_post == ['']
                         exp = MABExperiment(
                             config["experiment"]["name"],
                             config["strategies"]["strategies"].split(consts.DELIMITER_COMMA),
-                            config["reward_fn"]["axis_pre"].split(consts.DELIMITER_COMMA),
-                            config["reward_fn"]["axis_post"].split(consts.DELIMITER_COMMA),
+                            axis_pre,
+                            axis_post if not is_single_axis else axis_pre,
                             extract_iterable_params_from_config(config),
                             [],
                             config["output"]["run-duplicates"],
