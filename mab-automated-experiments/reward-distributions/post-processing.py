@@ -15,7 +15,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 from _internal import consts
 from _internal.experiment import generate_outfile_name
-from _internal.graphs import line_graph
+from _internal.graphs import graph_rewdist
 
 to_be_executed = []
 EXPNAME = "reward-distributions"
@@ -86,7 +86,7 @@ def mainn():
                                 ) + consts.SUFFIX_MABSTATSFILE
 
                                 with open(mabfile, "r") as f:
-                                    print(mabfile)
+                                    #print(mabfile)
                                     data_file = json.load(f)
 
                                 # Raccogli time_frames e rewards
@@ -95,15 +95,16 @@ def mainn():
                                     rewards.append(dd["reward"])
                         #todo va aggiunto l'istante di cambio asse (accorpare in grafico)
                         result_dict[seed] = {"x": time_frames, "y": rewards}
-                        print(result_dict)
+                        #print(result_dict)
 
-                    fig = line_graph(result_dict, title="rewards " + strat + " " + ax_pre+" -> "+ax_post)
+                    #fig = line_graph(result_dict, title="rewards " + strat + " " + ax_pre+" -> "+ax_post)
+                    fig = graph_rewdist(result_dict, strat, ax_pre, ax_post)
 
                     graphs_ctr += 1
-                    fig.savefig(os.path.join(SCRIPT_DIR, "results",
-                                             consts.DELIMITER_HYPHEN.join(
-                                                 [str(timestamp), str(graphs_ctr)]).replace(' ',
-                                                                                            '-') + ".svg"))
+                    #fig.savefig(os.path.join(SCRIPT_DIR, "results",
+                    #                         consts.DELIMITER_HYPHEN.join(
+                    #                             [str(timestamp), str(graphs_ctr)]).replace(' ',
+                    #                                                                        '-') + ".svg"))
                     fig.clf()
 
 

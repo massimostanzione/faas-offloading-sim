@@ -1,3 +1,4 @@
+import collections
 import configparser
 import itertools
 import json
@@ -79,7 +80,7 @@ def write_custom_configfile(expname: str, strategy: str, axis_pre: str, axis_pos
     return config_path
 
 
-class MABExperiment_Param:
+class MABExperiment_IterableParam:
     def __init__(self, name: str, start: float, step: float, end: float):
         self.name = name
         self.start = start
@@ -96,6 +97,16 @@ def get_param_simple_name(full_name: str) -> str:
         return "c"
     return full_name
 
+# workaround for already computed statistics
+def get_param_simple_name_sort(full_name: str) -> str:
+    if full_name == MAB_UCB_EXPLORATION_FACTOR:
+        return "ef"
+    elif full_name == MAB_UCB2_ALPHA:
+        return "zalpha"
+    elif full_name == MAB_KL_UCB_C:
+        return "c"
+    return full_name
+
 def get_param_full_name(simple_name: str) -> str:
     if simple_name == "ef":
         return MAB_UCB_EXPLORATION_FACTOR
@@ -107,56 +118,88 @@ def get_param_full_name(simple_name: str) -> str:
 
 
 def generate_outfile_name(prefix, strategy, axis_pre, axis_post, params_names, params_values, seed):
+
+    pardict={}
+    for i,_ in enumerate(params_names):
+        pardict[params_names[i]]=params_values[i]
+        print(get_param_simple_name(params_names[i]))
+    pardict=collections.OrderedDict(sorted(pardict.items(), key=lambda item: get_param_simple_name_sort(item[0])))
     output_suffix = consts.DELIMITER_HYPHEN.join([prefix, strategy, consts.DELIMITER_AXIS.join([axis_pre, axis_post])])
-    for i, param_name in enumerate(params_names):
+
+    for key, value in pardict.items():
         output_suffix = consts.DELIMITER_HYPHEN.join(
-            [output_suffix, consts.DELIMITER_PARAMS.join([get_param_simple_name(param_name), "{}".format(float(params_values[i]))])])
+            [output_suffix, consts.DELIMITER_PARAMS.join([get_param_simple_name(key), "{}".format(float(value))])])
     output_suffix=consts.DELIMITER_HYPHEN.join([output_suffix, consts.DELIMITER_PARAMS.join(["seed", seed])])
     config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../_stats", output_suffix))
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     return config_path
 
-
-def filter_params_for_strategy(params: List[MABExperiment_Param], strategy: str, include_ef=True) -> List[
-    MABExperiment_Param]:
-    if strategy=="KL-UCBsp": include_ef=False
-    parammap = {
-        "UCBTuned": [conf.MAB_UCB_EXPLORATION_FACTOR],
-        "UCB2": [conf.MAB_UCB_EXPLORATION_FACTOR, conf.MAB_UCB2_ALPHA],
-        "KL-UCB": [conf.MAB_UCB_EXPLORATION_FACTOR, conf.MAB_KL_UCB_C],
-        "KL-UCBsp": [conf.MAB_KL_UCB_C]
+def is_exploration_factor(parameter_name:str, strategy:str)->bool:
+    exploration_factor_map = {
+        "UCBTuned": conf.MAB_UCB_EXPLORATION_FACTOR,
+        "UCB2": conf.MAB_UCB_EXPLORATION_FACTOR,
+        "KL-UCB": conf.MAB_UCB_EXPLORATION_FACTOR,
+        "KL-UCBsp": conf.MAB_KL_UCB_C
     }
 
-    required_params = parammap.get(strategy, [])
 
-    return [param for param in params if
-            (param.name in required_params) or (include_ef and param.name == MAB_UCB_EXPLORATION_FACTOR)]
+    return exploration_factor_map[strategy]==parameter_name
 
+def is_other_strategy_param(parameter_name:str, strategy:str)->bool:
+    other_params_map = {
+        "UCBTuned": [],
+        "UCB2": [conf.MAB_UCB2_ALPHA],
+        "KL-UCB": [conf.MAB_KL_UCB_C],
+        "KL-UCBsp": []
+    }
+    return parameter_name in other_params_map[strategy]
 
-def extract_params(config):
-    pararr = []
-    parameters_sect = config["parameters"]
-    param_names = set()
+def filter_strategy_params(params:List[MABExperiment_IterableParam], strategy:str) -> List[MABExperiment_IterableParam]:
+    ret=[]
+    for param in params:
+        if is_exploration_factor(param.name, strategy) or is_other_strategy_param(param.name, strategy):
+            ret.append(param)
+    print(ret)
+    return ret
+
+def extract_iterable_params_from_config(expconfig) -> List[MABExperiment_IterableParam]:
+    _, iterable_params=extract_strategy_params_from_config(expconfig)
+    return iterable_params
+
+def extract_strategy_params_from_config(expconfig, strategy:str=None) -> [MABExperiment_IterableParam, List[MABExperiment_IterableParam]]:
+
+    exploration_factor=None
+    other_strategy_params = []
+
+    # fetch iterable params from expconfig via regex
+    parameters_sect = expconfig["parameters"]
+    fetched_params = set()
     for key in parameters_sect.keys():
         match = re.match(r"^(.*?)-(start|step|end)$", key)
         if match:
-            param_names.add(match.group(1))
+            fetched_params.add(match.group(1))
 
-    param_values = {}
-    for param_name in sorted(param_names):
+    for param_name in sorted(fetched_params):
         start = float(parameters_sect.get(f"{param_name}-start"))
         step = float(parameters_sect.get(f"{param_name}-step"))
         end = float(parameters_sect.get(f"{param_name}-end"))
-        param_values[param_name] = (start, step, end)
-        par = MABExperiment_Param(param_name, start, step, end)
-        pararr.append(par)
-    print(pararr)
-    return pararr
+
+        if strategy is not None:
+            if is_exploration_factor(param_name, strategy):
+                exploration_factor=MABExperiment_IterableParam(param_name, start, step, end)
+            elif is_other_strategy_param(param_name, strategy):
+                parameter = MABExperiment_IterableParam(param_name, start, step, end)
+                other_strategy_params.append(parameter)
+        else:
+            parameter = MABExperiment_IterableParam(param_name, start, step, end)
+            other_strategy_params.append(parameter)
+
+    return exploration_factor, other_strategy_params
 
 
 class MABExperiment:
     def __init__(self, name: str, strategies: List[str], axis_pre: List[str] = None, axis_post: List[str] = None,
-                 params: MABExperiment_Param = None, graphs: List[str] = None,
+                 params: List[MABExperiment_IterableParam] = None, graphs: List[str] = None,
                  rundup: str = consts.RundupBehavior.SKIP_EXISTENT.value,
                  max_parallel_executions: int = 1,
                  seeds:List[int]=None):
@@ -173,9 +216,6 @@ class MABExperiment:
     def _generate_config(self, strategy: str, axis_pre: str, axis_post: str, param_names: List[str],
                          param_values: List[float], seed:int):
         return write_custom_configfile(self.name, strategy, axis_pre, axis_post, param_names, param_values, seed)
-
-    def _filter_params(self, strategy: str) -> List[MABExperiment_Param]:
-        return filter_params_for_strategy(self.params, strategy)
 
     def run(self):
         print(f"Starting experiment {self.name}...")
@@ -194,7 +234,7 @@ class MABExperiment:
         rundup = self.rundup
         for strategy, ax_pre, ax_post, seed in params:
             print(f"Processing strategy={strategy}, ax_pre={ax_pre}, ax_post={ax_post}, seed={seed}")
-            filtered_params = self._filter_params(strategy)
+            filtered_params = filter_strategy_params(self.params, strategy)
             ranges = [np.arange(param.start, param.end + param.step, param.step) for param in filtered_params]
             param_combinations = itertools.product(*ranges)
             for combination in param_combinations:

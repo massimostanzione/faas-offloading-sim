@@ -2,7 +2,7 @@ import os
 
 import conf
 from _internal import consts
-from _internal.experiment import MABExperiment, extract_params
+from _internal.experiment import MABExperiment, extract_iterable_params_from_config
 
 if __name__ == "__main__":
     # execute all the esperiments according to the pipeline file
@@ -30,7 +30,7 @@ if __name__ == "__main__":
                             config["strategies"]["strategies"].split(consts.DELIMITER_COMMA),
                             config["reward_fn"]["axis_pre"].split(consts.DELIMITER_COMMA),
                             config["reward_fn"]["axis_post"].split(consts.DELIMITER_COMMA),
-                            extract_params(config),
+                            extract_iterable_params_from_config(config),
                             [],
                             config["output"]["run-duplicates"],
                             config.getint("experiment", "max-parallel-execution"),

@@ -4,8 +4,10 @@ PREFIX_STATSFILE = "stats"
 PREFIX_MABSTATSFILE = "mab-stats"
 SUFFIX_TXT = ".txt"
 SUFFIX_JSON = ".json"
+SUFFIX_SVG = ".svg"
 SUFFIX_STATSFILE = SUFFIX_TXT
 SUFFIX_MABSTATSFILE = SUFFIX_JSON
+SUFFIX_GRAPHFILE = SUFFIX_SVG
 
 DELIMITER_COMMA = ', '
 DELIMITER_HYPHEN = '-'
@@ -28,6 +30,17 @@ class RewardFnAxis(Enum):
     UTILITY = "utility"
     VIOLATIONS = "violations"
 
+RewardFnAxis_HumanReadable = {
+    RewardFnAxis.LOADIMB.value: "Load imbalance",
+    RewardFnAxis.RESPONSETIME.value: "Response time",
+    RewardFnAxis.COST.value: "Cost",
+    RewardFnAxis.UTILITY.value: "Utility",
+    RewardFnAxis.VIOLATIONS.value: "Violations",
+}
+
+
+def get_axis_name_hr(axis:str):
+    return RewardFnAxis_HumanReadable[axis]
 
 PIPELINE_FILE = "pipeline.txt"
 EXPCONF_FILE = "expconf.ini"
