@@ -241,7 +241,7 @@ def _parall_run(params):
 
 if __name__ == "__main__":
     timestamp = datetime.datetime.now().replace(microsecond=0)
-    path = os.path.abspath(".")
+    path = os.path.abspath("")
     config = conf.parse_config_file(path + "/bayesopt-params-tuning/" + consts.EXPCONF_FILE)
     rundup = config["output"]["run-duplicates"]
     EXPNAME = config["experiment"]["name"]
