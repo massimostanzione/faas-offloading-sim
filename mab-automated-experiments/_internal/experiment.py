@@ -202,7 +202,8 @@ class MABExperiment:
                  params: List[MABExperiment_IterableParam] = None, graphs: List[str] = None,
                  rundup: str = consts.RundupBehavior.SKIP_EXISTENT.value,
                  max_parallel_executions: int = 1,
-                 seeds:List[int]=None):
+                 seeds:List[int]=None,
+                 specfile:str=None):
         self.name = name
         self.strategies = strategies
         self.axis_pre = axis_pre
@@ -212,10 +213,11 @@ class MABExperiment:
         self.rundup = rundup
         self.max_parallel_executions = max_parallel_executions
         self.seeds=[123] if seeds==None else seeds
+        self.specfile=specfile
 
     def _generate_config(self, strategy: str, axis_pre: str, axis_post: str, param_names: List[str],
                          param_values: List[float], seed:int):
-        return write_custom_configfile(self.name, strategy, axis_pre, axis_post, param_names, param_values, seed)
+        return write_custom_configfile(self.name, strategy, axis_pre, axis_post, param_names, param_values, seed, self.specfile)
 
     def run(self):
         print(f"Starting experiment {self.name}...")
