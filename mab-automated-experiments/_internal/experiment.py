@@ -18,7 +18,7 @@ from . import consts
 
 
 def write_custom_configfile(expname: str, strategy: str, axis_pre: str, axis_post: str, params_names: List[str],
-                            params_values: List[float], seed:int):
+                            params_values: List[float], seed:int, specfile:str=None):
     outfile_stats = generate_outfile_name(consts.PREFIX_STATSFILE, strategy, axis_pre, axis_post, params_names,
                                           params_values, seed) + consts.SUFFIX_STATSFILE
     outfile_mabstats = generate_outfile_name(consts.PREFIX_MABSTATSFILE, strategy, axis_pre, axis_post, params_names,
@@ -28,7 +28,7 @@ def write_custom_configfile(expname: str, strategy: str, axis_pre: str, axis_pos
 
     # other
     outconfig.add_section(conf.SEC_SIM)
-    outconfig.set(conf.SEC_SIM, conf.SPEC_FILE, "spec.yml")
+    outconfig.set(conf.SEC_SIM, conf.SPEC_FILE, "spec.yml" if specfile is not None else specfile)
     outconfig.set(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, str(360))
     outconfig.set(conf.SEC_SIM, conf.STAT_PRINT_FILE, outfile_stats)
     outconfig.set(conf.SEC_SIM, "mab-stats-print-file", outfile_mabstats)
