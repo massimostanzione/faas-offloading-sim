@@ -16,11 +16,6 @@ DEFAULT_CONFIG_FILE = "config.ini"
 def read_spec_file (spec_file_name, infra, config):
     peer_exposed_memory_fraction = config.getfloat(conf.SEC_SIM, conf.EDGE_EXPOSED_FRACTION, fallback=0.5)
 
-    # if sequential experiments are running,
-    # look for the spec file in the main directory
-    #if multipleExec:
-    if not __name__ == "__main__":
-        spec_file_name="../"+spec_file_name
 
     with open(spec_file_name, "r") as stream:
         spec = yaml.safe_load(stream)
