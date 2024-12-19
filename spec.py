@@ -191,6 +191,11 @@ def write_spec (outf, functions, classes, nodes, load_coeff=1.0, dynamic_rate_co
     #print(yaml.dump(spec))
     outf.flush()
 
+# use this function if you have your own, pre-fixed list of {functions, classes, nodes, arrivals}
+def write_spec_custom(outf, functions, classes, nodes, arrivals):
+    spec = {'classes': classes, 'nodes': nodes, 'functions': functions, 'arrivals': arrivals}
+    outf.write(yaml.dump(spec))
+
 if __name__ == "__main__":
     with open("spec.yml", "w") as outf:
         write_spec(outf, load_coeff=4, cloud_cost=0.001)
