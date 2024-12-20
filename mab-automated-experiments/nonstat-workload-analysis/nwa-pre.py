@@ -146,7 +146,7 @@ def _parall_run(params):
                         # TODO poi rimuoverli
         # vai di ricerca bayesiana
         #print(config)
-        params=bayesopt_search(expname, strat, axis,specfilename,seed,config, rundup)
+        params=bayesopt_search(expname, strat, axis,specfilename,seed,config, rundup, wl_name)
 
         # crea esperimento con suddetto specfile e parametri ottimi
 
