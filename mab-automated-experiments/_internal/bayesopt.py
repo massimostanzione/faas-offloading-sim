@@ -124,9 +124,9 @@ def compute_total_reward(expname, mabfile, statsfile, strat, ax_pre, ax_post, ru
     f.close()
     total_reward += sum(rewards) / len(rewards)
     return total_reward
-
+from .logging import MABExperimentInstanceRecord
 # Oss.: è per singola ricerca
-def bayesopt_search(expname, strat, axis_fixed, specfile, seed, config, rundup):
+def bayesopt_search(expname, strat, axis_fixed, specfile, seed, config, rundup, wl_name):
     timestamp = datetime.datetime.now().replace(microsecond=0)
     selected_obj_fn = None
     ef_lower = config["parameters"]["ef-lower"]
@@ -205,7 +205,11 @@ def bayesopt_search(expname, strat, axis_fixed, specfile, seed, config, rundup):
         best_value = current_best
 
     #output_file_mp = (EXPNAME + "/results/output.json")
+    instance = MABExperimentInstanceRecord(strat, axis_fixed, axis_fixed, None, seed, wl_name)
+
     valprint = {key: float(value) for key, value in optimizer.max['params'].items()}
+    result={"optimal-params", valprint}
+    instance.add_experiment_result(result)
 
     data = {}
     data["strategy"]=strat
