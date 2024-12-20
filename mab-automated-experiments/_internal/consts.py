@@ -45,3 +45,14 @@ def get_axis_name_hr(axis:str):
 PIPELINE_FILE = "pipeline.txt"
 EXPCONF_FILE = "expconf.ini"
 CONFIG_FILE = "config.ini"
+
+class WorkloadIdentifier(Enum):
+    NONE = "none"
+    BASE = "base"
+    F1 = "f1"
+    F2 = "f2"
+    F3 = "f3"
+    F4 = "f4"
+    F5 = "f5"
+    LINEAR = "linear"
+    GAUSSIAN = "gaussian"
