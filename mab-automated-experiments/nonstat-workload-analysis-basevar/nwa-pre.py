@@ -136,7 +136,7 @@ max_procs = expconf.getint("experiment", "max-parallel-execution")
 
 rundup = expconf["output"]["run-duplicates"]
 
-expname = "nonstat-workload-analysis"
+expname = "nonstat-workload-analysis-basevar"
 
 for wl_name in wl_conf_names:
     # genera specfile
