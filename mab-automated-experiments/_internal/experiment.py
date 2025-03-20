@@ -29,7 +29,7 @@ def write_custom_configfile(expname: str, strategy: str, axis_pre: str, axis_pos
 
     # other
     outconfig.add_section(conf.SEC_SIM)
-    outconfig.set(conf.SEC_SIM, conf.SPEC_FILE, "spec.yml" if specfile is None else specfile)
+    outconfig.set(conf.SEC_SIM, conf.SPEC_FILE, "../spec.yml" if specfile is None else specfile)
     outconfig.set(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, str(360))
     outconfig.set(conf.SEC_SIM, conf.STAT_PRINT_FILE, outfile_stats)
     outconfig.set(conf.SEC_SIM, "mab-stats-print-file", outfile_mabstats)

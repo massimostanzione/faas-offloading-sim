@@ -108,7 +108,7 @@ with open(os.path.join(SCRIPT_DIR, "custom-arrivals.json"), 'r') as f:
             wl_conf_names.append(d["name"])
             break
 
-    for coeff in [1 / 50, 1 / 20, 1 / 10, 1 / 5, 1 / 2, 2, 5, 10, 20, 30]:
+    for coeff in [1/50, 1/20, 1/10, 1/5, 1/2, 2, 5, 10, 20, 30]:
         name = "base*" + str(coeff)
         nuovo_oggetto = {"name": name,
                          "f1": float(base["f1"]) * coeff,
@@ -139,7 +139,7 @@ rundup = expconf["output"]["run-duplicates"]
 expname = "nonstat-workload-analysis"
 
 for wl_name in wl_conf_names:
-
+    # genera specfile
     specfilename = os.path.join(SCRIPT_DIR, "results",
                                 "spec" + wl_name + consts.SUFFIX_SPECSFILE)
     os.makedirs(os.path.join(expname, "results"), exist_ok=True)
@@ -160,6 +160,7 @@ for wl_name in wl_conf_names:
 
     else:
         pass
+
 all_combinations = list(itertools.product(strategies, axis_pre, seeds,
                                           wl_conf_names))
 
