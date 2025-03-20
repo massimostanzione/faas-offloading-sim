@@ -92,20 +92,35 @@ sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 from _internal import consts
 from _internal.bayesopt import bayesopt_search
-from _internal.experiment import MABExperiment, write_custom_configfile
+from _internal.experiment import write_custom_configfile
 from _internal.logging import MABExperimentInstanceRecord, IncrementalLogger, LOOKUP_OPTIMAL_PARAMETERS
 
-with open(os.path.join(SCRIPT_DIR,"custom-arrivals.json"), 'r') as f:
+data = []
+with open(os.path.join(SCRIPT_DIR, "custom-arrivals.json"), 'r') as f:
     data = json.load(f)
-    wl_conf_names=[]
-    for d in data:
-        arrivals=[]
-        print(d["name"], d["f1"])
-        wl_conf_names.append(d["name"])
+    wl_conf_names = []
+    base = None
 
-# le tracce
-wl_conf_names.append("trace-f1linear")
-wl_conf_names.append("trace-f1gauss")
+    # prendi il caso base
+    for d in data:
+        if d["name"] == "base":
+            base = d
+            wl_conf_names.append(d["name"])
+            break
+
+    for coeff in [1 / 50, 1 / 20, 1 / 10, 1 / 5, 1 / 2, 2, 5, 10, 20, 30]:
+        name = "base*" + str(coeff)
+        nuovo_oggetto = {"name": name,
+                         "f1": float(base["f1"]) * coeff,
+                         "f2": float(base["f2"]) * coeff,
+                         "f3": float(base["f3"]) * coeff,
+                         "f4": float(base["f4"]) * coeff,
+                         "f5": float(base["f5"]) * coeff,
+                         }
+        wl_conf_names.append(name)
+        data.append(nuovo_oggetto)
+
+print(data)
 
 experiment_confpath = os.path.join(consts.EXPCONF_FILE)
 
@@ -126,11 +141,13 @@ expname = "nonstat-workload-analysis"
 for wl_name in wl_conf_names:
 
     specfilename = os.path.join(SCRIPT_DIR, "results",
-                            "spec" + wl_name + consts.SUFFIX_SPECSFILE)
+                                "spec" + wl_name + consts.SUFFIX_SPECSFILE)
     os.makedirs(os.path.join(expname, "results"), exist_ok=True)
-    if not wl_name.find("trace-")!=-1:
+    if not wl_name.find("trace-") != -1:
+        # pass
+        arrivals = []
         with open(os.path.join(SCRIPT_DIR, "custom-arrivals.json"), 'r') as f:
-            data = json.load(f)
+            # data = json.load(f)
             for d in data:
                 if d["name"] == wl_name:
                     for func_progr in range(1, 5 + 1, 1):
@@ -138,75 +155,76 @@ for wl_name in wl_conf_names:
                         arrivals.append({"node": 'lb1', "function": func, 'rate': d[func]})
 
                     with open(specfilename, "w") as outf:
+                        print("scrivo", specfilename)
                         spec.write_spec_custom(outf, functions, classes, nodes, arrivals)
+
     else:
-        with open(specfilename, "w") as outf:
-            func="f1"
-            arrivals_trace=[{"node": 'lb1', "function": func, 'trace': os.path.join(SCRIPT_DIR, wl_name+".iat")}]
-            spec.write_spec_custom(outf, functions, classes, nodes, arrivals_trace)
+        pass
+all_combinations = list(itertools.product(strategies, axis_pre, seeds,
+                                          wl_conf_names))
 
-
-# iterate among {strategies x axis_pre x axis_post}
-all_combinations = list(itertools.product(strategies, axis_pre, seeds, wl_conf_names))
-
-in_list=[]
+in_list = []
 for strat, axis, seed, wl_name in all_combinations:
     instance = MABExperimentInstanceRecord(strat, axis, axis, None, seed, wl_name)
     in_list.append(instance)
-out_list=bayesopt_search(in_list, max_procs, expconf)
+out_list = bayesopt_search(in_list, max_procs, expconf)
 
 logger = IncrementalLogger()
 
-def _parall_run(instance:MABExperimentInstanceRecord):
 
+def _parall_run(instance: MABExperimentInstanceRecord):
+    # for instance in out_list:
 
-        exec = logger.determine_simex_behavior(instance, rundup, ["policies", "cumavg-reward"])
-        if exec:
-            params=instance.identifiers["parameters"]
-            strat=instance.identifiers["strategy"]
-            axis_pre=instance.identifiers["axis_pre"]
-            axis_post=instance.identifiers["axis_pre"]
-            seed=instance.identifiers["seed"]
-            specfilename = os.path.join(SCRIPT_DIR, "results",
+    # search=logger.lookup(instance)
+    exec = logger.determine_simex_behavior(instance, rundup, ["policies", "cumavg-reward"])
+    if exec:
+        params = instance.identifiers["parameters"]
+        strat = instance.identifiers["strategy"]
+        axis_pre = instance.identifiers["axis_pre"]
+        axis_post = instance.identifiers["axis_pre"]
+        seed = instance.identifiers["seed"]
+        specfilename = os.path.join(SCRIPT_DIR, "results",
                                     "spec" + instance.identifiers["workload"] + consts.SUFFIX_SPECSFILE)
-            configpath = write_custom_configfile(expname, strat, axis_pre, axis_post, list(params.keys()), list(params.values()),
-                                                 seed, specfilename)
-            main(configpath)
+        configpath = write_custom_configfile(expname, strat, axis_pre, axis_post, list(params.keys()),
+                                             list(params.values()),
+                                             seed, specfilename)
+        main(configpath)
 
-            # processa l'output
-            # (ev. nel post-processing)
-            mabfile = os.path.abspath(os.path.join(os.path.dirname(__file__), "../_stats", consts.PREFIX_MABSTATSFILE+consts.SUFFIX_MABSTATSFILE+"-pid"+str(os.getpid())))
-            with open(mabfile, 'r') as f:
-                data = json.load(f)
-            policies = []
-            rewards = []
-            for d in data:
-                policies.append(d["policy"])
-                rewards.append(d['reward'])
+        # processa l'output
+        # (ev. nel post-processing)
+        mabfile = os.path.abspath(os.path.join(os.path.dirname(__file__), "../_stats",
+                                               consts.PREFIX_MABSTATSFILE + consts.SUFFIX_MABSTATSFILE + "-pid" + str(
+                                                   os.getpid())))
+        with open(mabfile, 'r') as f:
+            data = json.load(f)
+        policies = []
+        rewards = []
+        for d in data:
+            policies.append(d["policy"])
+            rewards.append(d['reward'])
 
-            cumavg_reward = sum(rewards) / len(rewards)
-            instance.add_experiment_result({"policies":policies,"cumavg-reward":cumavg_reward})
-            logger.persist(instance)
+        cumavg_reward = sum(rewards) / len(rewards)
+        instance.add_experiment_result({"policies": policies, "cumavg-reward": cumavg_reward})
+        logger.persist(instance)
+
 
 with Pool(processes=max_procs) as pool:
     pool.map(_parall_run, out_list)
 
-def compute_steadypol(list:List[str])->str:
-    threshold=0.85
+
+def compute_steadypol(list: List[str]) -> (str, float):
+    # qui non utilizzato - threshold=0.85
     policies_freqs = {"random-lb": 0, "round-robin-lb": 0, "mama-lb": 0, "const-hash-lb": 0,
                       "wrr-speedup-lb": 0,
                       "wrr-memory-lb": 0, "wrr-cost-lb": 0}
     for policy in list:
-        policies_freqs[policy]+=1
+        policies_freqs[policy] += 1
 
-    best=[]
-    for k, v in policies_freqs.items():
-        if v>=threshold*len(list):
-            best.append(k)
+    best = max(policies_freqs.items(), key=lambda x: x[1])
+    total = sum(policies_freqs.values())
+    perc = (best[1] / total) * 100 if total > 0 else 0  # Calcola la percentuale
 
-    if len(best)==1: return best[0]
-    if len(best)>1: return "**** più maggioritarie"
-    return "N.D."
+    return best[0], perc
 
 
 output_file_hr = (expname + "/results/output-humanreadable")
@@ -222,16 +240,17 @@ with open(output_file_hr, "a") as mp_file:
         for axis in axis_pre:
             for wl_name in wl_conf_names:
                 for seed in seeds:
-                    instance=MABExperimentInstanceRecord(strat, axis, axis, LOOKUP_OPTIMAL_PARAMETERS, seed, wl_name)
-                    found=logger.lookup(instance)
-                    reward=found.results["cumavg-reward"]
-                    steadypol=compute_steadypol(found.results["policies"])
-                    mp_file.write('{0:8} {1:10} {2:15} {3:25} {4}\n'
+                    instance = MABExperimentInstanceRecord(strat, axis, axis, LOOKUP_OPTIMAL_PARAMETERS, seed, wl_name)
+                    found = logger.lookup(instance)
+                    reward = found.results["cumavg-reward"]
+                    steadypol, perc = compute_steadypol(found.results["policies"])
+                    mp_file.write('{0:8} {1:10} {2:15} {3:25} {4} ({5}%)\n'
                     .format(
                         strat,
                         axis,
                         wl_name,
                         reward,
-                        steadypol
-                            ))
+                        steadypol,
+                        perc
+                    ))
             mp_file.write("\n")
