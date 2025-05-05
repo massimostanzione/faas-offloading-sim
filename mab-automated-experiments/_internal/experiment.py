@@ -141,27 +141,37 @@ def generate_outfile_name(prefix, strategy, axis_pre, axis_post, params_names, p
     return config_path
 
 
-def is_exploration_factor(parameter_name: str, strategy: str) -> bool:
+
+def _is_exploration_factor(parameter_name: str, strategy: str) -> bool:
     exploration_factor_map = {
 
         # non-contextual
-        "UCBTuned": conf.MAB_UCB_EXPLORATION_FACTOR, "UCB2": conf.MAB_UCB_EXPLORATION_FACTOR,
-        "KL-UCB": conf.MAB_UCB_EXPLORATION_FACTOR, "KL-UCBsp": conf.MAB_KL_UCB_C,
+        "UCBTuned": conf.MAB_UCB_EXPLORATION_FACTOR,
+        "UCB2": conf.MAB_UCB_EXPLORATION_FACTOR,
+        "KL-UCB": conf.MAB_UCB_EXPLORATION_FACTOR,
+        "KL-UCBsp": conf.MAB_KL_UCB_C,
 
         # contextual
-        "RTK-UCB2": conf.MAB_UCB_EXPLORATION_FACTOR, }
+        "RTK-UCB2": conf.MAB_UCB_EXPLORATION_FACTOR,
+        "RTK-UCBTuned": conf.MAB_UCB_EXPLORATION_FACTOR,
+    }
 
     return exploration_factor_map[strategy] == parameter_name
 
 
-def is_other_strategy_param(parameter_name: str, strategy: str) -> bool:
+def _is_other_strategy_param(parameter_name: str, strategy: str) -> bool:
     other_params_map = {
 
         # non-contextual
-        "UCBTuned": [], "UCB2": [conf.MAB_UCB2_ALPHA], "KL-UCB": [conf.MAB_KL_UCB_C], "KL-UCBsp": [],
+        "UCBTuned": [],
+        "UCB2": [conf.MAB_UCB2_ALPHA],
+        "KL-UCB": [conf.MAB_KL_UCB_C],
+        "KL-UCBsp": [],
 
         # contextual
-        "RTK-UCB2": [conf.MAB_UCB2_ALPHA], }
+        "RTK-UCB2": [conf.MAB_UCB2_ALPHA],
+        "RTK-UCBTuned": [],
+    }
     return parameter_name in other_params_map[strategy]
 
 
@@ -169,11 +179,13 @@ def filter_strategy_params(params: List[MABExperiment_IterableParam], strategy: 
     MABExperiment_IterableParam]:
     ret = []
     for param in params:
-        if is_exploration_factor(param.name, strategy) or is_other_strategy_param(param.name, strategy):
+        if _is_exploration_factor(param.name, strategy) or _is_other_strategy_param(param.name, strategy):
             ret.append(param)
     print(ret)
     return ret
 
+def _is_iterable(key):
+    return re.match(r"^(.*?)-(start|step|end)$", key)
 
 def extract_iterable_params_from_config(expconfig) -> List[MABExperiment_IterableParam]:
     _, iterable_params = extract_strategy_params_from_config(expconfig)
@@ -199,9 +211,9 @@ def extract_strategy_params_from_config(expconfig, strategy: str = None) -> [MAB
         end = float(parameters_sect.get(f"{param_name}-end"))
 
         if strategy is not None:
-            if is_exploration_factor(param_name, strategy):
+            if _is_exploration_factor(param_name, strategy):
                 exploration_factor = MABExperiment_IterableParam(param_name, start, step, end)
-            elif is_other_strategy_param(param_name, strategy):
+            elif _is_other_strategy_param(param_name, strategy):
                 parameter = MABExperiment_IterableParam(param_name, start, step, end)
                 other_strategy_params.append(parameter)
         else:
@@ -214,13 +226,14 @@ def extract_strategy_params_from_config(expconfig, strategy: str = None) -> [MAB
 class MABExperiment:
     def __init__(self, name: str, strategies: List[str], axis_pre: List[str] = None, axis_post: List[str] = None,
                  params: List[MABExperiment_IterableParam] = None, graphs: List[str] = None,
+                 iterable_params: List[MABExperiment_IterableParam] = None, graphs: List[str] = None,
                  rundup: str = consts.RundupBehavior.SKIP_EXISTENT.value, max_parallel_executions: int = 1,
                  seeds: List[int] = None, specfile: str = None):
         self.name = name
         self.strategies = strategies
         self.axis_pre = axis_pre
         self.axis_post = axis_post
-        self.params = params
+        self.iterable_params = iterable_params
         self.graphs = graphs
         self.rundup = rundup
         self.max_parallel_executions = max_parallel_executions
