@@ -12,7 +12,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
-from _internal.consts import RewardFnAxis, WorkloadIdentifier, RundupBehavior
+from _internal.consts import RewardFnAxis, WorkloadIdentifier, RundupBehavior, SUFFIX_LOCKFILE, LOCK_FILE_PATH, PREFIX_LOCKFILE, STATS_FILES_DIR
 
 DEFAULT_LOGGER_PATH = "../_stats/log-"
 LOCKFILE="./_stats/json-lockfile-"
@@ -22,9 +22,11 @@ class MABExperimentInstanceRecord:
                  strategy: str,
                  axis_pre: RewardFnAxis,
                  axis_post: RewardFnAxis,
-                 params: List,
+                 params: dict,
                  seed: int,
-                 workload: WorkloadIdentifier
+                 workload: WorkloadIdentifier,
+                 specfile: str,
+                 mab_update_interval: float
                  ):
         # instance identifiers
         self.identifiers={
@@ -34,6 +36,8 @@ class MABExperimentInstanceRecord:
             "parameters":params,
             "seed":seed,
             "workload":workload,
+            "specfile":specfile,
+            "mab-update-interval":mab_update_interval
         }
 
         # results from the experiments on this specific instance
@@ -63,6 +67,13 @@ class IncrementalLogger(Logger):
     def __init__(self, outfile_name: str = DEFAULT_LOGGER_PATH):
         SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
         self.outfile_name = os.path.join(SCRIPT_DIR, outfile_name)#.__str__()
+        self.outfile_name = os.path.abspath(os.path.join(os.path.dirname(__file__),LOCK_FILE_PATH,outfile_name))#.__str__()
+
+        statsfldr=os.path.abspath(os.path.join(os.path.dirname(__file__), STATS_FILES_DIR))
+        try:
+            os.mkdir(statsfldr)
+        except OSError:
+            pass
 
     def _compare_instances(self, inst1:MABExperimentInstanceRecord, inst2:MABExperimentInstanceRecord):
         return inst1.identifiers==inst2.identifiers
@@ -93,7 +104,7 @@ class IncrementalLogger(Logger):
             updated=self._update(found, instance.results)
             output=vars(updated)
 
-            with FileLock(LOCKFILE+instance.identifiers["strategy"]+".lock"):
+            with FileLock(lockfilename):
                 with open(self.outfile_name+instance.identifiers["strategy"]+".json", 'r+') as file:
                     file_data = json.load(file)
                     for d in file_data:
@@ -103,6 +114,10 @@ class IncrementalLogger(Logger):
                             break
                     file.seek(0)
                     json.dump(file_data, file, indent=4)
+        try:
+            os.remove(lockfilename_abs)
+        except OSError:
+            pass
 
     # output: le istanze che non sono già processate, i.e., quelle che dovranno essere eseguite (in parallelo, possibilmente)
     def filter_unprocessed_instances(self, list:List[MABExperimentInstanceRecord], specific_results:List[str]=None)->List[MABExperimentInstanceRecord]:
@@ -129,13 +144,20 @@ class IncrementalLogger(Logger):
             generic_inst.identifiers["parameters"]=None
             inst.identifiers["parameters"]=self.lookup(generic_inst).results["optimal-params"]
 
-        with FileLock(LOCKFILE+inst.identifiers["strategy"]+".lock"):
+        lockfilename=PREFIX_LOCKFILE+inst.identifiers["strategy"]+SUFFIX_LOCKFILE
+        lockfilename_abs=os.path.abspath(os.path.join(os.path.dirname(__file__),LOCK_FILE_PATH,lockfilename))
+
+        with FileLock(lockfilename):
             with open(self.outfile_name+inst.identifiers["strategy"]+".json", "a+") as f:
                 if os.path.getsize(self.outfile_name+inst.identifiers["strategy"]+".json")==0:
                     print("inizializzo il file")
                     f.write("[]")
+        try:
+            os.remove(lockfilename_abs)
+        except OSError:
+            pass
 
-        with FileLock(LOCKFILE+inst.identifiers["strategy"]+".lock"):
+        with FileLock(lockfilename):
             with open(self.outfile_name+inst.identifiers["strategy"]+".json", 'r+') as file:
                 data = json.load(file)
                 for d in data:
@@ -155,7 +177,10 @@ class IncrementalLogger(Logger):
                                         #continue
                                 if ctr==len(specific_results):
                                     ret= deser
-
+        try:
+            os.remove(lockfilename_abs)
+        except OSError:
+            pass
         return ret
 
     def determine_simex_behavior(self, instance:MABExperimentInstanceRecord, rundup, specific_results=None) -> bool:
@@ -174,6 +199,8 @@ def _deserialize(dict):
                                         dict["identifiers"]["parameters"],
                                         dict["identifiers"]["seed"],
                                         dict["identifiers"]["workload"],
+                                        dict["identifiers"]["specfile"],
+                                        dict["identifiers"]["mab-update-interval"],
                                        )
     ret.add_experiment_result(dict["results"])
     return ret

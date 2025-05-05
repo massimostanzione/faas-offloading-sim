@@ -14,14 +14,15 @@ import numpy as np
 import conf
 from conf import MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA, MAB_KL_UCB_C
 from main import main
+from .logging import MABExperimentInstanceRecord, IncrementalLogger, SCRIPT_DIR
 from . import consts
 
 
-def write_custom_configfile(expname: str, strategy: str, axis_pre: str, axis_post: str, params_names: List[str],
+def write_custom_configfile(expname: str, strategy: str, close_door_time: float, mab_update_interval:float, axis_pre: str, axis_post: str, params_names: List[str],
                             params_values: List[float], seed: int, specfile: str = None):
     outfile_stats = generate_outfile_name(consts.PREFIX_STATSFILE, strategy, axis_pre, axis_post, params_names,
-                                          params_values, seed) + consts.SUFFIX_STATSFILE
-    outfile_mabstats = os.path.abspath(os.path.join(os.path.dirname(__file__), "../_stats",
+                                          params_values, seed, specfile) + consts.SUFFIX_STATSFILE
+    outfile_mabstats = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.TEMP_STATS_LOCATION,
                                                     consts.PREFIX_MABSTATSFILE + consts.SUFFIX_MABSTATSFILE + "-pid" + str(
                                                         os.getpid())))
 
@@ -33,7 +34,7 @@ def write_custom_configfile(expname: str, strategy: str, axis_pre: str, axis_pos
     outconfig.set(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, str(360))
     outconfig.set(conf.SEC_SIM, conf.STAT_PRINT_FILE, outfile_stats)
     outconfig.set(conf.SEC_SIM, "mab-stats-print-file", outfile_mabstats)
-    outconfig.set(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, str(28800))  # TODO parametrizzare
+    outconfig.set(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, str(close_door_time))
     outconfig.set(conf.SEC_SIM, conf.PLOT_RESP_TIMES, "false")
     outconfig.set(conf.SEC_SIM, conf.SEED, str(seed))
     outconfig.set(conf.SEC_SIM, conf.EDGE_EXPOSED_FRACTION, str(0.25))
@@ -44,7 +45,7 @@ def write_custom_configfile(expname: str, strategy: str, axis_pre: str, axis_pos
     outconfig.set(conf.SEC_LB, conf.LB_POLICY, "random-lb")
 
     outconfig.add_section(conf.SEC_MAB)
-    outconfig.set(conf.SEC_MAB, conf.MAB_UPDATE_INTERVAL, str(300))
+    outconfig.set(conf.SEC_MAB, conf.MAB_UPDATE_INTERVAL, str(mab_update_interval)) # default 300
     outconfig.set(conf.SEC_MAB, conf.MAB_NON_STATIONARY_ENABLED, "false" if axis_pre == axis_post else "true")
     outconfig.set(conf.SEC_MAB, conf.MAB_LB_POLICIES,
                   "random-lb, round-robin-lb, mama-lb, const-hash-lb, wrr-speedup-lb, wrr-memory-lb, wrr-cost-lb")
@@ -75,7 +76,7 @@ def write_custom_configfile(expname: str, strategy: str, axis_pre: str, axis_pos
                   str(1) if axis_post == consts.RewardFnAxis.UTILITY.value else str(0))
     outconfig.set(conf.SEC_MAB, conf.MAB_REWARD_ZETA_POST,
                   str(1) if axis_post == consts.RewardFnAxis.VIOLATIONS.value else str(0))
-    config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", expname, "results", consts.CONFIG_FILE))
+    config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", expname, consts.CONFIG_FILE_PATH, consts.CONFIG_FILE))
     config_path += "-pid" + str(os.getpid())
 
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
@@ -124,7 +125,7 @@ def get_param_full_name(simple_name: str) -> str:
     return simple_name
 
 
-def generate_outfile_name(prefix, strategy, axis_pre, axis_post, params_names, params_values, seed):
+def generate_outfile_name(prefix, strategy, axis_pre, axis_post, params_names, params_values, seed, specfile):
     pardict = {}
     for i, _ in enumerate(params_names):
         pardict[params_names[i]] = params_values[i]
@@ -136,7 +137,8 @@ def generate_outfile_name(prefix, strategy, axis_pre, axis_post, params_names, p
         output_suffix = consts.DELIMITER_HYPHEN.join(
             [output_suffix, consts.DELIMITER_PARAMS.join([get_param_simple_name(key), "{}".format(float(value))])])
     output_suffix = consts.DELIMITER_HYPHEN.join([output_suffix, consts.DELIMITER_PARAMS.join(["seed", seed])])
-    config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../_stats", output_suffix))
+    output_suffix = consts.DELIMITER_HYPHEN.join([output_suffix, consts.DELIMITER_PARAMS.join(["specfile", specfile])])
+    config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.TEMP_STATS_LOCATION, output_suffix))
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     return config_path
 
@@ -224,13 +226,15 @@ def extract_strategy_params_from_config(expconfig, strategy: str = None) -> [MAB
 
 
 class MABExperiment:
-    def __init__(self, name: str, strategies: List[str], axis_pre: List[str] = None, axis_post: List[str] = None,
-                 params: List[MABExperiment_IterableParam] = None, graphs: List[str] = None,
+    def __init__(self, expconf, name: str, strategies: List[str], close_door_time: float=28800, mab_update_interval: float=300, axis_pre: List[str] = None, axis_post: List[str] = None,
                  iterable_params: List[MABExperiment_IterableParam] = None, graphs: List[str] = None,
                  rundup: str = consts.RundupBehavior.SKIP_EXISTENT.value, max_parallel_executions: int = 1,
-                 seeds: List[int] = None, specfile: str = None):
+                 seeds: List[int] = None, specfiles: List[str] = None, output_persist:List[str] = None):
+        self.expconf = expconf
         self.name = name
         self.strategies = strategies
+        self.close_door_time = close_door_time
+        self.mab_update_interval = mab_update_interval
         self.axis_pre = axis_pre
         self.axis_post = axis_post
         self.iterable_params = iterable_params
@@ -238,12 +242,18 @@ class MABExperiment:
         self.rundup = rundup
         self.max_parallel_executions = max_parallel_executions
         self.seeds = [123] if seeds == None else seeds
-        self.specfile = specfile
+        self.specfiles = specfiles
+        self.output_persist = output_persist
 
     def _generate_config(self, strategy: str, axis_pre: str, axis_post: str, param_names: List[str],
                          param_values: List[float], seed: int):
         return write_custom_configfile(self.name, strategy, axis_pre, axis_post, param_names, param_values, seed,
                                        self.specfile)
+    def _generate_config(self, strategy: str, close_door_time: float,mab_update_interval: float, axis_pre: str, axis_post: str, param_names: List[str],
+                         param_values: List[float], seed: int, specfile:str):
+        return write_custom_configfile(self.name, strategy, close_door_time, mab_update_interval, axis_pre, axis_post, param_names, param_values, seed,
+                                       specfile)
+
 
     def run(self):
         print(f"Starting experiment {self.name}...")
