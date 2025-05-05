@@ -1,5 +1,4 @@
 import configparser
-from dataclasses import dataclass, field
 import time
 from heapq import heappop, heappush
 import numpy as np
@@ -8,6 +7,10 @@ import sys
 
 import conf
 import utils.plot # type: ignore
+from mab.contextual.context import Context
+from mab.contextual.agents import ReduceToKMAB
+from mab.contextual.utils import generate_contextinsts_list_exp
+from mab.contextual.features import ContextFeature
 from policy import SchedulerDecision
 import policy
 import probabilistic
@@ -17,9 +20,8 @@ from stateful import key_locator
 from arrivals import ArrivalProcess
 from infrastructure import *
 from statistics import Stats # type: ignore
-from typing import List
 
-from mab import EpsilonGreedy, UCB, ResetUCB, SlidingWindowUCB, UCB2, UCBTuned, KLUCB, KLUCBsp
+from mab.mab import EpsilonGreedy, UCB, ResetUCB, SlidingWindowUCB, UCB2, UCBTuned, KLUCB, KLUCBsp
 
 @dataclass
 class Event:
@@ -157,6 +159,9 @@ class Simulation:
                 for fun in self.functions:
                     self.init_time[(fun,node)] = fun.initMean/node.speedup
 
+        # for use with contextual MABs
+        self.context = None
+
     def new_policy (self, configured_policy, node):
         if configured_policy == "basic":
             return policy.BasicPolicy(self, node)
@@ -251,6 +256,10 @@ class Simulation:
             delta_post=self.config.getfloat(conf.SEC_MAB, conf.MAB_REWARD_DELTA_POST, fallback=0.0),
             zeta_post=self.config.getfloat(conf.SEC_MAB, conf.MAB_REWARD_ZETA_POST, fallback=0.0)
         )
+
+        # ---------------------------------------------------------------------------
+        # Non-contextual bandits
+
         if strategy == "Epsilon-Greedy":
             epsilon = self.config.getfloat(conf.SEC_MAB, conf.MAB_EPSILON, fallback=0.1)
             return EpsilonGreedy(self, lb_policies, epsilon, reward_config)
@@ -279,6 +288,43 @@ class Simulation:
         elif strategy == "KL-UCBsp":
             c = self.config.getfloat(conf.SEC_MAB, conf.MAB_KL_UCB_C, fallback=1.0)
             return KLUCBsp(self, lb_policies, reward_config, c)
+
+        # ---------------------------------------------------------------------------
+        # Contextual bandits
+
+        ctx=Context([ContextFeature.MEM])
+        ctx.add_instances(generate_contextinsts_list_exp())
+        self.context=ctx
+
+        if strategy == "RTK-UCB2":
+            exploration_factor = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB_EXPLORATION_FACTOR, fallback=0.05)
+            alpha = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB2_ALPHA, fallback=1.0)
+
+            # generate UCB2 non-contextual agents
+            # (this is pretty hardcoded here)
+            num_contexts=3
+            agents=[]
+            for i in range(num_contexts):
+                agent=UCB2(self, lb_policies, exploration_factor, reward_config, alpha)
+                agents.append(agent)
+
+            return ReduceToKMAB(self, agents)
+
+        if strategy == "RTK-UCBTuned":
+            exploration_factor = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB_EXPLORATION_FACTOR, fallback=0.05)
+            alpha = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB2_ALPHA, fallback=1.0)
+
+            # generate UCB2 non-contextual agents
+            # (this is pretty hardcoded here)
+            num_contexts=3
+            agents=[]
+            for i in range(num_contexts):
+                agent=UCBTuned(self, lb_policies, exploration_factor, reward_config)
+                agents.append(agent)
+
+            return ReduceToKMAB(self, agents)
+
+
         else:
             print("Unknown MAB strategy\n")
             exit(1)
@@ -649,8 +695,31 @@ class Simulation:
                 self.stats.data_access_count[(k,f,n)] += 1
         return float(duration + data_access_time), float(data_access_time)
 
+    # TODO move to agents.py?
+    def _probe_context_related_info(self) -> dict:
+        dict={}
+        vals=[v for k,v in self.stats.to_dict()["avgMemoryUtilization"].items() if k!="lb1"]
+        WND=4
+        avg=np.average(list(vals)[:-WND-1])
+        dict["avgMemoryUtilization"]=avg
+        """
+        sum = 0
+        for k, v in self.stats.arrivals.items():
+            sum += self.stats.arrivals[k] - self.stats.ss_arrivals[k]
+
+        dict["avgMemoryUtilization"]=sum / self.mab_update_interval
+        """
+        print("probed:",dict)
+        return dict
+
+    def is_contextual(self):
+        return self.context is not None
+
     def mab_update(self, last_update=False):
-        # Invoco l'agente per aggiornare il modello 
+        if self.is_contextual():
+            probed_data=self._probe_context_related_info()
+            self.mab_agent.update_context_instance(probed_data)
+        # Invoco l'agente per aggiornare il modello
         # Si occuperà lui stesso dell'aggiornamento del reward
         if last_update:
             self.mab_agent.update_model(self.current_lb_policy, self.mab_stats_file,last_update=True)
