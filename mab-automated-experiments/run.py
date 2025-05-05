@@ -29,15 +29,20 @@ if __name__ == "__main__":
                         axis_post = config["reward_fn"]["axis_post"].split(consts.DELIMITER_COMMA)
                         is_single_axis = axis_post == ['']
                         exp = MABExperiment(
+                            config,
                             config["experiment"]["name"],
-                            config["strategies"]["strategies"].split(consts.DELIMITER_COMMA),
+                            config["strategies"]["strategies"].replace(' ', '').split(consts.DELIMITER_COMMA),
+                            config["experiment"]["close-door-time"],
+                            config["experiment"]["mab-update-interval"],
                             axis_pre,
                             axis_post if not is_single_axis else axis_pre,
                             extract_iterable_params_from_config(config),
                             [],
                             config["output"]["run-duplicates"],
                             config.getint("experiment", "max-parallel-execution"),
-                            config["parameters"]["seeds"].split(consts.DELIMITER_COMMA),
+                            config["parameters"]["seeds"].replace(' ', '').split(consts.DELIMITER_COMMA),
+                            config["parameters"]["specfiles"].replace(' ', '').split(consts.DELIMITER_COMMA),
+                            config["output"]["persist"].replace(' ', '').split(consts.DELIMITER_COMMA)
                         )
                         exp.run()
 
