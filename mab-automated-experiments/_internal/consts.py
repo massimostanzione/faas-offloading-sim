@@ -51,6 +51,7 @@ def get_axis_name_hr(axis:str):
 PIPELINE_FILE = "pipeline.txt"
 EXPCONF_FILE = "expconf.ini"
 CONFIG_FILE = "config.ini"
+BAYESOPT_OUTPUT_FILE = "bayesopt-report-humanreadable"
 STATS_FILES_DIR = "../_stats"
 TEMP_FILES_DIR = "../-temp"
 TEMP_STATS_LOCATION = TEMP_FILES_DIR

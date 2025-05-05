@@ -1,13 +1,14 @@
 import datetime
 import json
+import math
 import multiprocessing
 import os
+import shutil
 from copy import deepcopy
 from typing import List
 
-from _internal import consts
-from _internal.experiment import generate_outfile_name
-from _internal.experiment import write_custom_configfile, get_param_simple_name
+from . import consts
+from .experiment import write_custom_configfile, get_param_simple_name, generate_outfile_name
 
 # esterno
 from bayes_opt import BayesianOptimization
@@ -40,8 +41,10 @@ def obj_ucbtuned(expname, ef, cdt, mui, instance: MABExperimentInstanceRecord, s
 
         instance_sub = deepcopy(instance)
         instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_UCB_EXPLORATION_FACTOR): float(ef)}
-        return compute_total_reward(expname, instance_sub, rundup) / num_simulations
 
+        ret = compute_total_reward(expname, instance_sub, rundup) / num_simulations
+        os.remove(statsfile)
+        return ret
 
 def obj_ucb2(expname, ef, cdt, mui, alpha, instance: MABExperimentInstanceRecord, specfile, rundup):
     strat = instance.identifiers["strategy"]
@@ -63,7 +66,9 @@ def obj_ucb2(expname, ef, cdt, mui, alpha, instance: MABExperimentInstanceRecord
                                                   get_param_simple_name(MAB_UCB2_ALPHA): float(alpha)}
         lookup = logger.lookup(instance_sub)
         if lookup is not None: instance_sub = lookup
-        return compute_total_reward(expname, instance_sub, rundup) / num_simulations
+        ret= compute_total_reward(expname, instance_sub, rundup) / num_simulations
+        os.remove(statsfile)
+        return ret
 
 
 def obj_klucb(expname, ef, c, cdt, mui, instance: MABExperimentInstanceRecord, specfile, rundup):
@@ -81,13 +86,12 @@ def obj_klucb(expname, ef, c, cdt, mui, instance: MABExperimentInstanceRecord, s
         mabfile = generate_outfile_name(consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post,
             [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C], [ef, c], seed, specfile) + consts.SUFFIX_MABSTATSFILE
 
-    instance_sub = deepcopy(instance)
-    instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_UCB_EXPLORATION_FACTOR): float(ef),
-                                              get_param_simple_name(MAB_KL_UCB_C): float(c)}
-    return compute_total_reward(expname, instance_sub, rundup) / num_simulations
         instance_sub = deepcopy(instance)
         instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_UCB_EXPLORATION_FACTOR): float(ef),
                                                   get_param_simple_name(MAB_KL_UCB_C): float(c)}
+        ret= compute_total_reward(expname, instance_sub, rundup) / num_simulations
+        os.remove(statsfile)
+        return ret
 
 
 def obj_klucbsp(expname, c, cdt, mui, instance: MABExperimentInstanceRecord, specfile, rundup):
@@ -102,13 +106,12 @@ def obj_klucbsp(expname, c, cdt, mui, instance: MABExperimentInstanceRecord, spe
         statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strat, ax_pre, ax_post, [MAB_KL_UCB_C], [c],
             seed, specfile) + consts.SUFFIX_STATSFILE
         mabfile = generate_outfile_name(consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post, [MAB_KL_UCB_C], [c],
-            seed) + consts.SUFFIX_MABSTATSFILE
-    instance_sub = deepcopy(instance)
-    instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_KL_UCB_C): float(c)}
-    return compute_total_reward(expname, instance_sub, rundup) / num_simulations
             seed, specfile) + consts.SUFFIX_MABSTATSFILE
         instance_sub = deepcopy(instance)
         instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_KL_UCB_C): float(c)}
+        ret= compute_total_reward(expname, instance_sub, rundup) / num_simulations
+        os.remove(statsfile)
+        return ret
 
 
 def compute_total_reward(expname, instance_sub: MABExperimentInstanceRecord, rundup):
@@ -123,6 +126,14 @@ def compute_total_reward(expname, instance_sub: MABExperimentInstanceRecord, run
         mabfile = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.TEMP_STATS_LOCATION,
                                                consts.PREFIX_MABSTATSFILE + consts.SUFFIX_MABSTATSFILE + "-pid" + str(
                                                    os.getpid())))
+        strat=instance_sub.identifiers["strategy"]
+        ax_pre=instance_sub.identifiers["axis_pre"]
+        #ax_post=instance_sub.identifiers["axis_post"]
+        ax_post=instance_sub.identifiers["axis_post"]
+        seed=instance_sub.identifiers["seed"]
+        specfile=instance_sub.identifiers["specfile"]
+        #statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strat, ax_pre, ax_post, [MAB_KL_UCB_C], [c],
+        #    seed, specfile) + consts.SUFFIX_STATSFILE
         with open(mabfile, 'r') as f:
             data = json.load(f)
         rewards = []
@@ -133,6 +144,8 @@ def compute_total_reward(expname, instance_sub: MABExperimentInstanceRecord, run
         # TODO call the GC
         os.remove(configname)
         os.remove(mabfile)
+        #fixme - rimosso nelle funzioni interne
+        #os.remove(statsfile)
     else:
         rewards = instance_sub.results["rewards"]
     total_reward += sum(rewards) / len(rewards)
@@ -142,29 +155,44 @@ def compute_total_reward(expname, instance_sub: MABExperimentInstanceRecord, run
     return total_reward
 
 
+def extract_optimal_parameters_for_instance(instance:MABExperimentInstanceRecord)->dict:
+    found = logger.lookup(instance)
+    if found is None:
+        print("what? should not happen here!1", instance.identifiers["specfile"])
+        exit(1)
+    return found.results["optimal-params"]
+
 # punto di ingresso
 def bayesopt_search(list: List[MABExperimentInstanceRecord], procs: int, expconf) -> List[MABExperimentInstanceRecord]:
     # concentra i processi a disposizione soltanto sulle istanze che non hanno ancora i parametri ottimi
     filtered = logger.filter_unprocessed_instances(list, ["optimal-params"])
-    print(filtered)
     global bayes_expconf
     bayes_expconf = expconf
     effective_procs = max(1, min(len(filtered), procs))
+    cs=max(1,math.ceil(len(filtered)/effective_procs))
     with multiprocessing.Pool(processes=effective_procs) as pool:
-        pool.map(_bayesopt_search_singleinstance, filtered)  # pool.join()
+        pool.map(_bayesopt_search_singleinstance, filtered, chunksize=cs)
 
     # ora raccogli tutto
     ret = []
     for instance in list:
         found = logger.lookup(instance)
         if found is None:
-            print("what? should not happen here!")
+            print("what? should not happen here!2")
             exit(1)
         # build a ready-to-be-processed instance with the optimal params
         ready = MABExperimentInstanceRecord(found.identifiers["strategy"], found.identifiers["axis_pre"],
             found.identifiers["axis_post"], found.results["optimal-params"], found.identifiers["seed"],
             found.identifiers["workload"], found.identifiers["specfile"], found.identifiers["mab-update-interval"])
         ret.append(ready)
+
+
+
+    # TODO garbage collector, by instance/whole folder
+    tmpfldr = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.TEMP_FILES_DIR))
+    if os.path.exists(tmpfldr):
+        shutil.rmtree(tmpfldr, ignore_errors=True)
+
     return ret
 
 
@@ -256,7 +284,8 @@ def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> di
     valprint = {key: float(value) for key, value in optimizer.max['params'].items()}
     result = {}
     result["optimal-params"] = valprint
-    instance.add_experiment_result({"optimal-params": valprint})
+    instance.add_experiment_result({"NOTICE": "Fictitious instance, for optimal parameters (see below) found via bayesian optimization.",
+                                    "optimal-params": valprint})
     logger.persist(instance)
 
     data = {}
@@ -268,15 +297,18 @@ def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> di
     jsondata.append(data)
     # write to text file (human-readable)
 
-    output_file_hr = (expname + "/results/output-humanreadable")
+
+    #output_file_hr = (expname + "/"+consts.DEFAULT_OUTPUT_FOLDER+"/"+consts.BAYESOPT_OUTPUT_FILE)
+    output_file_hr = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.STATS_FILES_DIR, consts.BAYESOPT_OUTPUT_FILE))
+
     needs_header = not os.path.exists(output_file_hr)
 
-    with open(output_file_hr, "a") as mp_file:
+    with open(output_file_hr, "a+") as mp_file:
         if needs_header:
-            mp_file.write("startdate  starttim seed   sta ran min max act strategy axis_pre   > axis_post  output\n")
+            mp_file.write("startdate  starttim seed      sta ran min max act strategy axis_pre   > axis_post  output\n")
             mp_file.write(
                 "------------------------------------------------------------------------------------------------------------------------\n")
-        mp_file.write('{0:19} {10:6} {1:3} {2:3} {3:3} {4:3} {5:3} {6:8} {7:10} > {8:10} {9}\n'.format(str(timestamp),
+        mp_file.write('{0:19} {10:9} {1:3} {2:3} {3:3} {4:3} {5:3} {6:8} {7:10} > {8:10} {9}\n'.format(str(timestamp),
                                                                                                        bayes_expconf.getint(
                                                                                                            "parameters",
                                                                                                            "objfn-stabilizations-iterations"),

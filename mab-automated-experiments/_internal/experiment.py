@@ -2,9 +2,10 @@ import collections
 import configparser
 import itertools
 import json
+import math
 import os
 import re
-from json import JSONDecodeError
+import shutil
 from multiprocessing.pool import Pool
 from pathlib import Path
 from typing import List
@@ -17,6 +18,7 @@ from main import main
 from .logging import MABExperimentInstanceRecord, IncrementalLogger, SCRIPT_DIR
 from . import consts
 
+logger = IncrementalLogger()
 
 def write_custom_configfile(expname: str, strategy: str, close_door_time: float, mab_update_interval:float, axis_pre: str, axis_post: str, params_names: List[str],
                             params_values: List[float], seed: int, specfile: str = None):
@@ -245,15 +247,29 @@ class MABExperiment:
         self.specfiles = specfiles
         self.output_persist = output_persist
 
-    def _generate_config(self, strategy: str, axis_pre: str, axis_post: str, param_names: List[str],
-                         param_values: List[float], seed: int):
-        return write_custom_configfile(self.name, strategy, axis_pre, axis_post, param_names, param_values, seed,
-                                       self.specfile)
     def _generate_config(self, strategy: str, close_door_time: float,mab_update_interval: float, axis_pre: str, axis_post: str, param_names: List[str],
                          param_values: List[float], seed: int, specfile:str):
         return write_custom_configfile(self.name, strategy, close_door_time, mab_update_interval, axis_pre, axis_post, param_names, param_values, seed,
                                        specfile)
 
+    # ritorna liste di dizionari del tipo [{par1: valore1, par2, valore2}, {par1: valore1, par2, valore2}, ...]
+    # ove ciascun dizionario rappresenta i parametri di una singola istanza
+    def enumerate_iterable_params(self, strategy:str)->List[dict]:
+        ret=[]
+        filtered_params = filter_strategy_params(self.iterable_params, strategy)
+        ranges = [np.arange(param.start, param.end + param.step, param.step) for param in filtered_params]
+        param_combinations_values=itertools.product(*ranges)
+        names=[p.name for p in filtered_params]
+        for values in param_combinations_values:
+            dict={}
+            for i,n in enumerate(names):
+                value=values[i]
+                recall=next(p for p in filtered_params if p.name==n)
+                if value<=recall.end:
+                    dict[n]=value
+                    if len(dict)==len(filtered_params):
+                        ret.append(dict)
+        return ret
 
     def run(self):
         print(f"Starting experiment {self.name}...")
@@ -281,57 +297,108 @@ class MABExperiment:
                 param_names = [p.name for p in filtered_params]
                 current_values = [p for p in rounded_combination]
 
-                print()
-                print("============================================")
-                print(f"Running experiment \"{self.name}\"")
-                print(f"with the following configuration")
-                print(f"\tStrategy:\t{strategy}")
-                print(f"\tAxis:\t\t{ax_pre} -> {ax_post}")
-                print(f"\tSeed:\t\t{seed}")
-                print(f"\tParameters:")
-                for i, _ in enumerate(param_names):
-                    print(f"\t\t> {param_names[i]} = {current_values[i]}")
-                print("--------------------------------------------")
+    def _parall_run(self, instance: MABExperimentInstanceRecord):
+        rundup = logger.determine_simex_behavior(instance, self.rundup, self.output_persist)
+        if rundup:
+            params=instance.identifiers["parameters"]
+            strategy=instance.identifiers["strategy"]
+            ax_pre=instance.identifiers["axis_pre"]
+            ax_post=instance.identifiers["axis_post"]
+            seed=instance.identifiers["seed"]
+            specfile = instance.identifiers["specfile"]
+            print(f"Processing strategy={strategy}, ax_pre={ax_pre}, ax_post={ax_post}, seed={seed}, specfile={specfile}")
+            print()
+            print("============================================")
+            print(f"Running experiment \"{self.name}\"")
+            print(f"with the following configuration")
+            print(f"\tStrategy:\t{strategy}")
+            print(f"\tAxis:\t\t{ax_pre} -> {ax_post}")
+            print(f"\tSeed:\t\t{seed}")
+            print(f"\tParameters:")
+            #for i, _ in enumerate(param_names):
+            for k,v in params.items():
+                print(f"\t\t> {k} = {v}")
+            print(f"\tSpecfile:\t\t{specfile}")
+            print("--------------------------------------------")
+            param_names=[k for k,_ in params.items()]
+            current_values=[v for _,v in params.items()]
+            config_path = self._generate_config(strategy, self.close_door_time, self.mab_update_interval, ax_pre, ax_post, param_names, current_values, seed, specfile)
 
-                path = self._generate_config(strategy, ax_pre, ax_post, param_names, current_values, seed)
+            statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strategy, ax_pre, ax_post, param_names,
+                current_values, seed, specfile) + consts.SUFFIX_STATSFILE
 
-                statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strategy, ax_pre, ax_post, param_names,
-                    current_values, seed) + consts.SUFFIX_STATSFILE
+            mabfile = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.TEMP_STATS_LOCATION,
+                                                   consts.PREFIX_MABSTATSFILE + consts.SUFFIX_MABSTATSFILE + "-pid" + str(
+                                                       os.getpid())))
 
-                mabfile = os.path.abspath(os.path.join(os.path.dirname(__file__), "../_stats",
-                                                       consts.PREFIX_MABSTATSFILE + consts.SUFFIX_MABSTATSFILE + "-pid" + str(
-                                                           os.getpid())))
-
-                run_simulation = None
-                if rundup == consts.RundupBehavior.ALWAYS.value:
+            """
+            if Path(statsfile).exists():
+                # make sure that the file is not only existent, but also not incomplete
+                # (i.e. correctly JSON-readable until the EOF)
+                try:
+                    with open(mabfile, 'r', encoding='utf-8') as r:
+                        json.load(r)
+                except JSONDecodeError:
+                    print("mab-stats file non existent or JSON parsing error, running simulation...")
                     run_simulation = True
-                elif rundup == consts.RundupBehavior.NO.value:
+                except FileNotFoundError:
+                    print("mab-stats file non existent or JSON parsing error, running simulation...")
+                    run_simulation = True
+                else:
+                    print("parseable stats- and mab-stats file found, skipping simulation.")
                     run_simulation = False
-                elif rundup == consts.RundupBehavior.SKIP_EXISTENT.value:
-                    if Path(statsfile).exists():
-                        # make sure that the file is not only existent, but also not incomplete
-                        # (i.e. correctly JSON-readable until the EOF)
-                        try:
-                            with open(mabfile, 'r', encoding='utf-8') as r:
-                                json.load(r)
-                        except JSONDecodeError:
-                            print("mab-stats file non existent or JSON parsing error, running simulation...")
-                            run_simulation = True
-                        except FileNotFoundError:
-                            print("mab-stats file non existent or JSON parsing error, running simulation...")
-                            run_simulation = True
-                        else:
-                            print("parseable stats- and mab-stats file found, skipping simulation.")
-                            run_simulation = False
+            else:
+                print("stats-file non not found, running simulation...")
+                run_simulation = True
+            if run_simulation is None:
+                print("Something is really odd...")
+                exit(1)
+            """
+            run_simulation=self.rundup
+            if run_simulation:
+                main(config_path)
+
+            # processa l'output
+            # (ev. nel post-processing)
+            with open(mabfile, 'r') as f:
+                data = json.load(f)
+
+            policies = []
+            rewards = []
+
+            dictt={k:[] for k in self.output_persist}
+
+
+            def myprint(d):
+                for k, v in d.items():
+                    if isinstance(v, dict):
+                        myprint(v)
                     else:
-                        print("stats-file non not found, running simulation...")
-                        run_simulation = True
-                if run_simulation is None:
-                    print("Something is really odd...")
-                    exit(1)
+                        if k in dictt.keys():
+                            dictt[k].append(v)
+            for d in data:
+                myprint(d)
+            """for d in data:
+                
+                for k,v in d.items():
+                    if k in dict.keys():
+                        dict[k].append(v)
+                    if isinstance(v, dict):
+            """
 
-                if run_simulation:
-                    main(path)
+            if self.output_persist.__contains__("cumavg-reward"):
+                for d in data:
+                    policies.append(d["policy"])
+                    rewards.append(d['reward'])
+                cumavg_reward = sum(rewards) / len(rewards)
+                dictt["cumavg-reward"]=cumavg_reward
 
-        os.remove(path)
-        print("end.")
+            instance.add_experiment_result(dictt)
+            logger.persist(instance, self.rundup)
+
+            # TODO configurabili
+            os.remove(config_path)
+            os.remove(statsfile)
+            os.remove(mabfile)
+
+        print("Simulations completed.")

@@ -15,7 +15,6 @@ sys.path.append(os.path.dirname(SCRIPT_DIR))
 from _internal.consts import RewardFnAxis, WorkloadIdentifier, RundupBehavior, SUFFIX_LOCKFILE, LOCK_FILE_PATH, PREFIX_LOCKFILE, STATS_FILES_DIR
 
 DEFAULT_LOGGER_PATH = "../_stats/log-"
-LOCKFILE="./_stats/json-lockfile-"
 
 class MABExperimentInstanceRecord:
     def __init__(self,
@@ -66,7 +65,6 @@ class IncrementalLogger(Logger):
 
     def __init__(self, outfile_name: str = DEFAULT_LOGGER_PATH):
         SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-        self.outfile_name = os.path.join(SCRIPT_DIR, outfile_name)#.__str__()
         self.outfile_name = os.path.abspath(os.path.join(os.path.dirname(__file__),LOCK_FILE_PATH,outfile_name))#.__str__()
 
         statsfldr=os.path.abspath(os.path.join(os.path.dirname(__file__), STATS_FILES_DIR))
@@ -87,18 +85,23 @@ class IncrementalLogger(Logger):
                 #found.results[new_res_key]=new_res_value
         return found
 
-    def persist(self, instance: MABExperimentInstanceRecord):
+    def persist(self, instance: MABExperimentInstanceRecord, rundup: str=RundupBehavior.SKIP_EXISTENT.value):
         # super().persist()
-        found=self.lookup(instance)
+        lockfilename = PREFIX_LOCKFILE + instance.identifiers["strategy"] + SUFFIX_LOCKFILE
+        lockfilename_abs = os.path.abspath(os.path.join(os.path.dirname(__file__), LOCK_FILE_PATH, lockfilename))
+
+        found = None if rundup==RundupBehavior.ALWAYS.value else self.lookup(instance)
         if found is None:
             output = vars(instance)
-
-            with FileLock(LOCKFILE+instance.identifiers["strategy"]+".lock"):
+            with FileLock(lockfilename):
                 with open(self.outfile_name+instance.identifiers["strategy"]+".json", 'r+') as file:
                     file_data = json.load(file)
-                    file_data.append(output)
+                    o = list(filter(lambda x: x['identifiers'] != (instance.identifiers), file_data))
+                    print(o)
+                    o.append(output)
+                    file.truncate(0)
                     file.seek(0)
-                    json.dump(file_data, file, indent=4)
+                    json.dump(o, file, indent=4)
         else:
             # instance already existent, we try to update instead of inserting
             updated=self._update(found, instance.results)
