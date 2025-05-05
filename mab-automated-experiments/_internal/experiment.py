@@ -7,7 +7,6 @@ import os
 import re
 import shutil
 from multiprocessing.pool import Pool
-from pathlib import Path
 from typing import List
 
 import numpy as np

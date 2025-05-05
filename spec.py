@@ -163,7 +163,8 @@ def write_spec (outf, functions, classes, nodes, load_coeff=1.0, dynamic_rate_co
                     D0,D1 = MAP.make_mmpp2(rate)
                 else:
                     raise ValueError(f"unknow distr: {distr}")
-                arv = make_arrival_dict("edge1", f["name"], dynamic_rate_coeff, _map=(D0,D1))
+                #arv = make_arrival_dict("edge1", f["name"], dynamic_rate_coeff, _map=(D0,D1))
+                arv = make_arrival_dict("lb1", f["name"], dynamic_rate_coeff, _map=(D0,D1))
             arrivals.append(arv)
 
     else:

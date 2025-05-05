@@ -543,6 +543,7 @@ class Simulation:
                 event.node.curr_memory += f.memory
                 event.node.warm_pool.pool = event.node.warm_pool.pool[1:]
         elif isinstance(event, MABUpdate):
+            print("TIME:", self.t)
             print("[MABUpdate]: MAB agent in action...")
             self.mab_update()
             self.schedule(t + self.mab_update_interval, event)
@@ -721,10 +722,8 @@ class Simulation:
             self.mab_agent.update_context_instance(probed_data)
         # Invoco l'agente per aggiornare il modello
         # Si occuperà lui stesso dell'aggiornamento del reward
-        if last_update:
-            self.mab_agent.update_model(self.current_lb_policy, self.mab_stats_file,last_update=True)
-        else:
-            self.mab_agent.update_model(self.current_lb_policy, self.mab_stats_file,last_update=False)
+        self.mab_agent.update_model(self.current_lb_policy, self.mab_stats_file, last_update)
+
         # Richiedo la nuova politica di load balancing all'agente
         # La politica scelta verrà applicata a tutti i load balancer presenti
         selected_policy = self.mab_agent.select_policy()
