@@ -191,6 +191,22 @@ def filter_strategy_params(params: List[MABExperiment_IterableParam], strategy: 
 def _is_iterable(key):
     return re.match(r"^(.*?)-(start|step|end)$", key)
 
+def _is_bayesopt(value):
+    return value=="bayesopt"
+"""
+def extract_params_from_config(expconfig) -> List[MABExperiment_IterableParam]:
+    parameters_sect = expconfig["parameters"]
+    fetched_params = set()
+    for k,v in parameters_sect:
+        if _is_iterable(k):
+            fetched_params.add(re.match.group(1))
+            
+        else if is_bayesopt():
+            
+        else:
+            pass
+"""
+
 def extract_iterable_params_from_config(expconfig) -> List[MABExperiment_IterableParam]:
     _, iterable_params = extract_strategy_params_from_config(expconfig)
     return iterable_params
@@ -226,6 +242,8 @@ def extract_strategy_params_from_config(expconfig, strategy: str = None) -> [MAB
 
     return exploration_factor, other_strategy_params
 
+
+from .bayesopt import bayesopt_search
 
 class MABExperiment:
     def __init__(self, expconf, name: str, strategies: List[str], close_door_time: float=28800, mab_update_interval: float=300, axis_pre: List[str] = None, axis_post: List[str] = None,
@@ -272,30 +290,73 @@ class MABExperiment:
         return ret
 
     def run(self):
-        print(f"Starting experiment {self.name}...")
-        max_procs = self.max_parallel_executions
+        tmpfldr=os.path.abspath(os.path.join(os.path.dirname(__file__),consts.TEMP_FILES_DIR))
 
-        # iterate among {strategies x axis_pre x axis_post}
-        all_combinations = list(itertools.product(self.strategies, self.axis_pre, self.axis_post, self.seeds))
-        chunk_size = len(all_combinations) // max_procs + (len(all_combinations) % max_procs > 0)
-        chunks = [all_combinations[i:i + chunk_size] for i in range(0, len(all_combinations), chunk_size)]
+        if os.path.exists(tmpfldr):
+            shutil.rmtree(tmpfldr, ignore_errors=True)
+
+
+
+
+
+
+
+
+        print(f"Starting experiment {self.name}...")
+
+        # prepare output folder
+        output_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", self.name, consts.DEFAULT_OUTPUT_FOLDER))
+        try:
+            os.mkdir(output_dir)
+        except OSError:
+            pass
+
+        # todo questo pezzo di codice è in API, vedere se/come unire
+        max_procs = self.max_parallel_executions
+        all_combinations = list(itertools.product(self.strategies, self.axis_pre, self.axis_post, self.seeds, self.specfiles))
+
+        in_list = []
+        bayesopt=None
+
+        for strat, axis_pre, axis_post, seed, specfile in all_combinations:
+            if axis_post=="": axis_post=axis_pre
+            # TODO bayesopt oppure parametri caricati self.params
+            # FIXME parametro workload
+            bayesopt_value=None
+            try:
+                bayesopt_value = self.expconf["parameters"]["bayesopt"]
+            except KeyError:
+                bayesopt=False
+                #bayesopt_value=False
+            if bayesopt_value == "true": bayesopt=True
+            elif bayesopt_value == "false": bayesopt=False
+
+            param_combinations = None if bayesopt else self.enumerate_iterable_params(strat)
+            for pc in param_combinations if param_combinations is not None else [None]:
+                instance = MABExperimentInstanceRecord(strat, axis_pre, axis_post, pc, seed, None, specfile, self.mab_update_interval)
+                in_list.append(instance)
+        out_list = in_list if not bayesopt else bayesopt_search(in_list, max_procs, self.expconf)
+        #out_list=in_list
+
+        #chunk_size = len(all_combinations) // max_procs + (len(all_combinations) % max_procs > 0)
+        #chunks = [all_combinations[i:i + chunk_size] for i in range(0, len(all_combinations), chunk_size)]
 
         # TODO max_procs -> filtered, see bayesopt
-        with Pool(processes=max_procs) as pool:
-            pool.map(self._parall_run, chunks)
+        #with Pool(processes=max_procs) as pool:
+        #    pool.map(self._parall_run, out_list)
+        
+        effective_procs = max(1, min(len(out_list), max_procs))
+        cs=max(1,math.ceil(len(out_list)/effective_procs))
+        with Pool(processes=effective_procs) as pool:
+            pool.map(self._parall_run, out_list, chunksize=cs)
+            #pool.join()
 
+        tmpfldr=os.path.abspath(os.path.join(os.path.dirname(__file__),consts.TEMP_FILES_DIR))
+
+        if os.path.exists(tmpfldr):
+            shutil.rmtree(tmpfldr, ignore_errors=True)
     # la funzione parallela
-    def _parall_run(self, params):
-        rundup = self.rundup
-        for strategy, ax_pre, ax_post, seed in params:
-            print(f"Processing strategy={strategy}, ax_pre={ax_pre}, ax_post={ax_post}, seed={seed}")
-            filtered_params = filter_strategy_params(self.params, strategy)
-            ranges = [np.arange(param.start, param.end + param.step, param.step) for param in filtered_params]
-            param_combinations = itertools.product(*ranges)
-            for combination in param_combinations:
-                rounded_combination = [round(value, 2) for value in combination]
-                param_names = [p.name for p in filtered_params]
-                current_values = [p for p in rounded_combination]
+    #def _parall_run(self, params):
 
     def _parall_run(self, instance: MABExperimentInstanceRecord):
         rundup = logger.determine_simex_behavior(instance, self.rundup, self.output_persist)
