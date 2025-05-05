@@ -24,39 +24,39 @@ bayes_expconf = None
 num_simulations = 1  # config.getint("parameters", "objfn-stabilizations-iterations")
 
 
-def obj_ucbtuned(expname, ef, instance: MABExperimentInstanceRecord, specfile, rundup):
+def obj_ucbtuned(expname, ef, cdt, mui, instance: MABExperimentInstanceRecord, specfile, rundup):
     strat = instance.identifiers["strategy"]
     ax_pre = instance.identifiers["axis_pre"]
     ax_post = instance.identifiers["axis_post"]
     seed = instance.identifiers["seed"]
     print(f"computing for {strat}, {ax_pre} > {ax_post}, seed={seed}, ef={ef}\n")
     for _ in range(num_simulations):
-        write_custom_configfile(expname, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR], [ef], seed, specfile)
+        write_custom_configfile(expname, strat, cdt, mui, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR], [ef], seed, specfile)
 
         statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR],
-            [ef], seed) + consts.SUFFIX_STATSFILE
+            [ef], seed, specfile) + consts.SUFFIX_STATSFILE
         mabfile = generate_outfile_name(consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post,
-            [MAB_UCB_EXPLORATION_FACTOR], [ef], seed) + consts.SUFFIX_MABSTATSFILE
+            [MAB_UCB_EXPLORATION_FACTOR], [ef], seed, specfile) + consts.SUFFIX_MABSTATSFILE
 
         instance_sub = deepcopy(instance)
         instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_UCB_EXPLORATION_FACTOR): float(ef)}
         return compute_total_reward(expname, instance_sub, rundup) / num_simulations
 
 
-def obj_ucb2(expname, ef, alpha, instance: MABExperimentInstanceRecord, specfile, rundup):
+def obj_ucb2(expname, ef, cdt, mui, alpha, instance: MABExperimentInstanceRecord, specfile, rundup):
     strat = instance.identifiers["strategy"]
     ax_pre = instance.identifiers["axis_pre"]
     ax_post = instance.identifiers["axis_post"]
     seed = instance.identifiers["seed"]
     print(f"computing for {strat}, {ax_pre} > {ax_post}, seed={seed}, ef={ef}, alpha={alpha}\n")
     for _ in range(num_simulations):
-        write_custom_configfile(expname, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA],
+        write_custom_configfile(expname, strat, cdt, mui, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA],
                                 [ef, alpha], seed, specfile)
 
         statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strat, ax_pre, ax_post,
-            [MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA], [ef, alpha], seed) + consts.SUFFIX_STATSFILE
+            [MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA], [ef, alpha], seed, specfile) + consts.SUFFIX_STATSFILE
         mabfile = generate_outfile_name(consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post,
-            [MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA], [ef, alpha], seed) + consts.SUFFIX_MABSTATSFILE
+            [MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA], [ef, alpha], seed, specfile) + consts.SUFFIX_MABSTATSFILE
 
         instance_sub = deepcopy(instance)
         instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_UCB_EXPLORATION_FACTOR): float(ef),
@@ -66,52 +66,61 @@ def obj_ucb2(expname, ef, alpha, instance: MABExperimentInstanceRecord, specfile
         return compute_total_reward(expname, instance_sub, rundup) / num_simulations
 
 
-def obj_klucb(expname, ef, c, instance: MABExperimentInstanceRecord, specfile, rundup):
+def obj_klucb(expname, ef, c, cdt, mui, instance: MABExperimentInstanceRecord, specfile, rundup):
     strat = instance.identifiers["strategy"]
     ax_pre = instance.identifiers["axis_pre"]
     ax_post = instance.identifiers["axis_post"]
     seed = instance.identifiers["seed"]
     print(f"computing for {strat}, {ax_pre} > {ax_post}, seed={seed}, ef={ef}, c={c}\n")
     for _ in range(num_simulations):
-        path = write_custom_configfile(expname, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C],
+        path = write_custom_configfile(expname, strat, cdt, mui, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C],
                                        [ef, c], seed, specfile)
 
         statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strat, ax_pre, ax_post,
-            [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C], [ef, c], seed) + consts.SUFFIX_STATSFILE
+            [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C], [ef, c], seed, specfile) + consts.SUFFIX_STATSFILE
         mabfile = generate_outfile_name(consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post,
-            [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C], [ef, c], seed) + consts.SUFFIX_MABSTATSFILE
+            [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C], [ef, c], seed, specfile) + consts.SUFFIX_MABSTATSFILE
 
     instance_sub = deepcopy(instance)
     instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_UCB_EXPLORATION_FACTOR): float(ef),
                                               get_param_simple_name(MAB_KL_UCB_C): float(c)}
     return compute_total_reward(expname, instance_sub, rundup) / num_simulations
+        instance_sub = deepcopy(instance)
+        instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_UCB_EXPLORATION_FACTOR): float(ef),
+                                                  get_param_simple_name(MAB_KL_UCB_C): float(c)}
 
 
-def obj_klucbsp(expname, c, instance: MABExperimentInstanceRecord, specfile, rundup):
+def obj_klucbsp(expname, c, cdt, mui, instance: MABExperimentInstanceRecord, specfile, rundup):
     strat = instance.identifiers["strategy"]
     ax_pre = instance.identifiers["axis_pre"]
     ax_post = instance.identifiers["axis_post"]
     seed = instance.identifiers["seed"]
     print(f"computing for {strat}, {ax_pre} > {ax_post}, seed={seed}, c={c}\n")
     for _ in range(num_simulations):
-        path = write_custom_configfile(expname, strat, ax_pre, ax_post, [MAB_KL_UCB_C], [c], seed, specfile)
+        path = write_custom_configfile(expname, strat, cdt, mui, ax_pre, ax_post, [MAB_KL_UCB_C], [c], seed, specfile)
 
         statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strat, ax_pre, ax_post, [MAB_KL_UCB_C], [c],
-            seed) + consts.SUFFIX_STATSFILE
+            seed, specfile) + consts.SUFFIX_STATSFILE
         mabfile = generate_outfile_name(consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post, [MAB_KL_UCB_C], [c],
             seed) + consts.SUFFIX_MABSTATSFILE
     instance_sub = deepcopy(instance)
     instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_KL_UCB_C): float(c)}
     return compute_total_reward(expname, instance_sub, rundup) / num_simulations
+            seed, specfile) + consts.SUFFIX_MABSTATSFILE
+        instance_sub = deepcopy(instance)
+        instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_KL_UCB_C): float(c)}
 
 
 def compute_total_reward(expname, instance_sub: MABExperimentInstanceRecord, rundup):
     total_reward = 0
     run_simulation = logger.determine_simex_behavior(instance_sub, rundup, ["rewards"])
-    configname = expname + "/results/" + consts.CONFIG_FILE + "-pid" + str(os.getpid())
+    #configname = consts.CONFIG_FILE_PATH + "/" + consts.CONFIG_FILE + "-pid" + str(os.getpid())
+    configname = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", expname, consts.CONFIG_FILE_PATH, consts.CONFIG_FILE))
+    configname += "-pid" + str(os.getpid())
+
     if run_simulation:
         main(configname)
-        mabfile = os.path.abspath(os.path.join(os.path.dirname(__file__), "../_stats",
+        mabfile = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.TEMP_STATS_LOCATION,
                                                consts.PREFIX_MABSTATSFILE + consts.SUFFIX_MABSTATSFILE + "-pid" + str(
                                                    os.getpid())))
         with open(mabfile, 'r') as f:
@@ -120,6 +129,8 @@ def compute_total_reward(expname, instance_sub: MABExperimentInstanceRecord, run
         for d in data:
             rewards.append(d['reward'])
         f.close()
+
+        # TODO call the GC
         os.remove(configname)
         os.remove(mabfile)
     else:
@@ -152,7 +163,7 @@ def bayesopt_search(list: List[MABExperimentInstanceRecord], procs: int, expconf
         # build a ready-to-be-processed instance with the optimal params
         ready = MABExperimentInstanceRecord(found.identifiers["strategy"], found.identifiers["axis_pre"],
             found.identifiers["axis_post"], found.results["optimal-params"], found.identifiers["seed"],
-            found.identifiers["workload"])
+            found.identifiers["workload"], found.identifiers["specfile"], found.identifiers["mab-update-interval"])
         ret.append(ready)
     return ret
 
@@ -164,6 +175,8 @@ def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> di
     rundup = bayes_expconf["output"]["run-duplicates"]
     ef_lower = bayes_expconf["parameters"]["ef-lower"]
     ef_upper = bayes_expconf["parameters"]["ef-upper"]
+    cdt = bayes_expconf["experiment"]["close-door-time"]
+    mui = bayes_expconf["experiment"]["mab-update-interval"]
     # for strat, axis, wlname, seed in strategies, axis_fixed, specfile, seeds:
 
     strat = instance.identifiers["strategy"]
@@ -172,22 +185,21 @@ def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> di
     seed = instance.identifiers["seed"]
 
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-    specfile = os.path.join(expname, "results", "spec" + instance.identifiers["workload"] + consts.SUFFIX_SPECSFILE)
-
+    specfile = instance.identifiers["specfile"]# os.path.join(expname, "results", "spec" + str(instance.identifiers["workload"]) + consts.SUFFIX_SPECSFILE)
     def objwrapper_ucbtuned(ef):
-        return obj_ucbtuned(expname, ef, instance, specfile, rundup)
+        return obj_ucbtuned(expname, ef, cdt, mui, instance, specfile, rundup)
 
     def objwrapper_ucb2(ef, alpha):
-        return obj_ucb2(expname, ef, alpha, instance, specfile, rundup)
+        return obj_ucb2(expname, ef, cdt, mui, alpha, instance, specfile, rundup)
 
     def objwrapper_klucb(ef, c):
-        return obj_klucb(expname, ef, c, instance, specfile, rundup)
+        return obj_klucb(expname, ef, cdt, mui, c, instance, specfile, rundup)
 
     def objwrapper_klucbsp(c):
-        return obj_klucbsp(expname, c, instance, specfile, rundup)
+        return obj_klucbsp(expname, c, cdt, mui, instance, specfile, rundup)
 
     print(f"Processing strategy={strat}, ax_pre={ax_pre}, ax_post={ax_post}, seed={seed}, specfile={specfile}")
-    if strat == "UCBTuned":
+    if strat == "UCBTuned" or strat == "RTK-UCBTuned":
         pbounds = {'ef': (ef_lower, ef_upper)}
         selected_obj_fn = objwrapper_ucbtuned
     elif strat == "UCB2" or strat == "RTK-UCB2":
