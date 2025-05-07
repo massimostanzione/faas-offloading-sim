@@ -14,10 +14,17 @@ if __name__ == "__main__":
                 with open(experiment_confpath, "r") as expconf_file:
                     config = conf.parse_config_file(experiment_confpath)
 
-                    mode_preprocessing = config["experiment"]["mode-preprocessing"]
-                    mode_simulations_expconf = config["experiment"]["mode-simulations"]
-                    mode_postprocessing = config["experiment"]["mode-postprocessing"]
+                    if 'experiment' in config and 'mode-preprocessing' in config['experiment']:
+                        mode_preprocessing = config['experiment']['mode-preprocessing']
+                    else:
+                        mode_preprocessing=consts.ExecMode.NONE.value
 
+                    mode_simulations_expconf = config["experiment"]["mode-simulations"]
+
+                    if 'experiment' in config and 'mode-postprocessing' in config['experiment']:
+                        mode_postprocessing = config['experiment']['mode-postprocessing']
+                    else:
+                        mode_postprocessing=consts.ExecMode.NONE.value
                     # =========================================================
                     # 1. Pre-processing
                     # ---------------------------------------------------------
@@ -48,8 +55,8 @@ if __name__ == "__main__":
                             config,
                             config["experiment"]["name"],
                             config["strategies"]["strategies"].replace(' ', '').split(consts.DELIMITER_COMMA),
-                            config["experiment"]["close-door-time"],
-                            config["experiment"]["mab-update-interval"],
+                            config["experiment"]["close-door-time"] if 'close-door-time' in config["experiment"] else 28800,
+                            config["experiment"]["mab-update-interval"] if 'mab-update-interval' in config["experiment"] else 300,
                             axis_pre,
                             axis_post, # if not is_single_axis else axis_pre,
                             extract_iterable_params_from_config(config),
@@ -57,8 +64,8 @@ if __name__ == "__main__":
                             config["output"]["run-duplicates"],
                             config.getint("experiment", "max-parallel-execution"),
                             config["parameters"]["seeds"].replace(' ', '').split(consts.DELIMITER_COMMA),
-                            config["parameters"]["specfiles"].replace(' ', '').split(consts.DELIMITER_COMMA),
-                            config["output"]["persist"].replace(' ', '').split(consts.DELIMITER_COMMA)
+                            config["parameters"]["specfiles"].replace(' ', '').split(consts.DELIMITER_COMMA) if 'specfiles' in config["parameters"] else ["../../spec"],
+                            config["output"]["persist"].replace(' ', '').split(consts.DELIMITER_COMMA) if 'persist' in config["output"] else "",
                         )
                         exp.run()
 
