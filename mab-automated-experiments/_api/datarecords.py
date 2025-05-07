@@ -86,6 +86,6 @@ def extract_datarecords_from_experiment(exp:MABExperiment)->List[MABExperimentIn
     #out_list = in_list if not bayesopt else bayesopt_search(in_list, max_procs, exp.expconf)
     return in_list
 
-#a=(extract_datarecords_from_exp_name("ctx"))
+#a=(extract_datarecords_from_exp_name("contextual-rtk-impl"))
 #for i in a:
 #    print(i.identifiers)
