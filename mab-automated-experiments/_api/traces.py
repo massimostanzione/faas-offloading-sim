@@ -93,7 +93,7 @@ def _generate_gaussian_modulated(i, min_rate, max_rate, sigma, step_len, duratio
 
 def _graph(interarrivals, rates, duration, step_len, distribution, file_path):
     path = os.path.join(os.path.dirname(__file__), "../_traces/img")
-    if not os.path.exists(path): os.mkdir(path)
+    if not os.path.exists(path): os.makedirs(path)
     STEPS = int (duration / step_len) # Numero di passi temporali (es. 5400 / 60 = 90)
 
     # Creazione del grafico con due subplot affiancati
@@ -203,7 +203,9 @@ def generate_trace(name:str, distribution:str, min_rate:float, max_rate:float, p
 
         # Salva interarrivi (simulation trace), seconda metà
         path=os.path.abspath(os.path.join(os.path.dirname(__file__),"../_traces/"+name+"_arrivals.iat"))
-        #if not os.path.exists(path):
+        pathfolder=os.path.abspath(os.path.join(os.path.dirname(__file__),"../_traces"))
+        if not os.path.exists(pathfolder): os.makedirs(pathfolder)
+
         with open(path, 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerows(zip(inter_arrival_times))
