@@ -152,7 +152,7 @@ class NonContextualMABAgent(MABAgent):
         violations = sum(self.simulation.stats.violations.values()) - sum(self.simulation.stats.ss_violations.values())
         completions = sum(self.simulation.stats.completions.values()) - sum(
             self.simulation.stats.ss_completions.values())
-
+        if completions==0: completions=1
         violations_perc = violations / completions
 
         if violations_perc > 1:
