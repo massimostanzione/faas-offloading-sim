@@ -2,14 +2,20 @@ from enum import Enum
 
 PREFIX_STATSFILE = "stats"
 PREFIX_MABSTATSFILE = "mab-stats"
+PREFIX_LOCKFILE = "json-lockfile-"
 SUFFIX_TXT = ".txt"
 SUFFIX_JSON = ".json"
 SUFFIX_SVG = ".svg"
+SUFFIX_YAML = ".yml"
+SUFFIX_LOCK = ".lock"
 SUFFIX_STATSFILE = SUFFIX_TXT
 SUFFIX_MABSTATSFILE = SUFFIX_JSON
 SUFFIX_GRAPHFILE = SUFFIX_SVG
+SUFFIX_SPECSFILE = SUFFIX_YAML
+SUFFIX_LOCKFILE = SUFFIX_LOCK
 
-DELIMITER_COMMA = ', '
+DELIMITER_COMMA = ','
+DELIMITER_COMMASPACE = ', '
 DELIMITER_HYPHEN = '-'
 DELIMITER_AXIS = '>'
 DELIMITER_PARAMS = '='
@@ -45,6 +51,14 @@ def get_axis_name_hr(axis:str):
 PIPELINE_FILE = "pipeline.txt"
 EXPCONF_FILE = "expconf.ini"
 CONFIG_FILE = "config.ini"
+BAYESOPT_OUTPUT_FILE = "bayesopt-report-humanreadable"
+STATS_FILES_DIR = "../_stats"
+TEMP_FILES_DIR = "../-temp"
+TEMP_STATS_LOCATION = TEMP_FILES_DIR
+CONFIG_FILE_PATH = TEMP_FILES_DIR
+LOCK_FILE_PATH = TEMP_FILES_DIR
+DEFAULT_OUTPUT_FOLDER="output"
+
 
 class WorkloadIdentifier(Enum):
     NONE = "none"
