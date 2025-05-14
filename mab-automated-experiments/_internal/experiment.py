@@ -448,23 +448,23 @@ class MABExperiment:
                 for k, v in d.items():
                     if isinstance(v, dict):
                         myprint(v)
-                    else:
-                        if k in dictt.keys():
-                            dictt[k].append(v)
+                    if k in dictt.keys():
+                        dictt[k].append(v)
+
             # extract the data requested to persist from all the output files
             for file in [statsfile, mabfile]:
                 with open(file, 'r') as f:
                     data = json.load(f)
-                for d in data:
-                    myprint(d)
+                    for d in data:
+                        myprint(d)
 
 
-            if self.output_persist.__contains__("cumavg-reward"):
-                for d in data:
-                    policies.append(d["policy"])
-                    rewards.append(d['reward'])
-                cumavg_reward = sum(rewards) / len(rewards)
-                dictt["cumavg-reward"]=cumavg_reward
+                if self.output_persist.__contains__("cumavg-reward"):
+                    for d in data:
+                        policies.append(d["policy"])
+                        rewards.append(d['reward'])
+                    cumavg_reward = sum(rewards) / len(rewards)
+                    dictt["cumavg-reward"]=cumavg_reward
 
             instance.add_experiment_result(dictt)
             logger.persist(instance, self.rundup)
