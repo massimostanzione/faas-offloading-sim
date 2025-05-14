@@ -102,6 +102,11 @@ class Stats:
                 avgMemUtil[repr(n)] = 0
         stats["avgMemoryUtilization"] = avgMemUtil
 
+        sumrate = 0
+        for k, v in self.arrivals.items():
+            sumrate += self.arrivals[k] - self.ss_arrivals[k]
+        stats["sampledRate"] = sumrate / self.sim.stats_print_interval
+
         avg_policy_upd_time = {}
         for n in self._policy_update_time_sum:
             if self._policy_updates[n] > 0:
