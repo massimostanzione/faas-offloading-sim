@@ -49,6 +49,8 @@ MAB_SWUCB_WINDOW_SIZE = "mab-swucb-window-size"
 MAB_UCB2_ALPHA = "mab-ucb2-alpha"
 MAB_KL_UCB_C = "mab-kl-ucb-c"
 
+MAB_ALL_STRATEGIES_PARAMETERS = [MAB_UCB_EXPLORATION_FACTOR, MAB_RUCB_INTERVAL, MAB_SWUCB_WINDOW_SIZE, MAB_UCB2_ALPHA, MAB_KL_UCB_C]
+
 # stationary
 MAB_REWARD_ALPHA = "mab-reward-alpha"
 MAB_REWARD_BETA = "mab-reward-beta"

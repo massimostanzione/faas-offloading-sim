@@ -12,7 +12,7 @@ from typing import List
 import numpy as np
 
 import conf
-from conf import MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA, MAB_KL_UCB_C
+from conf import MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA, MAB_KL_UCB_C, MAB_ALL_STRATEGIES_PARAMETERS
 from main import main
 from .logging import MABExperimentInstanceRecord, IncrementalLogger, SCRIPT_DIR
 from . import consts
@@ -218,26 +218,42 @@ def extract_strategy_params_from_config(expconfig, strategy: str = None) -> [MAB
 
     # fetch iterable params from expconfig via regex
     parameters_sect = expconfig["parameters"]
-    fetched_params = set()
+    fetched_params_fixed = set()
+    fetched_params_iterable = set()
     for key in parameters_sect.keys():
+
+        # look for fixed (i.e. non-iterable) parameters
+        if key in MAB_ALL_STRATEGIES_PARAMETERS:
+            fetched_params_fixed.add(key)
+
+        # look for iterable parameters
         match = re.match(r"^(.*?)-(start|step|end)$", key)
         if match:
-            fetched_params.add(match.group(1))
+            fetched_params_iterable.add(match.group(1))
 
-    for param_name in sorted(fetched_params):
+    # now build the parameter instances for both fixed and iterable parameters
+    param_insts=[]
+    for param_name in sorted(fetched_params_fixed):
+        # ... treat fixed parameters as iterable ones
+        start = float(parameters_sect.get(param_name))
+        step = start
+        end = start
+        param_insts.append(MABExperiment_IterableParam(param_name, start, step, end))
+
+    for param_name in sorted(fetched_params_iterable):
         start = float(parameters_sect.get(f"{param_name}-start"))
         step = float(parameters_sect.get(f"{param_name}-step"))
         end = float(parameters_sect.get(f"{param_name}-end"))
+        param_insts.append(MABExperiment_IterableParam(param_name, start, step, end))
 
+    for param in param_insts:
         if strategy is not None:
-            if _is_exploration_factor(param_name, strategy):
-                exploration_factor = MABExperiment_IterableParam(param_name, start, step, end)
-            elif _is_other_strategy_param(param_name, strategy):
-                parameter = MABExperiment_IterableParam(param_name, start, step, end)
-                other_strategy_params.append(parameter)
+            if _is_exploration_factor(param.name, strategy):
+                exploration_factor = param
+            elif _is_other_strategy_param(param.name, strategy):
+                other_strategy_params.append(param)
         else:
-            parameter = MABExperiment_IterableParam(param_name, start, step, end)
-            other_strategy_params.append(parameter)
+            other_strategy_params.append(param)
 
     return exploration_factor, other_strategy_params
 
