@@ -36,6 +36,7 @@ def extract_datarecords_from_config_path(config_path:str)->List[MABExperimentIns
                 config["experiment"]["name"],
                 config["strategies"]["strategies"].replace(' ', '').split(consts.DELIMITER_COMMA),
                 config["experiment"]["close-door-time"],
+                config["experiment"]["stat-print-interval"],
                 config["experiment"]["mab-update-interval"],
                 axis_pre,
                 axis_post,# if not is_single_axis else axis_pre,
@@ -79,7 +80,7 @@ def extract_datarecords_from_experiment(exp:MABExperiment)->List[MABExperimentIn
             raise ValueError("\"bayesopt\" value misconfigured, please check your expconf.ini file")
         param_combinations = None if bayesopt else exp.enumerate_iterable_params(strat)
         for pc in param_combinations if param_combinations is not None else [None]:
-            instance = MABExperimentInstanceRecord(strat, axis_pre, axis_post, pc, seed, None, specfile, exp.mab_update_interval)
+            instance = MABExperimentInstanceRecord(strat, axis_pre, axis_post, pc, seed, None, specfile, exp.stat_print_interval, exp.mab_update_interval)
             if pc is None:
                 instance.identifiers["parameters"]=extract_optimal_parameters_for_instance(instance)
             instance=logger.lookup(instance)
