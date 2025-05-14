@@ -420,8 +420,6 @@ class MABExperiment:
 
             # processa l'output
             # (ev. nel post-processing)
-            with open(mabfile, 'r') as f:
-                data = json.load(f)
 
             policies = []
             rewards = []
@@ -436,15 +434,13 @@ class MABExperiment:
                     else:
                         if k in dictt.keys():
                             dictt[k].append(v)
-            for d in data:
-                myprint(d)
-            """for d in data:
-                
-                for k,v in d.items():
-                    if k in dict.keys():
-                        dict[k].append(v)
-                    if isinstance(v, dict):
-            """
+            # extract the data requested to persist from all the output files
+            for file in [statsfile, mabfile]:
+                with open(file, 'r') as f:
+                    data = json.load(f)
+                for d in data:
+                    myprint(d)
+
 
             if self.output_persist.__contains__("cumavg-reward"):
                 for d in data:
