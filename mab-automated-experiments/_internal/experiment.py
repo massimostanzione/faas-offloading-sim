@@ -233,12 +233,15 @@ def extract_strategy_params_from_config(expconfig, strategy: str = None) -> [MAB
 
     # now build the parameter instances for both fixed and iterable parameters
     param_insts=[]
+
     for param_name in sorted(fetched_params_fixed):
+        values = parameters_sect.get(param_name).split(",")
         # ... treat fixed parameters as iterable ones
-        start = float(parameters_sect.get(param_name))
-        step = start
-        end = start
-        param_insts.append(MABExperiment_IterableParam(param_name, start, step, end))
+        for v in values:
+            start = float(v)
+            step = start
+            end = start
+            param_insts.append(MABExperiment_IterableParam(param_name, start, step, end))
 
     for param_name in sorted(fetched_params_iterable):
         start = float(parameters_sect.get(f"{param_name}-start"))
