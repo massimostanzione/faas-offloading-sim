@@ -333,7 +333,7 @@ class MABExperiment:
 
             param_combinations = None if bayesopt else self.enumerate_iterable_params(strat)
             for pc in param_combinations if param_combinations is not None else [None]:
-                instance = MABExperimentInstanceRecord(strat, axis_pre, axis_post, pc, seed, None, specfile, self.mab_update_interval)
+                instance = MABExperimentInstanceRecord(strat, axis_pre, axis_post, pc, seed, None, specfile, self.stat_print_interval, self.mab_update_interval)
                 in_list.append(instance)
         out_list = in_list if not bayesopt else bayesopt_search(in_list, max_procs, self.expconf)
         #out_list=in_list

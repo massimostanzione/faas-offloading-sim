@@ -25,6 +25,7 @@ class MABExperimentInstanceRecord:
                  seed: int,
                  workload: WorkloadIdentifier,
                  specfile: str,
+                 stat_print_interval: float,
                  mab_update_interval: float
                  ):
         # instance identifiers
@@ -36,6 +37,7 @@ class MABExperimentInstanceRecord:
             "seed":seed,
             "workload":workload,
             "specfile":specfile,
+            "stat-print-interval":stat_print_interval,
             "mab-update-interval":mab_update_interval
         }
 
@@ -203,6 +205,7 @@ def _deserialize(dict):
                                         dict["identifiers"]["seed"],
                                         dict["identifiers"]["workload"],
                                         dict["identifiers"]["specfile"],
+                                        dict["identifiers"]["stat-print-interval"],
                                         dict["identifiers"]["mab-update-interval"],
                                        )
     ret.add_experiment_result(dict["results"])

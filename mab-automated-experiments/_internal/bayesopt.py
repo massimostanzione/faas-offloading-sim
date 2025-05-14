@@ -183,7 +183,8 @@ def bayesopt_search(list: List[MABExperimentInstanceRecord], procs: int, expconf
         # build a ready-to-be-processed instance with the optimal params
         ready = MABExperimentInstanceRecord(found.identifiers["strategy"], found.identifiers["axis_pre"],
             found.identifiers["axis_post"], found.results["optimal-params"], found.identifiers["seed"],
-            found.identifiers["workload"], found.identifiers["specfile"], found.identifiers["mab-update-interval"])
+            found.identifiers["workload"], found.identifiers["specfile"], found.identifiers["stat-print-interval"],
+                                            found.identifiers["mab-update-interval"])
         ret.append(ready)
 
 
