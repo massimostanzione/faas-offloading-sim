@@ -25,7 +25,6 @@ def extract_datarecords_from_exp_name(experiment_name:str)->List[MABExperimentIn
 
 def extract_datarecords_from_config_path(config_path:str)->List[MABExperimentInstanceRecord]:
     exp=None
-    print(config_path)
     if os.path.exists(config_path):
         with open(config_path, "r") as expconf_file:
             config = conf.parse_config_file(config_path)
@@ -48,12 +47,13 @@ def extract_datarecords_from_config_path(config_path:str)->List[MABExperimentIns
                 config["parameters"]["specfiles"].replace(' ', '').split(consts.DELIMITER_COMMA),
                 config["output"]["persist"].replace(' ', '').split(consts.DELIMITER_COMMA)
             )
+    else:
+        raise RuntimeError("Path not found for", config_path)
     return extract_datarecords_from_experiment(exp)
 
 def extract_datarecords_from_experiment(exp:MABExperiment)->List[MABExperimentInstanceRecord]:
     logger=IncrementalLogger()
     axis_post_upd=[''] if exp.axis_post==[''] else exp.axis_post
-    print("ENTRA", exp.axis_post, "DIVENTA", axis_post_upd)
     all_combinations = list(itertools.product(exp.strategies, exp.axis_pre, axis_post_upd, exp.seeds, exp.specfiles))
 
     in_list = []
@@ -75,7 +75,8 @@ def extract_datarecords_from_experiment(exp:MABExperiment)->List[MABExperimentIn
             bayesopt = True
         elif bayesopt_value == "false":
             bayesopt = False
-
+        else:
+            raise ValueError("\"bayesopt\" value misconfigured, please check your expconf.ini file")
         param_combinations = None if bayesopt else exp.enumerate_iterable_params(strat)
         for pc in param_combinations if param_combinations is not None else [None]:
             instance = MABExperimentInstanceRecord(strat, axis_pre, axis_post, pc, seed, None, specfile, exp.mab_update_interval)

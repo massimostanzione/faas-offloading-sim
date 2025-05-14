@@ -195,6 +195,8 @@ class IncrementalLogger(Logger):
             return False
         elif rundup == RundupBehavior.SKIP_EXISTENT.value:
             return self.lookup(instance, specific_results) is None
+        else:
+            raise ValueError("invalid simex (\"run-duplicates\") value for", rundup,", please check your expconf.ini file")
 
 def _deserialize(dict):
     ret= MABExperimentInstanceRecord(
