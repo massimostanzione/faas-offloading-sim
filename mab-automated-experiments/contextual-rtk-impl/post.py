@@ -11,7 +11,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 from _api.datarecords import extract_datarecords_from_exp_name, extract_result_dict_from_datarecord
-from _internal import consts
+from _internal import consts, utils
 
 
 # raccogli i dati delle istanze
@@ -91,9 +91,7 @@ for r in records:
     for label in set(labels):
         dati_per_label[label] = {"x": [], "y": [], "c": [], "o_x": [], "o_y": [], "o_c": []}
 
-    # presi da quelli di enrico
-    policy_colors = {"random-lb": "green", "round-robin-lb": "blue", "mama-lb": "orange", "const-hash-lb": "purple",
-                     "wrr-speedup-lb": "lawngreen", "wrr-memory-lb": "dodgerblue", "wrr-cost-lb": "fuchsia"}
+    policy_colors = utils.get_policy_colors()
 
     # Itera attraverso i dati e assegna i valori alle liste corrette
     for i, label in enumerate(labels):
