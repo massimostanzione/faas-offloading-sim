@@ -110,7 +110,7 @@ def get_param_simple_name_sort(full_name: str) -> str:
     if full_name == MAB_UCB_EXPLORATION_FACTOR:
         return "ef"
     elif full_name == MAB_UCB2_ALPHA:
-        return "zalpha"
+        return "alpha"
     elif full_name == MAB_KL_UCB_C:
         return "c"
     return full_name
