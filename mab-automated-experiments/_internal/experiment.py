@@ -19,7 +19,7 @@ from . import consts
 
 logger = IncrementalLogger()
 
-def write_custom_configfile(expname: str, strategy: str, close_door_time: float, mab_update_interval:float, axis_pre: str, axis_post: str, params_names: List[str],
+def write_custom_configfile(expname: str, strategy: str, close_door_time: float, stat_print_interval: float, mab_update_interval:float, axis_pre: str, axis_post: str, params_names: List[str],
                             params_values: List[float], seed: int, specfile: str = None):
     outfile_stats = generate_outfile_name(consts.PREFIX_STATSFILE, strategy, axis_pre, axis_post, params_names,
                                           params_values, seed, specfile) + consts.SUFFIX_STATSFILE
@@ -32,7 +32,7 @@ def write_custom_configfile(expname: str, strategy: str, close_door_time: float,
     # other
     outconfig.add_section(conf.SEC_SIM)
     outconfig.set(conf.SEC_SIM, conf.SPEC_FILE, "../spec.yml" if specfile is None else specfile)
-    outconfig.set(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, str(360))
+    outconfig.set(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, str(stat_print_interval))
     outconfig.set(conf.SEC_SIM, conf.STAT_PRINT_FILE, outfile_stats)
     outconfig.set(conf.SEC_SIM, "mab-stats-print-file", outfile_mabstats)
     outconfig.set(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, str(close_door_time))
@@ -46,7 +46,7 @@ def write_custom_configfile(expname: str, strategy: str, close_door_time: float,
     outconfig.set(conf.SEC_LB, conf.LB_POLICY, "random-lb")
 
     outconfig.add_section(conf.SEC_MAB)
-    outconfig.set(conf.SEC_MAB, conf.MAB_UPDATE_INTERVAL, str(mab_update_interval)) # default 300
+    outconfig.set(conf.SEC_MAB, conf.MAB_UPDATE_INTERVAL, str(mab_update_interval))
     outconfig.set(conf.SEC_MAB, conf.MAB_NON_STATIONARY_ENABLED, "false" if axis_pre == axis_post else "true")
     outconfig.set(conf.SEC_MAB, conf.MAB_LB_POLICIES,
                   "random-lb, round-robin-lb, mama-lb, const-hash-lb, wrr-speedup-lb, wrr-memory-lb, wrr-cost-lb")
@@ -245,7 +245,7 @@ def extract_strategy_params_from_config(expconfig, strategy: str = None) -> [MAB
 from .bayesopt import bayesopt_search
 
 class MABExperiment:
-    def __init__(self, expconf, name: str, strategies: List[str], close_door_time: float=28800, mab_update_interval: float=300, axis_pre: List[str] = None, axis_post: List[str] = None,
+    def __init__(self, expconf, name: str, strategies: List[str], close_door_time: float=28800, stat_print_interval: float = 300, mab_update_interval: float=300, axis_pre: List[str] = None, axis_post: List[str] = None,
                  iterable_params: List[MABExperiment_IterableParam] = None, graphs: List[str] = None,
                  rundup: str = consts.RundupBehavior.SKIP_EXISTENT.value, max_parallel_executions: int = 1,
                  seeds: List[int] = None, specfiles: List[str] = None, output_persist:List[str] = None):
@@ -253,6 +253,7 @@ class MABExperiment:
         self.name = name
         self.strategies = strategies
         self.close_door_time = close_door_time
+        self.stat_print_interval = stat_print_interval
         self.mab_update_interval = mab_update_interval
         self.axis_pre = axis_pre
         self.axis_post = axis_post
@@ -264,9 +265,9 @@ class MABExperiment:
         self.specfiles = specfiles
         self.output_persist = output_persist
 
-    def _generate_config(self, strategy: str, close_door_time: float,mab_update_interval: float, axis_pre: str, axis_post: str, param_names: List[str],
+    def _generate_config(self, strategy: str, close_door_time: float, stat_print_interval: float, mab_update_interval: float, axis_pre: str, axis_post: str, param_names: List[str],
                          param_values: List[float], seed: int, specfile:str):
-        return write_custom_configfile(self.name, strategy, close_door_time, mab_update_interval, axis_pre, axis_post, param_names, param_values, seed,
+        return write_custom_configfile(self.name, strategy, close_door_time, stat_print_interval, mab_update_interval, axis_pre, axis_post, param_names, param_values, seed,
                                        specfile)
 
     # ritorna liste di dizionari del tipo [{par1: valore1, par2, valore2}, {par1: valore1, par2, valore2}, ...]
@@ -382,7 +383,7 @@ class MABExperiment:
             print("--------------------------------------------")
             param_names=[k for k,_ in params.items()]
             current_values=[v for _,v in params.items()]
-            config_path = self._generate_config(strategy, self.close_door_time, self.mab_update_interval, ax_pre, ax_post, param_names, current_values, seed, specfile)
+            config_path = self._generate_config(strategy, self.close_door_time, self.stat_print_interval, self.mab_update_interval, ax_pre, ax_post, param_names, current_values, seed, specfile)
 
             statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strategy, ax_pre, ax_post, param_names,
                 current_values, seed, specfile) + consts.SUFFIX_STATSFILE

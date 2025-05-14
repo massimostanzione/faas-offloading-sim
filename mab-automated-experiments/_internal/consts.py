@@ -1,5 +1,8 @@
 from enum import Enum
 
+DEFAULT_STAT_PRINT_INTERVAL = 360
+DEFAULT_MAB_UPDATE_INTERVAL = 300
+
 PREFIX_STATSFILE = "stats"
 PREFIX_MABSTATSFILE = "mab-stats"
 PREFIX_LOCKFILE = "json-lockfile-"

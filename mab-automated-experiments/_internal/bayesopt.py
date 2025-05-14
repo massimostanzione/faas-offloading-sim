@@ -32,7 +32,7 @@ def obj_ucbtuned(expname, ef, cdt, mui, instance: MABExperimentInstanceRecord, s
     seed = instance.identifiers["seed"]
     print(f"computing for {strat}, {ax_pre} > {ax_post}, seed={seed}, ef={ef}\n")
     for _ in range(num_simulations):
-        write_custom_configfile(expname, strat, cdt, mui, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR], [ef], seed, specfile)
+        write_custom_configfile(expname, strat, cdt, spi, mui, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR], [ef], seed, specfile)
 
         statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR],
             [ef], seed, specfile) + consts.SUFFIX_STATSFILE
