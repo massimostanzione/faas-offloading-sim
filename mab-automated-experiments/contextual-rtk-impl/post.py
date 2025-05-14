@@ -47,7 +47,7 @@ for r in records:
                     if line!="Rate\n":
                         valori_plot.append(float(line))
 
-    mem = extract_result_dict_from_datarecord(r, "avgMemoryUtilization")
+    mem = extract_result_dict_from_datarecord(r, "avgMemoryUtilization_sys")
     instances = extract_result_dict_from_datarecord(r, "instance_invoked")
     time = extract_result_dict_from_datarecord(r, "time")
     policies = extract_result_dict_from_datarecord(r, "policy")

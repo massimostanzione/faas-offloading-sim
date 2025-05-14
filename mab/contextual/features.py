@@ -2,7 +2,7 @@ from enum import Enum
 
 
 class ContextFeature(Enum):
-    MEM = "avgMemoryUtilization",
+    MEM = "avgMemoryUtilization_sys",
     CO2 = "CO2"
 
     def __str__(self):
