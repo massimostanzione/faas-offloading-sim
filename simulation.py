@@ -702,14 +702,8 @@ class Simulation:
         vals=[v for k,v in self.stats.to_dict()["avgMemoryUtilization"].items() if k!="lb1"]
         WND=4
         avg=np.average(list(vals)[:-WND-1])
-        dict["avgMemoryUtilization"]=avg
-        """
-        sum = 0
-        for k, v in self.stats.arrivals.items():
-            sum += self.stats.arrivals[k] - self.stats.ss_arrivals[k]
+        dict[ContextFeature.MEM.value[0]]=avg
 
-        dict["avgMemoryUtilization"]=sum / self.mab_update_interval
-        """
         print("probed:",dict)
         return dict
 
