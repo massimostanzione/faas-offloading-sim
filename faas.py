@@ -4,18 +4,19 @@ from enum import Enum
 
 class ContainerPool:
 
-    def __init__ (self):
+    def __init__ (self, node_name):
+        self.node_name = node_name
         self.pool = []
 
     def append (self, e, stats):
         self.pool.append(e)
-        stats.warm_ctr+=1
+        stats.warm_ctr[self.node_name]+=1
 
     def remove (self, f, stats):
         for entry in self.pool:
             if f.name == entry[0].name:
                 self.pool.remove(entry)
-                stats.warm_ctr-=1
+                stats.warm_ctr[self.node_name]-=1
                 return
 
     def __len__ (self):
@@ -63,7 +64,7 @@ class Node:
         self.cost = cost
         self.custom_sched_policy = custom_sched_policy
 
-        self.warm_pool = ContainerPool()
+        self.warm_pool = ContainerPool(self.name)
         self.kv_store = {}
 
     def __repr__ (self):

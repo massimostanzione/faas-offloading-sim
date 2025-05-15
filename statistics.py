@@ -7,7 +7,7 @@ import conf
 class Stats:
 
     def __init__ (self, sim, functions, classes, infra):
-        self.warm_ctr = 0
+        self.warm_ctr = {k.name:0 for k in infra.get_nodes()}
         self.sim = sim
         self.infra = infra
         self.functions = functions

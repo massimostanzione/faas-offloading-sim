@@ -355,8 +355,14 @@ for r in records:
     # for label, data in dati_per_label.items():
     #    ax1.scatter(data["x"], data["y"], marker='x', c=data["c"], label=f'{label} (primi 7)')
     #    ax1.scatter(data["o_x"], data["o_y"], marker='o', c=data["o_c"], label=f'{label} (successivi)')
-    #for i in range(1,9):
-    ax1.scatter(time, warmctr)
+
+    output={k:[] for k in warmctr[0].keys()}
+    for dict in warmctr:
+        for k, v in dict.items():
+            output[k].append(v)
+    for k in warmctr[0].keys():
+        ax1.plot(time, output[k])
+
     #ax1.scatter(time, mem)
     # ax1.plot(t, data1, color=color)
     ax1.tick_params(axis='y', labelcolor=color)
