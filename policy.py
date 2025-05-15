@@ -65,7 +65,7 @@ class Policy:
         if f in self.node.warm_pool or self.node.curr_memory >= f.memory:
             return True
         if reclaim_memory:
-            reclaimed = self.node.warm_pool.reclaim_memory(f.memory - self.node.curr_memory)
+            reclaimed = self.node.warm_pool.reclaim_memory(f.memory - self.node.curr_memory, self.simulation.stats)
             self.node.curr_memory += reclaimed
         return self.node.curr_memory >= f.memory
 

@@ -7,13 +7,15 @@ class ContainerPool:
     def __init__ (self):
         self.pool = []
 
-    def append (self, e):
+    def append (self, e, stats):
         self.pool.append(e)
+        stats.warm_ctr+=1
 
-    def remove (self, f):
+    def remove (self, f, stats):
         for entry in self.pool:
             if f.name == entry[0].name:
                 self.pool.remove(entry)
+                stats.warm_ctr-=1
                 return
 
     def __len__ (self):
@@ -22,7 +24,7 @@ class ContainerPool:
     def front (self):
         return self.pool[0]
 
-    def reclaim_memory (self, required_mem):
+    def reclaim_memory (self, required_mem, stats):
         mem = [entry[0].memory for entry in self.pool]
         if sum(mem) < required_mem:
             return 0.0
@@ -31,7 +33,7 @@ class ContainerPool:
         while reclaimed < required_mem:
             f = s[0]
             s = s[1:]
-            self.remove(f)
+            self.remove(f, stats)
             reclaimed += f.memory
         return reclaimed
 

@@ -7,6 +7,7 @@ import conf
 class Stats:
 
     def __init__ (self, sim, functions, classes, infra):
+        self.warm_ctr = 0
         self.sim = sim
         self.infra = infra
         self.functions = functions
@@ -131,6 +132,8 @@ class Stats:
             else:
                 available_mem[repr(n)] = 0
         stats["availableMemory"] = available_mem
+
+        stats["warm_ctr"]=self.warm_ctr
 
         return stats
     

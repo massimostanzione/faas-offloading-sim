@@ -597,7 +597,7 @@ class Simulation:
         if self.resp_times_file is not None:
             print(f"{f},{c},{n},{event.offloaded_from != None and len(event.offloaded_from) > 0},{event.cold},{dat},{rt}", file=self.resp_times_file)
 
-        n.warm_pool.append((f, self.t + self.expiration_timeout))
+        n.warm_pool.append((f, self.t + self.expiration_timeout), self.stats)
         if self.external_arrivals_allowed:
             self.schedule(self.t + self.expiration_timeout, CheckExpiredContainers(n)) 
 
@@ -633,7 +633,7 @@ class Simulation:
             # check warm or cold
             if f in n.warm_pool:
                 # warm
-                n.warm_pool.remove(f)
+                n.warm_pool.remove(f, self.stats)
                 init_time = 0
             else:
                 # cold start
