@@ -25,7 +25,7 @@ bayes_expconf = None
 num_simulations = 1  # config.getint("parameters", "objfn-stabilizations-iterations")
 
 
-def obj_ucbtuned(expname, ef, cdt, mui, instance: MABExperimentInstanceRecord, specfile, rundup):
+def obj_ucbtuned(expname, ef, cdt, spi, mui, instance: MABExperimentInstanceRecord, specfile, rundup):
     strat = instance.identifiers["strategy"]
     ax_pre = instance.identifiers["axis_pre"]
     ax_post = instance.identifiers["axis_post"]
@@ -46,14 +46,14 @@ def obj_ucbtuned(expname, ef, cdt, mui, instance: MABExperimentInstanceRecord, s
         os.remove(statsfile)
         return ret
 
-def obj_ucb2(expname, ef, cdt, mui, alpha, instance: MABExperimentInstanceRecord, specfile, rundup):
+def obj_ucb2(expname, ef, cdt, spi, mui, alpha, instance: MABExperimentInstanceRecord, specfile, rundup):
     strat = instance.identifiers["strategy"]
     ax_pre = instance.identifiers["axis_pre"]
     ax_post = instance.identifiers["axis_post"]
     seed = instance.identifiers["seed"]
     print(f"computing for {strat}, {ax_pre} > {ax_post}, seed={seed}, ef={ef}, alpha={alpha}\n")
     for _ in range(num_simulations):
-        write_custom_configfile(expname, strat, cdt, mui, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA],
+        write_custom_configfile(expname, strat, cdt, spi, mui, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA],
                                 [ef, alpha], seed, specfile)
 
         statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strat, ax_pre, ax_post,
@@ -71,14 +71,14 @@ def obj_ucb2(expname, ef, cdt, mui, alpha, instance: MABExperimentInstanceRecord
         return ret
 
 
-def obj_klucb(expname, ef, c, cdt, mui, instance: MABExperimentInstanceRecord, specfile, rundup):
+def obj_klucb(expname, ef, c, cdt, spi, mui, instance: MABExperimentInstanceRecord, specfile, rundup):
     strat = instance.identifiers["strategy"]
     ax_pre = instance.identifiers["axis_pre"]
     ax_post = instance.identifiers["axis_post"]
     seed = instance.identifiers["seed"]
     print(f"computing for {strat}, {ax_pre} > {ax_post}, seed={seed}, ef={ef}, c={c}\n")
     for _ in range(num_simulations):
-        path = write_custom_configfile(expname, strat, cdt, mui, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C],
+        path = write_custom_configfile(expname, strat, cdt, spi, mui, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C],
                                        [ef, c], seed, specfile)
 
         statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strat, ax_pre, ax_post,
@@ -94,14 +94,14 @@ def obj_klucb(expname, ef, c, cdt, mui, instance: MABExperimentInstanceRecord, s
         return ret
 
 
-def obj_klucbsp(expname, c, cdt, mui, instance: MABExperimentInstanceRecord, specfile, rundup):
+def obj_klucbsp(expname, c, cdt, spi, mui, instance: MABExperimentInstanceRecord, specfile, rundup):
     strat = instance.identifiers["strategy"]
     ax_pre = instance.identifiers["axis_pre"]
     ax_post = instance.identifiers["axis_post"]
     seed = instance.identifiers["seed"]
     print(f"computing for {strat}, {ax_pre} > {ax_post}, seed={seed}, c={c}\n")
     for _ in range(num_simulations):
-        path = write_custom_configfile(expname, strat, cdt, mui, ax_pre, ax_post, [MAB_KL_UCB_C], [c], seed, specfile)
+        path = write_custom_configfile(expname, strat, cdt, spi, mui, ax_pre, ax_post, [MAB_KL_UCB_C], [c], seed, specfile)
 
         statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strat, ax_pre, ax_post, [MAB_KL_UCB_C], [c],
             seed, specfile) + consts.SUFFIX_STATSFILE
@@ -205,6 +205,7 @@ def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> di
     ef_lower = bayes_expconf["parameters"]["ef-lower"]
     ef_upper = bayes_expconf["parameters"]["ef-upper"]
     cdt = bayes_expconf["experiment"]["close-door-time"]
+    spi = bayes_expconf["experiment"]["stat-print-interval"]
     mui = bayes_expconf["experiment"]["mab-update-interval"]
     # for strat, axis, wlname, seed in strategies, axis_fixed, specfile, seeds:
 
@@ -216,16 +217,16 @@ def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> di
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     specfile = instance.identifiers["specfile"]# os.path.join(expname, "results", "spec" + str(instance.identifiers["workload"]) + consts.SUFFIX_SPECSFILE)
     def objwrapper_ucbtuned(ef):
-        return obj_ucbtuned(expname, ef, cdt, mui, instance, specfile, rundup)
+        return obj_ucbtuned(expname, ef, cdt, spi, mui, instance, specfile, rundup)
 
     def objwrapper_ucb2(ef, alpha):
-        return obj_ucb2(expname, ef, cdt, mui, alpha, instance, specfile, rundup)
+        return obj_ucb2(expname, ef, cdt, spi, mui, alpha, instance, specfile, rundup)
 
     def objwrapper_klucb(ef, c):
-        return obj_klucb(expname, ef, cdt, mui, c, instance, specfile, rundup)
+        return obj_klucb(expname, ef, cdt, spi, mui, c, instance, specfile, rundup)
 
     def objwrapper_klucbsp(c):
-        return obj_klucbsp(expname, c, cdt, mui, instance, specfile, rundup)
+        return obj_klucbsp(expname, c, cdt, spi, mui, instance, specfile, rundup)
 
     print(f"Processing strategy={strat}, ax_pre={ax_pre}, ax_post={ax_post}, seed={seed}, specfile={specfile}")
     if strat == "UCBTuned" or strat == "RTK-UCBTuned":
