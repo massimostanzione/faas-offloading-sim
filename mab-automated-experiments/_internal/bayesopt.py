@@ -43,6 +43,7 @@ def obj_ucbtuned(expname, ef, cdt, spi, mui, instance: MABExperimentInstanceReco
         instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_UCB_EXPLORATION_FACTOR): float(ef)}
 
         ret = compute_total_reward(expname, instance_sub, rundup) / num_simulations
+        # TODO codice duplicato:
         os.remove(statsfile)
         return ret
 
@@ -192,6 +193,7 @@ def bayesopt_search(list: List[MABExperimentInstanceRecord], procs: int, expconf
     # TODO garbage collector, by instance/whole folder
     tmpfldr = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.TEMP_FILES_DIR))
     if os.path.exists(tmpfldr):
+        # TODO codice duplicato altrove
         shutil.rmtree(tmpfldr, ignore_errors=True)
 
     return ret

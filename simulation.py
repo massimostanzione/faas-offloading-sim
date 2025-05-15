@@ -409,6 +409,7 @@ class Simulation:
             # Non-stationary case
             non_stationary=self.config.getboolean(conf.SEC_MAB, conf.MAB_NON_STATIONARY_ENABLED, fallback=False)
             if non_stationary:
+                # TODO parametrizzare
                 self.schedule(3600, RewardUpdate())
 
         while len(self.events) > 0:
@@ -697,6 +698,7 @@ class Simulation:
         return float(duration + data_access_time), float(data_access_time)
 
     # TODO move to agents.py?
+    # TODO classe FeatureInstance con specificanti con relativo metodo di calcolo
     def _probe_context_related_info(self) -> dict:
         dict={}
         vals=[v for k,v in self.stats.to_dict()["avgMemoryUtilization"].items() if k!="lb1"]
