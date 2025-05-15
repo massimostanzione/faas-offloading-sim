@@ -61,7 +61,13 @@ for r in records:
                         valori_plot.append(float(line))
         """
     mem = extract_result_dict_from_datarecord(r, "avgMemoryUtilization_sys")
+    mem_cloud={"cloud"+str(i):[] for i in range(1,9)}
+    for data in extract_result_dict_from_datarecord(r, "avgMemoryUtilization"):
+        for i in range(1,9):
+            mem_cloud["cloud"+str(i)].append( data["cloud"+str(i)])
+    #print(mem_cloud)
     rates = extract_result_dict_from_datarecord(r, "sampledRate")
+    warmctr = extract_result_dict_from_datarecord(r, "warm_ctr")
     #instances = extract_result_dict_from_datarecord(r, "instance_invoked")
     time = extract_result_dict_from_datarecord(r, "time")
     #policies = extract_result_dict_from_datarecord(r, "policy")
@@ -267,8 +273,165 @@ for r in records:
     fig.savefig(os.path.join(SCRIPT_DIR, "output",
                              consts.DELIMITER_HYPHEN.join(
                                  [str(timestamp), str(graphs_ctr)]).replace(' ',
-                                                                            '-') + ".svg"))
+                                                                            '-') + "a.svg"))
     fig.clf()
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    fig, ax1 = plt.subplots(1, 1, figsize=(12, 6))
+
+    ax1.set_title("Utilizzo memoria")
+
+    color = 'tab:red'
+    ax1.set_xlabel('Tempo [s]')
+    ax1.set_ylabel('avgMemoryUtilization_sys', color=color)
+    ax1.set_ylim([0, 1])
+    # Plotta i dati per ciascuna label
+    # for label, data in dati_per_label.items():
+    #    ax1.scatter(data["x"], data["y"], marker='x', c=data["c"], label=f'{label} (primi 7)')
+    #    ax1.scatter(data["o_x"], data["o_y"], marker='o', c=data["o_c"], label=f'{label} (successivi)')
+    for i in range(1,9):
+        ax1.scatter(time, mem_cloud["cloud"+str(i)])
+    #ax1.scatter(time, mem)
+    # ax1.plot(t, data1, color=color)
+    ax1.tick_params(axis='y', labelcolor=color)
+
+    ax2 = ax1.twinx()  # instantiate a second Axes that shares the same x-axis
+
+    color = 'tab:blue'
+    ax2.set_ylabel('Frequenza arrivi (traccia) [req/s]', color=color)  # we already handled the x-label with ax1
+
+
+
+
+
+
+    fig.savefig(os.path.join(SCRIPT_DIR, "output",
+                             consts.DELIMITER_HYPHEN.join(
+                                 [str(timestamp), str(graphs_ctr)]).replace(' ',
+                                                                            '-') + "b.svg"))
+    fig.clf()
+
+
+
+
+
+
+
+
+
+
+
+    fig, ax1 = plt.subplots(1, 1, figsize=(12, 6))
+
+    ax1.set_title("warm containers totali")
+
+    color = 'tab:red'
+    ax1.set_xlabel('Tempo [s]')
+    ax1.set_ylabel('avgMemoryUtilization_sys', color=color)
+    #ax1.set_ylim([0, 1])
+    # Plotta i dati per ciascuna label
+    # for label, data in dati_per_label.items():
+    #    ax1.scatter(data["x"], data["y"], marker='x', c=data["c"], label=f'{label} (primi 7)')
+    #    ax1.scatter(data["o_x"], data["o_y"], marker='o', c=data["o_c"], label=f'{label} (successivi)')
+    #for i in range(1,9):
+    ax1.scatter(time, warmctr)
+    #ax1.scatter(time, mem)
+    # ax1.plot(t, data1, color=color)
+    ax1.tick_params(axis='y', labelcolor=color)
+
+    ax2 = ax1.twinx()  # instantiate a second Axes that shares the same x-axis
+
+    color = 'tab:blue'
+    ax2.set_ylabel('Frequenza arrivi (traccia) [req/s]', color=color)  # we already handled the x-label with ax1
+
+
+
+
+
+
+
+    fig.savefig(os.path.join(SCRIPT_DIR, "output",
+                             consts.DELIMITER_HYPHEN.join(
+                                 [str(timestamp), str(graphs_ctr)]).replace(' ',
+                                                                            '-') + "c.svg"))
+    fig.clf()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    avMem = extract_result_dict_from_datarecord(r, "availableMemory")
+
+    fig, ax1 = plt.subplots(1, 1, figsize=(12, 6))
+
+    ax1.set_title("available memory")
+
+    color = 'tab:red'
+    ax1.set_xlabel('Tempo [s]')
+    ax1.set_ylabel('avgMemoryUtilization_sys', color=color)
+    ax1.set_ylim([0, 1])
+    # Plotta i dati per ciascuna label
+    # for label, data in dati_per_label.items():
+    #    ax1.scatter(data["x"], data["y"], marker='x', c=data["c"], label=f'{label} (primi 7)')
+    #    ax1.scatter(data["o_x"], data["o_y"], marker='o', c=data["o_c"], label=f'{label} (successivi)')
+    #for i in range(1,9):
+    #ax1.scatter(time, avMem)
+    #ax1.scatter(time, mem)
+    # ax1.plot(t, data1, color=color)
+    ax1.tick_params(axis='y', labelcolor=color)
+
+    ax2 = ax1.twinx()  # instantiate a second Axes that shares the same x-axis
+
+    color = 'tab:blue'
+    ax2.set_ylabel('Frequenza arrivi (traccia) [req/s]', color=color)  # we already handled the x-label with ax1
+
+
+
+
+
+
+
+    fig.savefig(os.path.join(SCRIPT_DIR, "output",
+                             consts.DELIMITER_HYPHEN.join(
+                                 [str(timestamp), str(graphs_ctr)]).replace(' ',
+                                                                            '-') + "d.svg"))
+    fig.clf()

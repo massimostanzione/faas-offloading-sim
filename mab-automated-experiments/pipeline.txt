@@ -1,2 +1,1 @@
-arms-disparity
-bayesopt-params-tuning
+issue12-investigation

@@ -540,8 +540,12 @@ class Simulation:
                 return
             f,timeout = event.node.warm_pool.front()
             if timeout < t:
+                # rimuovi il container scaduto
                 self.stats.update_memory_usage(event.node, self.t)
+
+                # FIXME questa riga non dovrebbe essere sopra?
                 event.node.curr_memory += f.memory
+
                 event.node.warm_pool.pool = event.node.warm_pool.pool[1:]
         elif isinstance(event, MABUpdate):
             print("TIME:", self.t)
@@ -628,12 +632,18 @@ class Simulation:
             duration, data_access_time = self.next_function_duration(f, n)
             # check warm or cold
             if f in n.warm_pool:
+                # warm
                 n.warm_pool.remove(f)
                 init_time = 0
             else:
+                # cold start
                 self.stats.update_memory_usage(event.node, self.t)
+
+                # FIXME queste due righe non dovrebbero andare sopra la precedente?
+                #       (comunque non risolve il problema della issue 12)
                 assert(n.curr_memory >= f.memory)
                 n.curr_memory -= f.memory
+
                 self.stats.cold_starts[(f,n)] += 1
                 init_time = self.init_time[(f,n)]
             arrival_time = self.t if event.original_arrival_time is None else event.original_arrival_time

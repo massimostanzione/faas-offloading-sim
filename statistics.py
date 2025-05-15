@@ -1,4 +1,7 @@
 import json
+
+import numpy as np
+
 import conf
 
 class Stats:
@@ -102,6 +105,9 @@ class Stats:
                 avgMemUtil[repr(n)] = 0
         stats["avgMemoryUtilization"] = avgMemUtil
 
+        # TODO "lb1" va generalizzato
+        stats["avgMemoryUtilization_sys"] = np.average([v for k,v in avgMemUtil.items() if k!="lb1"])
+
         sumrate = 0
         for k, v in self.arrivals.items():
             sumrate += self.arrivals[k] - self.ss_arrivals[k]
@@ -118,10 +124,19 @@ class Stats:
             avg_mig_policy_upd_time = self._mig_policy_update_time_sum/self._mig_policy_updates
         stats["avgMigPolicyUpdateTime"] = avg_mig_policy_upd_time
 
+        available_mem={}
+        for n in self._memory_usage_t0:
+            if n.total_memory != 0:
+                available_mem[repr(n)] = n.curr_memory
+            else:
+                available_mem[repr(n)] = 0
+        stats["availableMemory"] = available_mem
+
         return stats
     
     def update_memory_usage (self, node, t):
         used_mem = node.total_memory-node.curr_memory
+        assert(node.total_memory>=node.curr_memory)
         self._memory_usage_area[node] += used_mem*(t-self._memory_usage_t0[node])
         self._memory_usage_t0[node] = t
 

@@ -309,6 +309,7 @@ class MABExperiment:
         tmpfldr=os.path.abspath(os.path.join(os.path.dirname(__file__),consts.TEMP_FILES_DIR))
 
         if os.path.exists(tmpfldr):
+            # TODO codice duplicato altrove
             shutil.rmtree(tmpfldr, ignore_errors=True)
 
 
