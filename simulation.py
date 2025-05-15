@@ -701,9 +701,10 @@ class Simulation:
     # TODO classe FeatureInstance con specificanti con relativo metodo di calcolo
     def _probe_context_related_info(self) -> dict:
         dict={}
-        vals=[v for k,v in self.stats.to_dict()["avgMemoryUtilization"].items() if k!="lb1"]
+        # TODO sistemare la finestra mobile
+        avg=self.stats.to_dict()["avgMemoryUtilization_sys"]
         WND=4
-        avg=np.average(list(vals)[:-WND-1])
+        #avg=np.average(list(vals)[:-WND-1])
         dict[ContextFeature.MEM.value[0]]=avg
 
         print("probed:",dict)
