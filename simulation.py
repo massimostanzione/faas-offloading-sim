@@ -546,7 +546,9 @@ class Simulation:
                 # FIXME questa riga non dovrebbe essere sopra?
                 event.node.curr_memory += f.memory
 
+                # FIXME perché non è passato da warm_pool.remove? forse perché è passato da front()?
                 event.node.warm_pool.pool = event.node.warm_pool.pool[1:]
+                self.stats.warm_ctr[event.node.name]-=1
         elif isinstance(event, MABUpdate):
             print("TIME:", self.t)
             print("[MABUpdate]: MAB agent in action...")
