@@ -127,11 +127,10 @@ class Stats:
 
         available_mem={}
         for n in self._memory_usage_t0:
-            if n.total_memory != 0:
-                available_mem[repr(n)] = n.curr_memory
-            else:
-                available_mem[repr(n)] = 0
+            available_mem[repr(n)] = n.curr_memory
         stats["availableMemory"] = available_mem
+
+        stats["availableMemory_sys"] = np.average([available_mem[k] for k in available_mem.keys()])
 
         stats["warm_ctr"]=self.warm_ctr
 
