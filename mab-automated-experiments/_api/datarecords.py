@@ -4,6 +4,7 @@ import sys
 from typing import List
 
 import conf
+from conf import EXPIRATION_TIMEOUT
 
 # TODO cambio nome packages per quanto segue
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -46,6 +47,7 @@ def extract_datarecords_from_config_path(config_path:str)->List[MABExperimentIns
                 config.getint("experiment", "max-parallel-execution"),
                 config["parameters"]["seeds"].replace(' ', '').split(consts.DELIMITER_COMMA),
                 config["parameters"]["specfiles"].replace(' ', '').split(consts.DELIMITER_COMMA),
+                config["parameters"][EXPIRATION_TIMEOUT].replace(' ', '').split(consts.DELIMITER_COMMA),
                 config["output"]["persist"].replace(' ', '').split(consts.DELIMITER_COMMA)
             )
     else:
@@ -56,12 +58,14 @@ def extract_datarecords_from_experiment(exp:MABExperiment)->List[MABExperimentIn
     logger=IncrementalLogger()
     axis_post_upd=[''] if exp.axis_post==[''] else exp.axis_post
     all_combinations = list(itertools.product(exp.strategies, exp.axis_pre, axis_post_upd, exp.seeds, exp.specfiles))
+    all_combinations = list(itertools.product(exp.strategies, exp.axis_pre, axis_post_upd, exp.seeds, exp.specfiles, exp.expiration_timeouts))
 
     in_list = []
     bayesopt = None
 
 
     for strat, axis_pre, axis_post, seed, specfile in all_combinations:
+    for strat, axis_pre, axis_post, seed, specfile, expiration_timeout in all_combinations:
         if axis_post=='': axis_post=axis_pre
         print("APU", axis_post_upd, axis_pre, axis_post)
         # TODO bayesopt oppure parametri caricati exp.params
@@ -80,7 +84,7 @@ def extract_datarecords_from_experiment(exp:MABExperiment)->List[MABExperimentIn
             raise ValueError("\"bayesopt\" value misconfigured, please check your expconf.ini file")
         param_combinations = None if bayesopt else exp.enumerate_iterable_params(strat)
         for pc in param_combinations if param_combinations is not None else [None]:
-            instance = MABExperimentInstanceRecord(strat, axis_pre, axis_post, pc, seed, None, specfile, exp.stat_print_interval, exp.mab_update_interval)
+            instance = MABExperimentInstanceRecord(strat, axis_pre, axis_post, pc, seed, None, specfile, exp.stat_print_interval, exp.mab_update_interval, expiration_timeout)
             if pc is None:
                 instance.identifiers["parameters"]=extract_optimal_parameters_for_instance(instance)
             instance=logger.lookup(instance)

@@ -12,7 +12,8 @@ from typing import List
 import numpy as np
 
 import conf
-from conf import MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA, MAB_KL_UCB_C, MAB_ALL_STRATEGIES_PARAMETERS
+from conf import MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA, MAB_KL_UCB_C, MAB_ALL_STRATEGIES_PARAMETERS, \
+    EXPIRATION_TIMEOUT
 from main import main
 from .logging import MABExperimentInstanceRecord, IncrementalLogger, SCRIPT_DIR
 from . import consts
@@ -20,9 +21,9 @@ from . import consts
 logger = IncrementalLogger()
 
 def write_custom_configfile(expname: str, strategy: str, close_door_time: float, stat_print_interval: float, mab_update_interval:float, axis_pre: str, axis_post: str, params_names: List[str],
-                            params_values: List[float], seed: int, specfile: str = None):
+                            params_values: List[float], seed: int, specfile: str = None, expiration_timeout: float = consts.DEFAULT_EXPIRATION_TIMEOUT):
     outfile_stats = generate_outfile_name(consts.PREFIX_STATSFILE, strategy, axis_pre, axis_post, params_names,
-                                          params_values, seed, specfile) + consts.SUFFIX_STATSFILE
+                                          params_values, seed, specfile, expiration_timeout) + consts.SUFFIX_STATSFILE
     outfile_mabstats = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.TEMP_STATS_LOCATION,
                                                     consts.PREFIX_MABSTATSFILE + consts.SUFFIX_MABSTATSFILE + "-pid" + str(
                                                         os.getpid())))
@@ -44,6 +45,9 @@ def write_custom_configfile(expname: str, strategy: str, close_door_time: float,
     outconfig.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, str(0.3))
     outconfig.add_section(conf.SEC_LB)
     outconfig.set(conf.SEC_LB, conf.LB_POLICY, "random-lb")
+
+    outconfig.add_section(conf.SEC_CONTAINER)
+    outconfig.set(conf.SEC_CONTAINER, conf.EXPIRATION_TIMEOUT, str(expiration_timeout))
 
     outconfig.add_section(conf.SEC_MAB)
     outconfig.set(conf.SEC_MAB, conf.MAB_UPDATE_INTERVAL, str(mab_update_interval))
@@ -126,7 +130,7 @@ def get_param_full_name(simple_name: str) -> str:
     return simple_name
 
 
-def generate_outfile_name(prefix, strategy, axis_pre, axis_post, params_names, params_values, seed, specfile):
+def generate_outfile_name(prefix, strategy, axis_pre, axis_post, params_names, params_values, seed, specfile, expiration_timeeout):
     pardict = {}
     for i, _ in enumerate(params_names):
         pardict[params_names[i]] = params_values[i]
@@ -139,6 +143,7 @@ def generate_outfile_name(prefix, strategy, axis_pre, axis_post, params_names, p
             [output_suffix, consts.DELIMITER_PARAMS.join([get_param_simple_name(key), "{}".format(float(value))])])
     output_suffix = consts.DELIMITER_HYPHEN.join([output_suffix, consts.DELIMITER_PARAMS.join(["seed", seed])])
     output_suffix = consts.DELIMITER_HYPHEN.join([output_suffix, consts.DELIMITER_PARAMS.join(["specfile", specfile])])
+    output_suffix = consts.DELIMITER_HYPHEN.join([output_suffix, consts.DELIMITER_PARAMS.join(["exptimeout", expiration_timeeout])])
     config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.TEMP_STATS_LOCATION, output_suffix))
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     return config_path
@@ -264,7 +269,10 @@ class MABExperiment:
     def __init__(self, expconf, name: str, strategies: List[str], close_door_time: float=28800, stat_print_interval: float = 300, mab_update_interval: float=300, axis_pre: List[str] = None, axis_post: List[str] = None,
                  iterable_params: List[MABExperiment_IterableParam] = None, graphs: List[str] = None,
                  rundup: str = consts.RundupBehavior.SKIP_EXISTENT.value, max_parallel_executions: int = 1,
-                 seeds: List[int] = None, specfiles: List[str] = None, output_persist:List[str] = None):
+                 seeds: List[int] = None, specfiles: List[str] = None, expiration_timeouts=None,
+                 output_persist:List[str] = None):
+        if expiration_timeouts is None:
+            expiration_timeouts = [consts.DEFAULT_EXPIRATION_TIMEOUT]
         self.expconf = expconf
         self.name = name
         self.strategies = strategies
@@ -279,12 +287,13 @@ class MABExperiment:
         self.max_parallel_executions = max_parallel_executions
         self.seeds = [123] if seeds == None else seeds
         self.specfiles = specfiles
+        self.expiration_timeouts = expiration_timeouts
         self.output_persist = output_persist
 
     def _generate_config(self, strategy: str, close_door_time: float, stat_print_interval: float, mab_update_interval: float, axis_pre: str, axis_post: str, param_names: List[str],
-                         param_values: List[float], seed: int, specfile:str):
+                         param_values: List[float], seed: int, specfile:str, expiration_timeout:float):
         return write_custom_configfile(self.name, strategy, close_door_time, stat_print_interval, mab_update_interval, axis_pre, axis_post, param_names, param_values, seed,
-                                       specfile)
+                                       specfile, expiration_timeout)
 
     # ritorna liste di dizionari del tipo [{par1: valore1, par2, valore2}, {par1: valore1, par2, valore2}, ...]
     # ove ciascun dizionario rappresenta i parametri di una singola istanza
@@ -330,12 +339,12 @@ class MABExperiment:
 
         # todo questo pezzo di codice è in API, vedere se/come unire
         max_procs = self.max_parallel_executions
-        all_combinations = list(itertools.product(self.strategies, self.axis_pre, self.axis_post, self.seeds, self.specfiles))
+        all_combinations = list(itertools.product(self.strategies, self.axis_pre, self.axis_post, self.seeds, self.specfiles, self.expiration_timeouts))
 
         in_list = []
         bayesopt=None
 
-        for strat, axis_pre, axis_post, seed, specfile in all_combinations:
+        for strat, axis_pre, axis_post, seed, specfile, expiration_timeout in all_combinations:
             if axis_post=="": axis_post=axis_pre
             # TODO bayesopt oppure parametri caricati self.params
             # FIXME parametro workload
@@ -350,7 +359,8 @@ class MABExperiment:
 
             param_combinations = None if bayesopt else self.enumerate_iterable_params(strat)
             for pc in param_combinations if param_combinations is not None else [None]:
-                instance = MABExperimentInstanceRecord(strat, axis_pre, axis_post, pc, seed, None, specfile, self.stat_print_interval, self.mab_update_interval)
+                instance = MABExperimentInstanceRecord(strat, axis_pre, axis_post, pc, seed, None, specfile,
+                                                       self.stat_print_interval, self.mab_update_interval, expiration_timeout)
                 in_list.append(instance)
         out_list = in_list if not bayesopt else bayesopt_search(in_list, max_procs, self.expconf)
         #out_list=in_list
@@ -385,6 +395,7 @@ class MABExperiment:
             ax_post=instance.identifiers["axis_post"]
             seed=instance.identifiers["seed"]
             specfile = instance.identifiers["specfile"]
+            expiration_timeout = instance.identifiers[EXPIRATION_TIMEOUT]
             print(f"Processing strategy={strategy}, ax_pre={ax_pre}, ax_post={ax_post}, seed={seed}, specfile={specfile}")
             print()
             print("============================================")
@@ -398,13 +409,16 @@ class MABExperiment:
             for k,v in params.items():
                 print(f"\t\t> {k} = {v}")
             print(f"\tSpecfile:\t\t{specfile}")
+            print(f"\tExpiration timeout:\t\t{expiration_timeout}")
             print("--------------------------------------------")
             param_names=[k for k,_ in params.items()]
             current_values=[v for _,v in params.items()]
-            config_path = self._generate_config(strategy, self.close_door_time, self.stat_print_interval, self.mab_update_interval, ax_pre, ax_post, param_names, current_values, seed, specfile)
+            config_path = self._generate_config(strategy, self.close_door_time, self.stat_print_interval,
+                                                self.mab_update_interval, ax_pre, ax_post, param_names, current_values,
+                                                seed, specfile, expiration_timeout)
 
             statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strategy, ax_pre, ax_post, param_names,
-                current_values, seed, specfile) + consts.SUFFIX_STATSFILE
+                current_values, seed, specfile, expiration_timeout) + consts.SUFFIX_STATSFILE
 
             mabfile = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.TEMP_STATS_LOCATION,
                                                    consts.PREFIX_MABSTATSFILE + consts.SUFFIX_MABSTATSFILE + "-pid" + str(

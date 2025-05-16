@@ -6,6 +6,9 @@ from copy import deepcopy
 from typing import List
 
 from filelock import FileLock
+
+from conf import EXPIRATION_TIMEOUT
+
 LOOKUP_OPTIMAL_PARAMETERS=-999
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
@@ -26,7 +29,8 @@ class MABExperimentInstanceRecord:
                  workload: WorkloadIdentifier,
                  specfile: str,
                  stat_print_interval: float,
-                 mab_update_interval: float
+                 mab_update_interval: float,
+                 expiration_timeout: float
                  ):
         # instance identifiers
         self.identifiers={
@@ -38,7 +42,8 @@ class MABExperimentInstanceRecord:
             "workload":workload,
             "specfile":specfile,
             "stat-print-interval":stat_print_interval,
-            "mab-update-interval":mab_update_interval
+            "mab-update-interval":mab_update_interval,
+            EXPIRATION_TIMEOUT:expiration_timeout
         }
 
         # results from the experiments on this specific instance
@@ -209,6 +214,7 @@ def _deserialize(dict):
                                         dict["identifiers"]["specfile"],
                                         dict["identifiers"]["stat-print-interval"],
                                         dict["identifiers"]["mab-update-interval"],
+                                        dict["identifiers"][EXPIRATION_TIMEOUT] if EXPIRATION_TIMEOUT in dict["identifiers"] else None,
                                        )
     ret.add_experiment_result(dict["results"])
     return ret
