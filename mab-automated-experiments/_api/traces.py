@@ -86,9 +86,18 @@ def _generate_logistic_map(i, r=3.8, x0=0.5, min_rate=50, max_rate=600, period=2
         x = r * x * (1 - x)
     return np.round(min_rate + (max_rate - min_rate) * x)
 
-def _generate_gaussian_modulated(i, min_rate, max_rate, sigma, step_len, duration):
-    STEPS = int (duration / step_len) # Numero di passi temporali (es. 5400 / 60 = 90)
-    mod = np.exp(-0.5 * ((i - STEPS / 2) / (sigma * STEPS / 2))**2)
+def _generate_gaussian_modulated(i, min_rate, max_rate, sigma, step_len, duration, period):
+    STEPS = int(duration / step_len)
+
+    # Calculate the effective index within the given period
+    # This ensures the Gaussian shape repeats
+    effective_i = i % int(period / step_len)
+
+    # Calculate the center of the Gaussian for a single period
+    period_steps = int(period / step_len)
+    gaussian_center = period_steps / 2
+
+    mod = np.exp(-0.5 * ((effective_i - gaussian_center) / (sigma * period_steps / 2)) ** 2)
     return np.round(min_rate + (max_rate - min_rate) * mod)
 
 def _graph(interarrivals, rates, duration, step_len, distribution, file_path):
@@ -170,7 +179,7 @@ def generate_trace(name:str, distribution:str, min_rate:float, max_rate:float, p
                 nArrivals[i] = _generate_logistic_map(i)
             elif distribution == "gaussian-modulated":
                 sigma=0.5
-                nArrivals[i] = _generate_gaussian_modulated(i,min_rate, max_rate, sigma, step_len, duration)
+                nArrivals[i] = _generate_gaussian_modulated(i,min_rate, max_rate, sigma, step_len, duration, period)
             else:
                 print(f"Distribuzione '{distribution}' non supportata!")
                 return
