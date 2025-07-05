@@ -101,7 +101,9 @@ class IncrementalLogger(Logger):
         if found is None:
             output = vars(instance)
             with FileLock(lockfilename):
-                with open(self.outfile_name+instance.identifiers["strategy"]+".json", 'r+') as file:
+                filename = self.outfile_name + instance.identifiers["strategy"] + ".json"
+                if not os.path.isfile(filename): self._touch(filename)
+                with open(filename, 'r+') as file:
                     file_data = json.load(file)
                     o = list(filter(lambda x: x['identifiers'] != (instance.identifiers), file_data))
                     print(o)
@@ -202,6 +204,11 @@ class IncrementalLogger(Logger):
             return self.lookup(instance, specific_results) is None
         else:
             raise ValueError("invalid simex (\"run-duplicates\") value for", rundup,", please check your expconf.ini file")
+
+    def _touch(self, filename):
+        with open(filename, "w+") as f:
+            json.dump([], f)
+        f.close()
 
 def _deserialize(dict):
     ret= MABExperimentInstanceRecord(
