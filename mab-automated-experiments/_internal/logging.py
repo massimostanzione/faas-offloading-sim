@@ -179,14 +179,10 @@ class IncrementalLogger(Logger):
                             ret= deser
                         else:
                             ctr=0
-                            #for dict in deser.results:
                             for key in deser.results.keys():
                                 for specific_result in specific_results:
-                                    #print(specific_result)
                                     if key==specific_result:
                                         ctr+=1
-                                        print("MATCH", key, ctr)
-                                        #continue
                                 if ctr==len(specific_results):
                                     ret= deser
         try:
