@@ -115,3 +115,20 @@ def extract_timeseries_from_result_multiple(result_dict:dict):
 
 
 def filter_datarecords_by_specfiles(results:List[MABExperimentInstanceRecord], requested_specfiles:List[str]=None) -> dict:
+
+    # se non specificati, raccoglili dalla lista dei risultati
+    if requested_specfiles is None:
+        # gather gli specfiles
+        requested_specfiles=[]
+        for r in results:
+            if r.identifiers["specfile"] not in requested_specfiles:
+                requested_specfiles.append(r.identifiers["specfile"])
+
+    # filtra sulla base degli specfiles richiesti
+    filtered={specfile:[] for specfile in requested_specfiles}
+    #for specfile in requested_specfiles:
+    for r in results:
+        if r.identifiers["specfile"] in requested_specfiles:
+            filtered[r.identifiers["specfile"]].append(r)
+
+    return filtered
