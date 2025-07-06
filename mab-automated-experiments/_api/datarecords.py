@@ -92,6 +92,26 @@ def extract_datarecords_from_experiment(exp:MABExperiment)->List[MABExperimentIn
     #out_list = in_list if not bayesopt else bayesopt_search(in_list, max_procs, exp.expconf)
     return in_list
 
-#a=(extract_datarecords_from_exp_name("contextual-rtk-impl"))
-#for i in a:
-#    print(i.identifiers)
+
+# if the series we want to extract have a single value,
+# i.e. "key" = "value"
+def extract_timeseries_from_result_single(result_dict:List):
+    output=[]
+    for item in result_dict:
+        output.append(item)
+    return output
+
+# if the series we want to extract is a sub-dictionary,
+# i.e. "key" =  {
+#               "cloud1": "value",
+#               "cloud2": "value"
+#               }
+def extract_timeseries_from_result_multiple(result_dict:dict):
+    output={k:[] for k in result_dict[0].keys()}
+    for dict in result_dict:
+        for k, v in dict.items():
+            output[k].append(v)
+    return output
+
+
+def filter_datarecords_by_specfiles(results:List[MABExperimentInstanceRecord], requested_specfiles:List[str]=None) -> dict:

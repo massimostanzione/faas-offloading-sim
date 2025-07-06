@@ -45,6 +45,8 @@ class Stats:
         self.data_migrated_bytes = 0.0
         self._memory_usage_area = {x: 0.0 for x in self.nodes}
         self._memory_usage_t0 = {x: 0.0 for x in self.nodes}
+        self._memory_usage_area_active = {x: 0.0 for x in self.nodes}
+        self._memory_usage_t0_active = {x: 0.0 for x in self.nodes}
         self._policy_update_time_sum = {x: 0.0 for x in self.nodes}
         self._policy_updates = {x: 0 for x in self.nodes}
         self._mig_policy_update_time_sum = 0.0
@@ -100,15 +102,37 @@ class Stats:
         stats["_Time"] = self.sim.t
 
         avgMemUtil = {}
+        stats["avgMemoryUtilization_sys"] = []
         for n in self._memory_usage_t0:
             if n.total_memory != 0:
                 avgMemUtil[repr(n)] = self._memory_usage_area[n]/self.sim.t/n.total_memory
+
+                # do not count load balancer nodes (i.e., the one(s) with no memory) memory while computing
+                # (later below) the average system memory utlization
+                stats["avgMemoryUtilization_sys"].append(avgMemUtil[repr(n)])
+
             else:
                 avgMemUtil[repr(n)] = 0
+
         stats["avgMemoryUtilization"] = avgMemUtil
 
-        # TODO "lb1" va generalizzato
-        stats["avgMemoryUtilization_sys"] = np.average([v for k,v in avgMemUtil.items() if k!="lb1"])
+        avgActiveMemUtil = {}
+        stats["avgActiveMemoryUtilization_sys"] = []
+        for n in self._memory_usage_t0_active:
+            if n.total_memory != 0:
+                avgActiveMemUtil[repr(n)] = self._memory_usage_area_active[n] / self.sim.t / n.total_memory
+
+                # do not count load balancer nodes (i.e., the one(s) with no memory) memory while computing
+                # (later below) the average system memory utlization
+                stats["avgActiveMemoryUtilization_sys"].append(avgActiveMemUtil[repr(n)])
+
+            else:
+                avgActiveMemUtil[repr(n)] = 0
+
+        stats["avgActiveMemoryUtilization"] = avgActiveMemUtil
+
+        stats["avgMemoryUtilization_sys"] = np.average(stats["avgMemoryUtilization_sys"])
+        stats["avgActiveMemoryUtilization_sys"] = np.average(stats["avgActiveMemoryUtilization_sys"])
 
         sumrate = 0
         for k, v in self.arrivals.items():
@@ -150,6 +174,12 @@ class Stats:
         assert(node.total_memory>=node.curr_memory)
         self._memory_usage_area[node] += used_mem*(t-self._memory_usage_t0[node])
         self._memory_usage_t0[node] = t
+
+    def update_active_memory_usage(self, node, t):
+        used_mem_active = node.total_memory - node.curr_memory_active
+        assert (node.total_memory >= node.curr_memory_active >= 0)
+        self._memory_usage_area_active[node] += used_mem_active * (t - self._memory_usage_t0_active[node])
+        self._memory_usage_t0_active[node] = t
 
     def update_policy_upd_time (self, node, t):
         self._policy_update_time_sum[node] += t

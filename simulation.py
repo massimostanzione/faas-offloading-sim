@@ -600,6 +600,8 @@ class Simulation:
             print(f"{f},{c},{n},{event.offloaded_from != None and len(event.offloaded_from) > 0},{event.cold},{dat},{rt}", file=self.resp_times_file)
 
         n.warm_pool.append((f, self.t + self.expiration_timeout), self.stats)
+        n.curr_memory_active+=f.memory
+        self.stats.update_active_memory_usage(event.node, self.t)
         if self.external_arrivals_allowed:
             self.schedule(self.t + self.expiration_timeout, CheckExpiredContainers(n)) 
 
@@ -632,6 +634,9 @@ class Simulation:
 
         if sched_decision == SchedulerDecision.EXEC:
             duration, data_access_time = self.next_function_duration(f, n)
+            n.curr_memory_active-=f.memory
+            self.stats.update_active_memory_usage(event.node, self.t)
+
             # check warm or cold
             if f in n.warm_pool:
                 # warm
@@ -641,8 +646,6 @@ class Simulation:
                 # cold start
                 self.stats.update_memory_usage(event.node, self.t)
 
-                # FIXME queste due righe non dovrebbero andare sopra la precedente?
-                #       (comunque non risolve il problema della issue 12)
                 assert(n.curr_memory >= f.memory)
                 n.curr_memory -= f.memory
 

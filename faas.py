@@ -58,6 +58,7 @@ class Node:
         self.name = name
         self.total_memory = memory
         self.curr_memory = memory
+        self.curr_memory_active = memory
         self.peer_exposed_memory_fraction = peer_exposed_memory_fraction
         self.speedup = speedup
         self.region = region

@@ -75,7 +75,6 @@ for file in files:
     tracename=file.replace("_f1","")
     tracename=tracename.replace("_x5","")
     tracename=tracename.replace("_full","")
-    tracename=tracename.replace("4","")
     print("->", tracename)
     arrivals_trace=[]
     print(file)
@@ -121,6 +120,8 @@ generate_trace("square", "square-wave", 1, 350, PERIOD_STD, 5, DURATION)
 generate_trace("square_inv", "square-wave-inverted", 1, 350, PERIOD_STD, 5, DURATION)
 generate_trace("sawtooth", "sawtooth-wave", 1, 350, PERIOD_STD, 5, DURATION)
 generate_trace("gauss", "gaussian-modulated", 1, 350, PERIOD_STD, 5, DURATION)
+
+generate_trace("4gauss", "gaussian-modulated", 1, 350, PERIOD_4, 5, DURATION)
 
 generate_trace("4sinus", "sinusoid", 1, 350, PERIOD_4, 5, DURATION)
 generate_trace("4square", "square-wave", 1, 350, PERIOD_4, 5, DURATION)
