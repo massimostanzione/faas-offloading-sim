@@ -401,6 +401,7 @@ class MABExperiment:
             print("============================================")
             print(f"Running experiment \"{self.name}\"")
             print(f"with the following configuration")
+            # TODO instance.print_configuration
             print(f"\tStrategy:\t{strategy}")
             print(f"\tAxis:\t\t{ax_pre} -> {ax_post}")
             print(f"\tSeed:\t\t{seed}")
