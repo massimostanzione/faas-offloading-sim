@@ -25,6 +25,7 @@ class Stats:
         self.ext_arrivals = {x: 0 for x in fcn}
         self.offloaded = {x: 0 for x in fcn}
         self.dropped_reqs = {c: 0 for c in fcn}
+        self.dropped_reqs_cum_t0 = 0
         self.dropped_offloaded = {c: 0 for c in fcn}
         self.completions = {x: 0 for x in fcn}
         self.violations = {c: 0 for c in fcn}
@@ -133,6 +134,14 @@ class Stats:
         stats["availableMemory_sys"] = np.average([available_mem[k] for k in available_mem.keys()])
 
         stats["warm_ctr"]=self.warm_ctr
+
+        dropped_reqs = 0
+        for f in self.functions:
+            for c in self.classes:
+                for n in self.nodes:
+                    dropped_reqs += self.dropped_reqs[(f, c, n)]
+        stats["drops_sys"] = dropped_reqs - self.dropped_reqs_cum_t0
+        self.dropped_reqs_cum_t0 = dropped_reqs
 
         return stats
     
