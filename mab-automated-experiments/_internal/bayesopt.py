@@ -307,5 +307,19 @@ def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> di
             mp_file.write(
                 "------------------------------------------------------------------------------------------------------------------------\n")
         mp_file.write('{0:19} {10:9} {1:3} {2:3} {3:3} {4:3} {5:3} {6:8} {7:10} > {8:10} {9}\n'.format(str(timestamp),
+                                                                                                       bayes_expconf.getint(
+                                                                                                           "parameters",
+                                                                                                           "objfn-stabilizations-iterations"),
+                                                                                                       bayes_expconf.getint(
+                                                                                                           "parameters",
+                                                                                                           "rand-points"),
+                                                                                                       window_size,
+                                                                                                       bayes_expconf.getint(
+                                                                                                           "parameters",
+                                                                                                           "iterations"),
+                                                                                                       actual_iters,
+                                                                                                       strat, ax_pre,
+                                                                                                       ax_post,
+                                                                                                       valprint, seed))
 
     return valprint
