@@ -542,11 +542,7 @@ class Simulation:
             if timeout < t:
                 # rimuovi il container scaduto
                 self.stats.update_memory_usage(event.node, self.t)
-
-                # FIXME questa riga non dovrebbe essere sopra?
                 event.node.curr_memory += f.memory
-
-                # FIXME perché non è passato da warm_pool.remove? forse perché è passato da front()?
                 event.node.warm_pool.pool = event.node.warm_pool.pool[1:]
                 self.stats.warm_ctr[event.node.name]-=1
         elif isinstance(event, MABUpdate):
@@ -713,16 +709,10 @@ class Simulation:
         return float(duration + data_access_time), float(data_access_time)
 
     # TODO move to agents.py?
-    # TODO classe FeatureInstance con specificanti con relativo metodo di calcolo
     def _probe_context_related_info(self) -> dict:
         dict={}
-        # TODO sistemare la finestra mobile
         avg=self.stats.to_dict()["avgMemoryUtilization_sys"]
-        WND=4
-        #avg=np.average(list(vals)[:-WND-1])
         dict[ContextFeature.MEM.value[0]]=avg
-
-        print("probed:",dict)
         return dict
 
     def is_contextual(self):
