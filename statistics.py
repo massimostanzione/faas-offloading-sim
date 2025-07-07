@@ -1,9 +1,13 @@
 import json
+
+import numpy as np
+
 import conf
 
 class Stats:
 
     def __init__ (self, sim, functions, classes, infra):
+        self.warm_ctr = {k.name:0 for k in infra.get_nodes()}
         self.sim = sim
         self.infra = infra
         self.functions = functions
@@ -21,6 +25,7 @@ class Stats:
         self.ext_arrivals = {x: 0 for x in fcn}
         self.offloaded = {x: 0 for x in fcn}
         self.dropped_reqs = {c: 0 for c in fcn}
+        self.dropped_reqs_cum_t0 = 0
         self.dropped_offloaded = {c: 0 for c in fcn}
         self.completions = {x: 0 for x in fcn}
         self.violations = {c: 0 for c in fcn}
@@ -40,6 +45,8 @@ class Stats:
         self.data_migrated_bytes = 0.0
         self._memory_usage_area = {x: 0.0 for x in self.nodes}
         self._memory_usage_t0 = {x: 0.0 for x in self.nodes}
+        self._memory_usage_area_active = {x: 0.0 for x in self.nodes}
+        self._memory_usage_t0_active = {x: 0.0 for x in self.nodes}
         self._policy_update_time_sum = {x: 0.0 for x in self.nodes}
         self._policy_updates = {x: 0 for x in self.nodes}
         self._mig_policy_update_time_sum = 0.0
@@ -95,12 +102,37 @@ class Stats:
         stats["_Time"] = self.sim.t
 
         avgMemUtil = {}
+        stats["avgMemoryUtilization_sys"] = []
         for n in self._memory_usage_t0:
             if n.total_memory != 0:
                 avgMemUtil[repr(n)] = self._memory_usage_area[n]/self.sim.t/n.total_memory
+
+                # do not count load balancer nodes (i.e., the one(s) with no memory) memory while computing
+                # (later below) the average system memory utlization
+                stats["avgMemoryUtilization_sys"].append(avgMemUtil[repr(n)])
+
             else:
                 avgMemUtil[repr(n)] = 0
+
         stats["avgMemoryUtilization"] = avgMemUtil
+
+        avgActiveMemUtil = {}
+        stats["avgActiveMemoryUtilization_sys"] = []
+        for n in self._memory_usage_t0_active:
+            if n.total_memory != 0:
+                avgActiveMemUtil[repr(n)] = self._memory_usage_area_active[n] / self.sim.t / n.total_memory
+
+                # do not count load balancer nodes (i.e., the one(s) with no memory) memory while computing
+                # (later below) the average system memory utlization
+                stats["avgActiveMemoryUtilization_sys"].append(avgActiveMemUtil[repr(n)])
+
+            else:
+                avgActiveMemUtil[repr(n)] = 0
+
+        stats["avgActiveMemoryUtilization"] = avgActiveMemUtil
+
+        stats["avgMemoryUtilization_sys"] = np.average(stats["avgMemoryUtilization_sys"])
+        stats["avgActiveMemoryUtilization_sys"] = np.average(stats["avgActiveMemoryUtilization_sys"])
 
         sumrate = 0
         for k, v in self.arrivals.items():
@@ -118,12 +150,36 @@ class Stats:
             avg_mig_policy_upd_time = self._mig_policy_update_time_sum/self._mig_policy_updates
         stats["avgMigPolicyUpdateTime"] = avg_mig_policy_upd_time
 
+        available_mem={}
+        for n in self._memory_usage_t0:
+            available_mem[repr(n)] = n.curr_memory
+        stats["availableMemory"] = available_mem
+
+        stats["availableMemory_sys"] = np.average([available_mem[k] for k in available_mem.keys()])
+
+        stats["warm_ctr"]=self.warm_ctr
+
+        dropped_reqs = 0
+        for f in self.functions:
+            for c in self.classes:
+                for n in self.nodes:
+                    dropped_reqs += self.dropped_reqs[(f, c, n)]
+        stats["drops_sys"] = dropped_reqs - self.dropped_reqs_cum_t0
+        self.dropped_reqs_cum_t0 = dropped_reqs
+
         return stats
     
     def update_memory_usage (self, node, t):
         used_mem = node.total_memory-node.curr_memory
+        assert(node.total_memory>=node.curr_memory)
         self._memory_usage_area[node] += used_mem*(t-self._memory_usage_t0[node])
         self._memory_usage_t0[node] = t
+
+    def update_active_memory_usage(self, node, t):
+        used_mem_active = node.total_memory - node.curr_memory_active
+        assert (node.total_memory >= node.curr_memory_active >= 0)
+        self._memory_usage_area_active[node] += used_mem_active * (t - self._memory_usage_t0_active[node])
+        self._memory_usage_t0_active[node] = t
 
     def update_policy_upd_time (self, node, t):
         self._policy_update_time_sum[node] += t

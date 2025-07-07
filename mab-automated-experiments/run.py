@@ -3,6 +3,7 @@ import os
 import conf
 from _internal import consts
 from _internal.experiment import MABExperiment, extract_iterable_params_from_config
+from conf import EXPIRATION_TIMEOUT
 
 if __name__ == "__main__":
     # execute all the esperiments according to the pipeline file
@@ -66,6 +67,7 @@ if __name__ == "__main__":
                             config.getint("experiment", "max-parallel-execution"),
                             config["parameters"]["seeds"].replace(' ', '').split(consts.DELIMITER_COMMA),
                             config["parameters"]["specfiles"].replace(' ', '').split(consts.DELIMITER_COMMA) if 'specfiles' in config["parameters"] else ["../../spec"],
+                            config["parameters"][EXPIRATION_TIMEOUT].replace(' ', '').split(consts.DELIMITER_COMMA) if EXPIRATION_TIMEOUT in config["parameters"] else [consts.DEFAULT_EXPIRATION_TIMEOUT],
                             config["output"]["persist"].replace(' ', '').split(consts.DELIMITER_COMMA) if 'persist' in config["output"] else "",
                         )
                         exp.run()

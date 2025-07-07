@@ -4,16 +4,19 @@ from enum import Enum
 
 class ContainerPool:
 
-    def __init__ (self):
+    def __init__ (self, node_name):
+        self.node_name = node_name
         self.pool = []
 
-    def append (self, e):
+    def append (self, e, stats):
         self.pool.append(e)
+        stats.warm_ctr[self.node_name]+=1
 
-    def remove (self, f):
+    def remove (self, f, stats):
         for entry in self.pool:
             if f.name == entry[0].name:
                 self.pool.remove(entry)
+                stats.warm_ctr[self.node_name]-=1
                 return
 
     def __len__ (self):
@@ -22,7 +25,7 @@ class ContainerPool:
     def front (self):
         return self.pool[0]
 
-    def reclaim_memory (self, required_mem):
+    def reclaim_memory (self, required_mem, stats):
         mem = [entry[0].memory for entry in self.pool]
         if sum(mem) < required_mem:
             return 0.0
@@ -31,7 +34,7 @@ class ContainerPool:
         while reclaimed < required_mem:
             f = s[0]
             s = s[1:]
-            self.remove(f)
+            self.remove(f, stats)
             reclaimed += f.memory
         return reclaimed
 
@@ -55,13 +58,14 @@ class Node:
         self.name = name
         self.total_memory = memory
         self.curr_memory = memory
+        self.curr_memory_active = memory
         self.peer_exposed_memory_fraction = peer_exposed_memory_fraction
         self.speedup = speedup
         self.region = region
         self.cost = cost
         self.custom_sched_policy = custom_sched_policy
 
-        self.warm_pool = ContainerPool()
+        self.warm_pool = ContainerPool(self.name)
         self.kv_store = {}
 
     def __repr__ (self):

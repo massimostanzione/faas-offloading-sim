@@ -409,6 +409,7 @@ class Simulation:
             # Non-stationary case
             non_stationary=self.config.getboolean(conf.SEC_MAB, conf.MAB_NON_STATIONARY_ENABLED, fallback=False)
             if non_stationary:
+                # TODO parametrizzare
                 self.schedule(3600, RewardUpdate())
 
         while len(self.events) > 0:
@@ -539,9 +540,11 @@ class Simulation:
                 return
             f,timeout = event.node.warm_pool.front()
             if timeout < t:
+                # rimuovi il container scaduto
                 self.stats.update_memory_usage(event.node, self.t)
                 event.node.curr_memory += f.memory
                 event.node.warm_pool.pool = event.node.warm_pool.pool[1:]
+                self.stats.warm_ctr[event.node.name]-=1
         elif isinstance(event, MABUpdate):
             print("TIME:", self.t)
             print("[MABUpdate]: MAB agent in action...")
@@ -592,7 +595,9 @@ class Simulation:
         if self.resp_times_file is not None:
             print(f"{f},{c},{n},{event.offloaded_from != None and len(event.offloaded_from) > 0},{event.cold},{dat},{rt}", file=self.resp_times_file)
 
-        n.warm_pool.append((f, self.t + self.expiration_timeout))
+        n.warm_pool.append((f, self.t + self.expiration_timeout), self.stats)
+        n.curr_memory_active+=f.memory
+        self.stats.update_active_memory_usage(event.node, self.t)
         if self.external_arrivals_allowed:
             self.schedule(self.t + self.expiration_timeout, CheckExpiredContainers(n)) 
 
@@ -625,14 +630,21 @@ class Simulation:
 
         if sched_decision == SchedulerDecision.EXEC:
             duration, data_access_time = self.next_function_duration(f, n)
+            n.curr_memory_active-=f.memory
+            self.stats.update_active_memory_usage(event.node, self.t)
+
             # check warm or cold
             if f in n.warm_pool:
-                n.warm_pool.remove(f)
+                # warm
+                n.warm_pool.remove(f, self.stats)
                 init_time = 0
             else:
+                # cold start
                 self.stats.update_memory_usage(event.node, self.t)
+
                 assert(n.curr_memory >= f.memory)
                 n.curr_memory -= f.memory
+
                 self.stats.cold_starts[(f,n)] += 1
                 init_time = self.init_time[(f,n)]
             arrival_time = self.t if event.original_arrival_time is None else event.original_arrival_time
@@ -699,18 +711,8 @@ class Simulation:
     # TODO move to agents.py?
     def _probe_context_related_info(self) -> dict:
         dict={}
-        vals=[v for k,v in self.stats.to_dict()["avgMemoryUtilization"].items() if k!="lb1"]
-        WND=4
-        avg=np.average(list(vals)[:-WND-1])
-        dict["avgMemoryUtilization"]=avg
-        """
-        sum = 0
-        for k, v in self.stats.arrivals.items():
-            sum += self.stats.arrivals[k] - self.stats.ss_arrivals[k]
-
-        dict["avgMemoryUtilization"]=sum / self.mab_update_interval
-        """
-        print("probed:",dict)
+        avg=self.stats.to_dict()["avgMemoryUtilization_sys"]
+        dict[ContextFeature.MEM.value[0]]=avg
         return dict
 
     def is_contextual(self):

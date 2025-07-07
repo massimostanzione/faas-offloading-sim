@@ -60,7 +60,7 @@ for r in records:
                         print(line)
                         valori_plot.append(float(line))
         """
-    mem = extract_result_dict_from_datarecord(r, "avgMemoryUtilization")
+    mem = extract_result_dict_from_datarecord(r, "avgMemoryUtilization_sys")
     instances = extract_result_dict_from_datarecord(r, "instance_invoked")
     time = extract_result_dict_from_datarecord(r, "time")
     policies = extract_result_dict_from_datarecord(r, "policy")
@@ -162,7 +162,7 @@ for r in records:
 
     color = 'tab:red'
     ax1.set_xlabel('Tempo [s]')
-    ax1.set_ylabel('avgMemoryUtilization', color=color)
+    ax1.set_ylabel('avgMemoryUtilization_sys', color=color)
     ax1.set_ylim([0,1])
     # Plotta i dati per ciascuna label
     for label, data in dati_per_label.items():

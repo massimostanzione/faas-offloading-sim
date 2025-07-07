@@ -25,7 +25,7 @@ bayes_expconf = None
 num_simulations = 1  # config.getint("parameters", "objfn-stabilizations-iterations")
 
 
-def obj_ucbtuned(expname, ef, cdt, mui, instance: MABExperimentInstanceRecord, specfile, rundup):
+def obj_ucbtuned(expname, ef, cdt, spi, mui, instance: MABExperimentInstanceRecord, specfile, rundup):
     strat = instance.identifiers["strategy"]
     ax_pre = instance.identifiers["axis_pre"]
     ax_post = instance.identifiers["axis_post"]
@@ -43,17 +43,18 @@ def obj_ucbtuned(expname, ef, cdt, mui, instance: MABExperimentInstanceRecord, s
         instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_UCB_EXPLORATION_FACTOR): float(ef)}
 
         ret = compute_total_reward(expname, instance_sub, rundup) / num_simulations
+        # TODO codice duplicato:
         os.remove(statsfile)
         return ret
 
-def obj_ucb2(expname, ef, cdt, mui, alpha, instance: MABExperimentInstanceRecord, specfile, rundup):
+def obj_ucb2(expname, ef, cdt, spi, mui, alpha, instance: MABExperimentInstanceRecord, specfile, rundup):
     strat = instance.identifiers["strategy"]
     ax_pre = instance.identifiers["axis_pre"]
     ax_post = instance.identifiers["axis_post"]
     seed = instance.identifiers["seed"]
     print(f"computing for {strat}, {ax_pre} > {ax_post}, seed={seed}, ef={ef}, alpha={alpha}\n")
     for _ in range(num_simulations):
-        write_custom_configfile(expname, strat, cdt, mui, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA],
+        write_custom_configfile(expname, strat, cdt, spi, mui, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA],
                                 [ef, alpha], seed, specfile)
 
         statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strat, ax_pre, ax_post,
@@ -71,14 +72,14 @@ def obj_ucb2(expname, ef, cdt, mui, alpha, instance: MABExperimentInstanceRecord
         return ret
 
 
-def obj_klucb(expname, ef, c, cdt, mui, instance: MABExperimentInstanceRecord, specfile, rundup):
+def obj_klucb(expname, ef, c, cdt, spi, mui, instance: MABExperimentInstanceRecord, specfile, rundup):
     strat = instance.identifiers["strategy"]
     ax_pre = instance.identifiers["axis_pre"]
     ax_post = instance.identifiers["axis_post"]
     seed = instance.identifiers["seed"]
     print(f"computing for {strat}, {ax_pre} > {ax_post}, seed={seed}, ef={ef}, c={c}\n")
     for _ in range(num_simulations):
-        path = write_custom_configfile(expname, strat, cdt, mui, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C],
+        path = write_custom_configfile(expname, strat, cdt, spi, mui, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C],
                                        [ef, c], seed, specfile)
 
         statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strat, ax_pre, ax_post,
@@ -94,14 +95,14 @@ def obj_klucb(expname, ef, c, cdt, mui, instance: MABExperimentInstanceRecord, s
         return ret
 
 
-def obj_klucbsp(expname, c, cdt, mui, instance: MABExperimentInstanceRecord, specfile, rundup):
+def obj_klucbsp(expname, c, cdt, spi, mui, instance: MABExperimentInstanceRecord, specfile, rundup):
     strat = instance.identifiers["strategy"]
     ax_pre = instance.identifiers["axis_pre"]
     ax_post = instance.identifiers["axis_post"]
     seed = instance.identifiers["seed"]
     print(f"computing for {strat}, {ax_pre} > {ax_post}, seed={seed}, c={c}\n")
     for _ in range(num_simulations):
-        path = write_custom_configfile(expname, strat, cdt, mui, ax_pre, ax_post, [MAB_KL_UCB_C], [c], seed, specfile)
+        path = write_custom_configfile(expname, strat, cdt, spi, mui, ax_pre, ax_post, [MAB_KL_UCB_C], [c], seed, specfile)
 
         statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strat, ax_pre, ax_post, [MAB_KL_UCB_C], [c],
             seed, specfile) + consts.SUFFIX_STATSFILE
@@ -150,8 +151,6 @@ def compute_total_reward(expname, instance_sub: MABExperimentInstanceRecord, run
         rewards = instance_sub.results["rewards"]
     total_reward += sum(rewards) / len(rewards)
 
-    # instance_sub.add_experiment_result({"rewards":rewards})#{"rewards":rewards})
-    # logger.persist(instance_sub)
     return total_reward
 
 
@@ -192,6 +191,7 @@ def bayesopt_search(list: List[MABExperimentInstanceRecord], procs: int, expconf
     # TODO garbage collector, by instance/whole folder
     tmpfldr = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.TEMP_FILES_DIR))
     if os.path.exists(tmpfldr):
+        # TODO codice duplicato altrove
         shutil.rmtree(tmpfldr, ignore_errors=True)
 
     return ret
@@ -205,6 +205,7 @@ def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> di
     ef_lower = bayes_expconf["parameters"]["ef-lower"]
     ef_upper = bayes_expconf["parameters"]["ef-upper"]
     cdt = bayes_expconf["experiment"]["close-door-time"]
+    spi = bayes_expconf["experiment"]["stat-print-interval"]
     mui = bayes_expconf["experiment"]["mab-update-interval"]
     # for strat, axis, wlname, seed in strategies, axis_fixed, specfile, seeds:
 
@@ -216,16 +217,16 @@ def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> di
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     specfile = instance.identifiers["specfile"]# os.path.join(expname, "results", "spec" + str(instance.identifiers["workload"]) + consts.SUFFIX_SPECSFILE)
     def objwrapper_ucbtuned(ef):
-        return obj_ucbtuned(expname, ef, cdt, mui, instance, specfile, rundup)
+        return obj_ucbtuned(expname, ef, cdt, spi, mui, instance, specfile, rundup)
 
     def objwrapper_ucb2(ef, alpha):
-        return obj_ucb2(expname, ef, cdt, mui, alpha, instance, specfile, rundup)
+        return obj_ucb2(expname, ef, cdt, spi, mui, alpha, instance, specfile, rundup)
 
     def objwrapper_klucb(ef, c):
-        return obj_klucb(expname, ef, cdt, mui, c, instance, specfile, rundup)
+        return obj_klucb(expname, ef, cdt, spi, mui, c, instance, specfile, rundup)
 
     def objwrapper_klucbsp(c):
-        return obj_klucbsp(expname, c, cdt, mui, instance, specfile, rundup)
+        return obj_klucbsp(expname, c, cdt, spi, mui, instance, specfile, rundup)
 
     print(f"Processing strategy={strat}, ax_pre={ax_pre}, ax_post={ax_post}, seed={seed}, specfile={specfile}")
     if strat == "UCBTuned" or strat == "RTK-UCBTuned":
@@ -248,8 +249,6 @@ def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> di
     threshold = bayes_expconf.getfloat("parameters", "improvement-threshold")
     window_size = bayes_expconf.getint("parameters", "sliding-window-size")
     improvements = []
-    # for ax_pre in axis_pre:
-    # for ax_post in axis_post:
     optimizer = BayesianOptimization(f=selected_obj_fn, pbounds=pbounds, verbose=2, random_state=1, )
     best_value = float('-inf')
     init_points = bayes_expconf.getint("parameters", "rand-points")
@@ -280,7 +279,6 @@ def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> di
         actual_iters = i
         best_value = current_best
 
-    # output_file_mp = (EXPNAME + "/results/output.json")
 
     valprint = {key: float(value) for key, value in optimizer.max['params'].items()}
     result = {}
@@ -299,7 +297,6 @@ def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> di
     # write to text file (human-readable)
 
 
-    #output_file_hr = (expname + "/"+consts.DEFAULT_OUTPUT_FOLDER+"/"+consts.BAYESOPT_OUTPUT_FILE)
     output_file_hr = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.STATS_FILES_DIR, consts.BAYESOPT_OUTPUT_FILE))
 
     needs_header = not os.path.exists(output_file_hr)
@@ -310,19 +307,5 @@ def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> di
             mp_file.write(
                 "------------------------------------------------------------------------------------------------------------------------\n")
         mp_file.write('{0:19} {10:9} {1:3} {2:3} {3:3} {4:3} {5:3} {6:8} {7:10} > {8:10} {9}\n'.format(str(timestamp),
-                                                                                                       bayes_expconf.getint(
-                                                                                                           "parameters",
-                                                                                                           "objfn-stabilizations-iterations"),
-                                                                                                       bayes_expconf.getint(
-                                                                                                           "parameters",
-                                                                                                           "rand-points"),
-                                                                                                       window_size,
-                                                                                                       bayes_expconf.getint(
-                                                                                                           "parameters",
-                                                                                                           "iterations"),
-                                                                                                       actual_iters,
-                                                                                                       strat, ax_pre,
-                                                                                                       ax_post,
-                                                                                                       valprint, seed))
 
     return valprint

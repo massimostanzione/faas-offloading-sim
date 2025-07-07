@@ -8,23 +8,18 @@ from scipy.stats import shapiro, probplot, norm, expon, uniform, skew, kurtosis
 
 UPDATE_INTERVAL = 3600
 
-def line_graphaold(series: dict, title: str = "", xlabel: str = "", ylabel: str = ""):
+def plot_simple_xy(series: dict, title: str = "", xlabel: str = "", ylabel: str = ""):
     for item in series.items():
         key = item[0]
         value = item[1]
-        print(item)
-        print("key", key)
-        print("value", value)
         plt.plot(value["x"], value["y"], label=key)
     plt.legend()
-    # plt.plot(value["x"], value["y"], label=key)
-    # plt.plot(datadict.get("x"), datadict.get("y"), label=datadict.)
     plt.xlabel(xlabel)  # add X-axis label
     plt.ylabel(ylabel)  # add Y-axis label
     plt.title(title)  # add title
     return plt
 
-def graph_polcho(series: dict):
+def plot_policy_choices(series: dict):
     rcParams['mathtext.fontset'] = 'stix'
     rcParams['font.family'] = 'STIXGeneral'
     col=-1
@@ -32,9 +27,6 @@ def graph_polcho(series: dict):
         col+=1
         key = item[0]
         value = item[1]
-        print(item)
-        print("key", key)
-        print("value", value)
         cum_rewards = []
         cum_reward = 0
         time_frames=value["x"]
@@ -60,15 +52,12 @@ def graph_polcho(series: dict):
             title+="$\\rightarrow$"+axis_post
         title+=")"
 
-    # plt.plot(value["x"], value["y"], label=key)
-    # plt.plot(datadict.get("x"), datadict.get("y"), label=datadict.)
     xlabel="Time (s)"
     ylabel="Reward (cum. avg.)"
 
     plt.axvline(x=UPDATE_INTERVAL, color='black', linestyle='--', label='weights updated')
     plt.xlabel(xlabel)  # add X-axis label
     plt.ylabel(ylabel)  # add Y-axis label
-    #plt.tight_layout()
     plt.grid(axis="y")
     plt.legend(
         #bbox_to_anchor=(0.5, -0.1),
@@ -82,7 +71,7 @@ def graph_polcho(series: dict):
     return plt
 
 # a tappeto rews
-def graph_rewparconf(series: dict, strat:str):
+def plot_rewards_paramconfs(series: dict, strat:str):
     rcParams['mathtext.fontset'] = 'stix'
     rcParams['font.family'] = 'STIXGeneral'
     col=-1
@@ -146,15 +135,12 @@ def graph_rewparconf(series: dict, strat:str):
             title+="$\\rightarrow$"+axis_post
         title+=")"
 
-    # plt.plot(value["x"], value["y"], label=key)
-    # plt.plot(datadict.get("x"), datadict.get("y"), label=datadict.)
     xlabel="Time (s)"
     ylabel="Reward (cum. avg.)"
 
     plt.axvline(x=UPDATE_INTERVAL, color='black', linestyle='--', label='weights updated')
     plt.xlabel(xlabel)  # add X-axis label
     plt.ylabel(ylabel)  # add Y-axis label
-    #plt.tight_layout()
     plt.grid(axis="y")
     """
     bbox_to_anchor=(1, 0.5),
@@ -176,7 +162,7 @@ def graph_rewparconf(series: dict, strat:str):
     return plt
 
 #seeds
-def graph_rewdist(series: dict, strat:str, axis_pre:str, axis_post:str):
+def plot_reward_distributions(series: dict, strat:str, axis_pre:str, axis_post:str):
     rcParams['mathtext.fontset'] = 'stix'
     rcParams['font.family'] = 'STIXGeneral'
     col=-1
@@ -400,6 +386,3 @@ def plot_arms_disparity(series: dict, strategy: str, is_stationary: bool = True,
     plt.tight_layout()
 
     return plt
-
-def line_graph(time:List[int], series: List[float]):
-    pass

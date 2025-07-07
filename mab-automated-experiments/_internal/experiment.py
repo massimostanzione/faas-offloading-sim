@@ -12,7 +12,8 @@ from typing import List
 import numpy as np
 
 import conf
-from conf import MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA, MAB_KL_UCB_C, MAB_ALL_STRATEGIES_PARAMETERS
+from conf import MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA, MAB_KL_UCB_C, MAB_ALL_STRATEGIES_PARAMETERS, \
+    EXPIRATION_TIMEOUT
 from main import main
 from .logging import MABExperimentInstanceRecord, IncrementalLogger, SCRIPT_DIR
 from . import consts
@@ -20,9 +21,9 @@ from . import consts
 logger = IncrementalLogger()
 
 def write_custom_configfile(expname: str, strategy: str, close_door_time: float, stat_print_interval: float, mab_update_interval:float, axis_pre: str, axis_post: str, params_names: List[str],
-                            params_values: List[float], seed: int, specfile: str = None):
+                            params_values: List[float], seed: int, specfile: str = None, expiration_timeout: float = consts.DEFAULT_EXPIRATION_TIMEOUT):
     outfile_stats = generate_outfile_name(consts.PREFIX_STATSFILE, strategy, axis_pre, axis_post, params_names,
-                                          params_values, seed, specfile) + consts.SUFFIX_STATSFILE
+                                          params_values, seed, specfile, expiration_timeout) + consts.SUFFIX_STATSFILE
     outfile_mabstats = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.TEMP_STATS_LOCATION,
                                                     consts.PREFIX_MABSTATSFILE + consts.SUFFIX_MABSTATSFILE + "-pid" + str(
                                                         os.getpid())))
@@ -44,6 +45,9 @@ def write_custom_configfile(expname: str, strategy: str, close_door_time: float,
     outconfig.set(conf.SEC_POLICY, conf.POLICY_ARRIVAL_RATE_ALPHA, str(0.3))
     outconfig.add_section(conf.SEC_LB)
     outconfig.set(conf.SEC_LB, conf.LB_POLICY, "random-lb")
+
+    outconfig.add_section(conf.SEC_CONTAINER)
+    outconfig.set(conf.SEC_CONTAINER, conf.EXPIRATION_TIMEOUT, str(expiration_timeout))
 
     outconfig.add_section(conf.SEC_MAB)
     outconfig.set(conf.SEC_MAB, conf.MAB_UPDATE_INTERVAL, str(mab_update_interval))
@@ -126,7 +130,7 @@ def get_param_full_name(simple_name: str) -> str:
     return simple_name
 
 
-def generate_outfile_name(prefix, strategy, axis_pre, axis_post, params_names, params_values, seed, specfile):
+def generate_outfile_name(prefix, strategy, axis_pre, axis_post, params_names, params_values, seed, specfile, expiration_timeeout):
     pardict = {}
     for i, _ in enumerate(params_names):
         pardict[params_names[i]] = params_values[i]
@@ -139,6 +143,7 @@ def generate_outfile_name(prefix, strategy, axis_pre, axis_post, params_names, p
             [output_suffix, consts.DELIMITER_PARAMS.join([get_param_simple_name(key), "{}".format(float(value))])])
     output_suffix = consts.DELIMITER_HYPHEN.join([output_suffix, consts.DELIMITER_PARAMS.join(["seed", seed])])
     output_suffix = consts.DELIMITER_HYPHEN.join([output_suffix, consts.DELIMITER_PARAMS.join(["specfile", specfile])])
+    output_suffix = consts.DELIMITER_HYPHEN.join([output_suffix, consts.DELIMITER_PARAMS.join(["exptimeout", expiration_timeeout])])
     config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.TEMP_STATS_LOCATION, output_suffix))
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     return config_path
@@ -192,19 +197,6 @@ def _is_iterable(key):
 
 def _is_bayesopt(value):
     return value=="bayesopt"
-"""
-def extract_params_from_config(expconfig) -> List[MABExperiment_IterableParam]:
-    parameters_sect = expconfig["parameters"]
-    fetched_params = set()
-    for k,v in parameters_sect:
-        if _is_iterable(k):
-            fetched_params.add(re.match.group(1))
-            
-        else if is_bayesopt():
-            
-        else:
-            pass
-"""
 
 def extract_iterable_params_from_config(expconfig) -> List[MABExperiment_IterableParam]:
     _, iterable_params = extract_strategy_params_from_config(expconfig)
@@ -264,7 +256,10 @@ class MABExperiment:
     def __init__(self, expconf, name: str, strategies: List[str], close_door_time: float=28800, stat_print_interval: float = 300, mab_update_interval: float=300, axis_pre: List[str] = None, axis_post: List[str] = None,
                  iterable_params: List[MABExperiment_IterableParam] = None, graphs: List[str] = None,
                  rundup: str = consts.RundupBehavior.SKIP_EXISTENT.value, max_parallel_executions: int = 1,
-                 seeds: List[int] = None, specfiles: List[str] = None, output_persist:List[str] = None):
+                 seeds: List[int] = None, specfiles: List[str] = None, expiration_timeouts=None,
+                 output_persist:List[str] = None):
+        if expiration_timeouts is None:
+            expiration_timeouts = [consts.DEFAULT_EXPIRATION_TIMEOUT]
         self.expconf = expconf
         self.name = name
         self.strategies = strategies
@@ -279,12 +274,13 @@ class MABExperiment:
         self.max_parallel_executions = max_parallel_executions
         self.seeds = [123] if seeds == None else seeds
         self.specfiles = specfiles
+        self.expiration_timeouts = expiration_timeouts
         self.output_persist = output_persist
 
     def _generate_config(self, strategy: str, close_door_time: float, stat_print_interval: float, mab_update_interval: float, axis_pre: str, axis_post: str, param_names: List[str],
-                         param_values: List[float], seed: int, specfile:str):
+                         param_values: List[float], seed: int, specfile:str, expiration_timeout:float):
         return write_custom_configfile(self.name, strategy, close_door_time, stat_print_interval, mab_update_interval, axis_pre, axis_post, param_names, param_values, seed,
-                                       specfile)
+                                       specfile, expiration_timeout)
 
     # ritorna liste di dizionari del tipo [{par1: valore1, par2, valore2}, {par1: valore1, par2, valore2}, ...]
     # ove ciascun dizionario rappresenta i parametri di una singola istanza
@@ -309,14 +305,8 @@ class MABExperiment:
         tmpfldr=os.path.abspath(os.path.join(os.path.dirname(__file__),consts.TEMP_FILES_DIR))
 
         if os.path.exists(tmpfldr):
+            # TODO codice duplicato altrove
             shutil.rmtree(tmpfldr, ignore_errors=True)
-
-
-
-
-
-
-
 
         print(f"Starting experiment {self.name}...")
 
@@ -329,15 +319,13 @@ class MABExperiment:
 
         # todo questo pezzo di codice è in API, vedere se/come unire
         max_procs = self.max_parallel_executions
-        all_combinations = list(itertools.product(self.strategies, self.axis_pre, self.axis_post, self.seeds, self.specfiles))
+        all_combinations = list(itertools.product(self.strategies, self.axis_pre, self.axis_post, self.seeds, self.specfiles, self.expiration_timeouts))
 
         in_list = []
         bayesopt=None
 
-        for strat, axis_pre, axis_post, seed, specfile in all_combinations:
+        for strat, axis_pre, axis_post, seed, specfile, expiration_timeout in all_combinations:
             if axis_post=="": axis_post=axis_pre
-            # TODO bayesopt oppure parametri caricati self.params
-            # FIXME parametro workload
             bayesopt_value=None
             try:
                 bayesopt_value = self.expconf["parameters"]["bayesopt"]
@@ -349,30 +337,21 @@ class MABExperiment:
 
             param_combinations = None if bayesopt else self.enumerate_iterable_params(strat)
             for pc in param_combinations if param_combinations is not None else [None]:
-                instance = MABExperimentInstanceRecord(strat, axis_pre, axis_post, pc, seed, None, specfile, self.stat_print_interval, self.mab_update_interval)
+                instance = MABExperimentInstanceRecord(strat, axis_pre, axis_post, pc, seed, None, specfile,
+                                                       self.stat_print_interval, self.mab_update_interval, expiration_timeout)
                 in_list.append(instance)
         out_list = in_list if not bayesopt else bayesopt_search(in_list, max_procs, self.expconf)
-        #out_list=in_list
 
-        #chunk_size = len(all_combinations) // max_procs + (len(all_combinations) % max_procs > 0)
-        #chunks = [all_combinations[i:i + chunk_size] for i in range(0, len(all_combinations), chunk_size)]
-
-        # TODO max_procs -> filtered, see bayesopt
-        #with Pool(processes=max_procs) as pool:
-        #    pool.map(self._parall_run, out_list)
-        
         effective_procs = max(1, min(len(out_list), max_procs))
         cs=max(1,math.ceil(len(out_list)/effective_procs))
         with Pool(processes=effective_procs) as pool:
             pool.map(self._parall_run, out_list, chunksize=cs)
-            #pool.join()
 
         tmpfldr=os.path.abspath(os.path.join(os.path.dirname(__file__),consts.TEMP_FILES_DIR))
 
         if os.path.exists(tmpfldr):
+            # TODO codice duplicato altrove
             shutil.rmtree(tmpfldr, ignore_errors=True)
-    # la funzione parallela
-    #def _parall_run(self, params):
 
     def _parall_run(self, instance: MABExperimentInstanceRecord):
         rundup = logger.determine_simex_behavior(instance, self.rundup, self.output_persist)
@@ -383,54 +362,35 @@ class MABExperiment:
             ax_post=instance.identifiers["axis_post"]
             seed=instance.identifiers["seed"]
             specfile = instance.identifiers["specfile"]
+            expiration_timeout = instance.identifiers[EXPIRATION_TIMEOUT]
             print(f"Processing strategy={strategy}, ax_pre={ax_pre}, ax_post={ax_post}, seed={seed}, specfile={specfile}")
             print()
             print("============================================")
             print(f"Running experiment \"{self.name}\"")
             print(f"with the following configuration")
+            # TODO instance.print_configuration
             print(f"\tStrategy:\t{strategy}")
             print(f"\tAxis:\t\t{ax_pre} -> {ax_post}")
             print(f"\tSeed:\t\t{seed}")
             print(f"\tParameters:")
-            #for i, _ in enumerate(param_names):
             for k,v in params.items():
                 print(f"\t\t> {k} = {v}")
             print(f"\tSpecfile:\t\t{specfile}")
+            print(f"\tExpiration timeout:\t\t{expiration_timeout}")
             print("--------------------------------------------")
             param_names=[k for k,_ in params.items()]
             current_values=[v for _,v in params.items()]
-            config_path = self._generate_config(strategy, self.close_door_time, self.stat_print_interval, self.mab_update_interval, ax_pre, ax_post, param_names, current_values, seed, specfile)
+            config_path = self._generate_config(strategy, self.close_door_time, self.stat_print_interval,
+                                                self.mab_update_interval, ax_pre, ax_post, param_names, current_values,
+                                                seed, specfile, expiration_timeout)
 
             statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strategy, ax_pre, ax_post, param_names,
-                current_values, seed, specfile) + consts.SUFFIX_STATSFILE
+                current_values, seed, specfile, expiration_timeout) + consts.SUFFIX_STATSFILE
 
             mabfile = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.TEMP_STATS_LOCATION,
                                                    consts.PREFIX_MABSTATSFILE + consts.SUFFIX_MABSTATSFILE + "-pid" + str(
                                                        os.getpid())))
 
-            """
-            if Path(statsfile).exists():
-                # make sure that the file is not only existent, but also not incomplete
-                # (i.e. correctly JSON-readable until the EOF)
-                try:
-                    with open(mabfile, 'r', encoding='utf-8') as r:
-                        json.load(r)
-                except JSONDecodeError:
-                    print("mab-stats file non existent or JSON parsing error, running simulation...")
-                    run_simulation = True
-                except FileNotFoundError:
-                    print("mab-stats file non existent or JSON parsing error, running simulation...")
-                    run_simulation = True
-                else:
-                    print("parseable stats- and mab-stats file found, skipping simulation.")
-                    run_simulation = False
-            else:
-                print("stats-file non not found, running simulation...")
-                run_simulation = True
-            if run_simulation is None:
-                print("Something is really odd...")
-                exit(1)
-            """
             run_simulation=self.rundup
             if run_simulation:
                 main(config_path)
@@ -448,23 +408,23 @@ class MABExperiment:
                 for k, v in d.items():
                     if isinstance(v, dict):
                         myprint(v)
-                    else:
-                        if k in dictt.keys():
-                            dictt[k].append(v)
+                    if k in dictt.keys():
+                        dictt[k].append(v)
+
             # extract the data requested to persist from all the output files
             for file in [statsfile, mabfile]:
                 with open(file, 'r') as f:
                     data = json.load(f)
-                for d in data:
-                    myprint(d)
+                    for d in data:
+                        myprint(d)
 
 
-            if self.output_persist.__contains__("cumavg-reward"):
-                for d in data:
-                    policies.append(d["policy"])
-                    rewards.append(d['reward'])
-                cumavg_reward = sum(rewards) / len(rewards)
-                dictt["cumavg-reward"]=cumavg_reward
+                if self.output_persist.__contains__("cumavg-reward"):
+                    for d in data:
+                        policies.append(d["policy"])
+                        rewards.append(d['reward'])
+                    cumavg_reward = sum(rewards) / len(rewards)
+                    dictt["cumavg-reward"]=cumavg_reward
 
             instance.add_experiment_result(dictt)
             logger.persist(instance, self.rundup)
