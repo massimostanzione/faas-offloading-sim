@@ -197,19 +197,6 @@ def _is_iterable(key):
 
 def _is_bayesopt(value):
     return value=="bayesopt"
-"""
-def extract_params_from_config(expconfig) -> List[MABExperiment_IterableParam]:
-    parameters_sect = expconfig["parameters"]
-    fetched_params = set()
-    for k,v in parameters_sect:
-        if _is_iterable(k):
-            fetched_params.add(re.match.group(1))
-            
-        else if is_bayesopt():
-            
-        else:
-            pass
-"""
 
 def extract_iterable_params_from_config(expconfig) -> List[MABExperiment_IterableParam]:
     _, iterable_params = extract_strategy_params_from_config(expconfig)
@@ -321,13 +308,6 @@ class MABExperiment:
             # TODO codice duplicato altrove
             shutil.rmtree(tmpfldr, ignore_errors=True)
 
-
-
-
-
-
-
-
         print(f"Starting experiment {self.name}...")
 
         # prepare output folder
@@ -346,8 +326,6 @@ class MABExperiment:
 
         for strat, axis_pre, axis_post, seed, specfile, expiration_timeout in all_combinations:
             if axis_post=="": axis_post=axis_pre
-            # TODO bayesopt oppure parametri caricati self.params
-            # FIXME parametro workload
             bayesopt_value=None
             try:
                 bayesopt_value = self.expconf["parameters"]["bayesopt"]
@@ -363,28 +341,17 @@ class MABExperiment:
                                                        self.stat_print_interval, self.mab_update_interval, expiration_timeout)
                 in_list.append(instance)
         out_list = in_list if not bayesopt else bayesopt_search(in_list, max_procs, self.expconf)
-        #out_list=in_list
 
-        #chunk_size = len(all_combinations) // max_procs + (len(all_combinations) % max_procs > 0)
-        #chunks = [all_combinations[i:i + chunk_size] for i in range(0, len(all_combinations), chunk_size)]
-
-        # TODO max_procs -> filtered, see bayesopt
-        #with Pool(processes=max_procs) as pool:
-        #    pool.map(self._parall_run, out_list)
-        
         effective_procs = max(1, min(len(out_list), max_procs))
         cs=max(1,math.ceil(len(out_list)/effective_procs))
         with Pool(processes=effective_procs) as pool:
             pool.map(self._parall_run, out_list, chunksize=cs)
-            #pool.join()
 
         tmpfldr=os.path.abspath(os.path.join(os.path.dirname(__file__),consts.TEMP_FILES_DIR))
 
         if os.path.exists(tmpfldr):
             # TODO codice duplicato altrove
             shutil.rmtree(tmpfldr, ignore_errors=True)
-    # la funzione parallela
-    #def _parall_run(self, params):
 
     def _parall_run(self, instance: MABExperimentInstanceRecord):
         rundup = logger.determine_simex_behavior(instance, self.rundup, self.output_persist)
@@ -406,7 +373,6 @@ class MABExperiment:
             print(f"\tAxis:\t\t{ax_pre} -> {ax_post}")
             print(f"\tSeed:\t\t{seed}")
             print(f"\tParameters:")
-            #for i, _ in enumerate(param_names):
             for k,v in params.items():
                 print(f"\t\t> {k} = {v}")
             print(f"\tSpecfile:\t\t{specfile}")
@@ -425,29 +391,6 @@ class MABExperiment:
                                                    consts.PREFIX_MABSTATSFILE + consts.SUFFIX_MABSTATSFILE + "-pid" + str(
                                                        os.getpid())))
 
-            """
-            if Path(statsfile).exists():
-                # make sure that the file is not only existent, but also not incomplete
-                # (i.e. correctly JSON-readable until the EOF)
-                try:
-                    with open(mabfile, 'r', encoding='utf-8') as r:
-                        json.load(r)
-                except JSONDecodeError:
-                    print("mab-stats file non existent or JSON parsing error, running simulation...")
-                    run_simulation = True
-                except FileNotFoundError:
-                    print("mab-stats file non existent or JSON parsing error, running simulation...")
-                    run_simulation = True
-                else:
-                    print("parseable stats- and mab-stats file found, skipping simulation.")
-                    run_simulation = False
-            else:
-                print("stats-file non not found, running simulation...")
-                run_simulation = True
-            if run_simulation is None:
-                print("Something is really odd...")
-                exit(1)
-            """
             run_simulation=self.rundup
             if run_simulation:
                 main(config_path)

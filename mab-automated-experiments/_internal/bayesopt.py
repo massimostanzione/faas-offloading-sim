@@ -151,8 +151,6 @@ def compute_total_reward(expname, instance_sub: MABExperimentInstanceRecord, run
         rewards = instance_sub.results["rewards"]
     total_reward += sum(rewards) / len(rewards)
 
-    # instance_sub.add_experiment_result({"rewards":rewards})#{"rewards":rewards})
-    # logger.persist(instance_sub)
     return total_reward
 
 
@@ -251,8 +249,6 @@ def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> di
     threshold = bayes_expconf.getfloat("parameters", "improvement-threshold")
     window_size = bayes_expconf.getint("parameters", "sliding-window-size")
     improvements = []
-    # for ax_pre in axis_pre:
-    # for ax_post in axis_post:
     optimizer = BayesianOptimization(f=selected_obj_fn, pbounds=pbounds, verbose=2, random_state=1, )
     best_value = float('-inf')
     init_points = bayes_expconf.getint("parameters", "rand-points")
@@ -283,7 +279,6 @@ def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> di
         actual_iters = i
         best_value = current_best
 
-    # output_file_mp = (EXPNAME + "/results/output.json")
 
     valprint = {key: float(value) for key, value in optimizer.max['params'].items()}
     result = {}
@@ -302,7 +297,6 @@ def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> di
     # write to text file (human-readable)
 
 
-    #output_file_hr = (expname + "/"+consts.DEFAULT_OUTPUT_FOLDER+"/"+consts.BAYESOPT_OUTPUT_FILE)
     output_file_hr = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.STATS_FILES_DIR, consts.BAYESOPT_OUTPUT_FILE))
 
     needs_header = not os.path.exists(output_file_hr)
@@ -313,19 +307,5 @@ def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> di
             mp_file.write(
                 "------------------------------------------------------------------------------------------------------------------------\n")
         mp_file.write('{0:19} {10:9} {1:3} {2:3} {3:3} {4:3} {5:3} {6:8} {7:10} > {8:10} {9}\n'.format(str(timestamp),
-                                                                                                       bayes_expconf.getint(
-                                                                                                           "parameters",
-                                                                                                           "objfn-stabilizations-iterations"),
-                                                                                                       bayes_expconf.getint(
-                                                                                                           "parameters",
-                                                                                                           "rand-points"),
-                                                                                                       window_size,
-                                                                                                       bayes_expconf.getint(
-                                                                                                           "parameters",
-                                                                                                           "iterations"),
-                                                                                                       actual_iters,
-                                                                                                       strat, ax_pre,
-                                                                                                       ax_post,
-                                                                                                       valprint, seed))
 
     return valprint
