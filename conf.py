@@ -40,6 +40,8 @@ LB_POLICY = "lb-policy"
 # Multi-Armed Bandit
 SEC_MAB = "mab"
 MAB_UPDATE_INTERVAL = "mab-update-interval"
+MAB_INTERMEDIATE_SAMPLING_UPDATE_INTERVAL = "mab-intermediate-sampling-update-interval"
+MAB_INTERMEDIATE_SAMPLING_STATS_KEYS = "mab-intermediate-sampling-stats-keys"
 MAB_LB_POLICIES = "mab-lb-policies"
 MAB_STRATEGY = "mab-strategy"
 MAB_EPSILON = "mab-epsilon"

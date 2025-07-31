@@ -7,13 +7,14 @@ import shutil
 from copy import deepcopy
 from typing import List
 
+import conf
 from . import consts
 from .experiment import write_custom_configfile, get_param_simple_name, generate_outfile_name
 
 # esterno
 from bayes_opt import BayesianOptimization
 
-from conf import MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA, MAB_KL_UCB_C
+from conf import MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA, MAB_KL_UCB_C, EXPIRATION_TIMEOUT, STAT_PRINT_INTERVAL
 from main import main
 from .logging import MABExperimentInstanceRecord, IncrementalLogger
 
@@ -30,15 +31,16 @@ def obj_ucbtuned(expname, ef, cdt, spi, mui, instance: MABExperimentInstanceReco
     ax_pre = instance.identifiers["axis_pre"]
     ax_post = instance.identifiers["axis_post"]
     seed = instance.identifiers["seed"]
+    mab_intermediate_sampling_update = instance.identifiers[conf.MAB_INTERMEDIATE_SAMPLING_UPDATE_INTERVAL]
+    mab_intermediate_sampling_keys = instance.identifiers[conf.MAB_INTERMEDIATE_SAMPLING_STATS_KEYS]
     print(f"computing for {strat}, {ax_pre} > {ax_post}, seed={seed}, ef={ef}\n")
     for _ in range(num_simulations):
-        write_custom_configfile(expname, strat, cdt, spi, mui, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR], [ef], seed, specfile)
+        write_custom_configfile(expname, strat, cdt, spi, mui, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR], [ef], seed, specfile, mab_intermediate_sampling_update, mab_intermediate_sampling_keys)
 
         statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strat, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR],
-            [ef], seed, specfile) + consts.SUFFIX_STATSFILE
+            [ef], seed, specfile, instance.identifiers[EXPIRATION_TIMEOUT]) + consts.SUFFIX_STATSFILE
         mabfile = generate_outfile_name(consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post,
-            [MAB_UCB_EXPLORATION_FACTOR], [ef], seed, specfile) + consts.SUFFIX_MABSTATSFILE
-
+            [MAB_UCB_EXPLORATION_FACTOR], [ef], seed, specfile, instance.identifiers[EXPIRATION_TIMEOUT]) + consts.SUFFIX_MABSTATSFILE
         instance_sub = deepcopy(instance)
         instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_UCB_EXPLORATION_FACTOR): float(ef)}
 
@@ -52,15 +54,17 @@ def obj_ucb2(expname, ef, cdt, spi, mui, alpha, instance: MABExperimentInstanceR
     ax_pre = instance.identifiers["axis_pre"]
     ax_post = instance.identifiers["axis_post"]
     seed = instance.identifiers["seed"]
+    mab_intermediate_sampling_update = instance.identifiers[conf.MAB_INTERMEDIATE_SAMPLING_UPDATE_INTERVAL]
+    mab_intermediate_sampling_keys = instance.identifiers[conf.MAB_INTERMEDIATE_SAMPLING_STATS_KEYS]
     print(f"computing for {strat}, {ax_pre} > {ax_post}, seed={seed}, ef={ef}, alpha={alpha}\n")
     for _ in range(num_simulations):
         write_custom_configfile(expname, strat, cdt, spi, mui, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA],
-                                [ef, alpha], seed, specfile)
+                                [ef, alpha], seed, specfile, mab_intermediate_sampling_update, mab_intermediate_sampling_keys)
 
         statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strat, ax_pre, ax_post,
-            [MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA], [ef, alpha], seed, specfile) + consts.SUFFIX_STATSFILE
+            [MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA], [ef, alpha], seed, specfile, instance.identifiers[EXPIRATION_TIMEOUT]) + consts.SUFFIX_STATSFILE
         mabfile = generate_outfile_name(consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post,
-            [MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA], [ef, alpha], seed, specfile) + consts.SUFFIX_MABSTATSFILE
+            [MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA], [ef, alpha], seed, specfile, instance.identifiers[EXPIRATION_TIMEOUT]) + consts.SUFFIX_MABSTATSFILE
 
         instance_sub = deepcopy(instance)
         instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_UCB_EXPLORATION_FACTOR): float(ef),
@@ -77,15 +81,17 @@ def obj_klucb(expname, ef, c, cdt, spi, mui, instance: MABExperimentInstanceReco
     ax_pre = instance.identifiers["axis_pre"]
     ax_post = instance.identifiers["axis_post"]
     seed = instance.identifiers["seed"]
+    mab_intermediate_sampling_update = instance.identifiers[conf.MAB_INTERMEDIATE_SAMPLING_UPDATE_INTERVAL]
+    mab_intermediate_sampling_keys = instance.identifiers[conf.MAB_INTERMEDIATE_SAMPLING_STATS_KEYS]
     print(f"computing for {strat}, {ax_pre} > {ax_post}, seed={seed}, ef={ef}, c={c}\n")
     for _ in range(num_simulations):
         path = write_custom_configfile(expname, strat, cdt, spi, mui, ax_pre, ax_post, [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C],
-                                       [ef, c], seed, specfile)
+                                       [ef, c], seed, specfile, mab_intermediate_sampling_update, mab_intermediate_sampling_keys)
 
         statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strat, ax_pre, ax_post,
-            [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C], [ef, c], seed, specfile) + consts.SUFFIX_STATSFILE
+            [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C], [ef, c], seed, specfile, instance.identifiers[EXPIRATION_TIMEOUT]) + consts.SUFFIX_STATSFILE
         mabfile = generate_outfile_name(consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post,
-            [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C], [ef, c], seed, specfile) + consts.SUFFIX_MABSTATSFILE
+            [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C], [ef, c], seed, specfile, instance.identifiers[EXPIRATION_TIMEOUT]) + consts.SUFFIX_MABSTATSFILE
 
         instance_sub = deepcopy(instance)
         instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_UCB_EXPLORATION_FACTOR): float(ef),
@@ -100,14 +106,16 @@ def obj_klucbsp(expname, c, cdt, spi, mui, instance: MABExperimentInstanceRecord
     ax_pre = instance.identifiers["axis_pre"]
     ax_post = instance.identifiers["axis_post"]
     seed = instance.identifiers["seed"]
+    mab_intermediate_sampling_update = instance.identifiers[conf.MAB_INTERMEDIATE_SAMPLING_UPDATE_INTERVAL]
+    mab_intermediate_sampling_keys = instance.identifiers[conf.MAB_INTERMEDIATE_SAMPLING_STATS_KEYS]
     print(f"computing for {strat}, {ax_pre} > {ax_post}, seed={seed}, c={c}\n")
     for _ in range(num_simulations):
-        path = write_custom_configfile(expname, strat, cdt, spi, mui, ax_pre, ax_post, [MAB_KL_UCB_C], [c], seed, specfile)
+        path = write_custom_configfile(expname, strat, cdt, spi, mui, ax_pre, ax_post, [MAB_KL_UCB_C], [c], seed, specfile, mab_intermediate_sampling_update, mab_intermediate_sampling_keys)
 
         statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strat, ax_pre, ax_post, [MAB_KL_UCB_C], [c],
-            seed, specfile) + consts.SUFFIX_STATSFILE
+            seed, specfile, instance.identifiers[EXPIRATION_TIMEOUT]) + consts.SUFFIX_STATSFILE
         mabfile = generate_outfile_name(consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post, [MAB_KL_UCB_C], [c],
-            seed, specfile) + consts.SUFFIX_MABSTATSFILE
+            seed, specfile, instance.identifiers[EXPIRATION_TIMEOUT]) + consts.SUFFIX_MABSTATSFILE
         instance_sub = deepcopy(instance)
         instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_KL_UCB_C): float(c)}
         ret= compute_total_reward(expname, instance_sub, rundup) / num_simulations
@@ -163,6 +171,7 @@ def extract_optimal_parameters_for_instance(instance:MABExperimentInstanceRecord
 
 # punto di ingresso
 def bayesopt_search(list: List[MABExperimentInstanceRecord], procs: int, expconf) -> List[MABExperimentInstanceRecord]:
+def bayesopt_search(list: List[MABExperimentInstanceRecord], procs: int, expconf, exp) -> List[MABExperimentInstanceRecord]:
     # concentra i processi a disposizione soltanto sulle istanze che non hanno ancora i parametri ottimi
     filtered = logger.filter_unprocessed_instances(list, ["optimal-params"])
     global bayes_expconf
@@ -182,8 +191,11 @@ def bayesopt_search(list: List[MABExperimentInstanceRecord], procs: int, expconf
         # build a ready-to-be-processed instance with the optimal params
         ready = MABExperimentInstanceRecord(found.identifiers["strategy"], found.identifiers["axis_pre"],
             found.identifiers["axis_post"], found.results["optimal-params"], found.identifiers["seed"],
-            found.identifiers["workload"], found.identifiers["specfile"], found.identifiers["stat-print-interval"],
-                                            found.identifiers["mab-update-interval"])
+            found.identifiers["workload"], found.identifiers["specfile"], found.identifiers[conf.STAT_PRINT_INTERVAL],
+                                            found.identifiers["mab-update-interval"],
+                                            found.identifiers[conf.MAB_INTERMEDIATE_SAMPLING_UPDATE_INTERVAL],
+                                            found.identifiers[conf.MAB_INTERMEDIATE_SAMPLING_STATS_KEYS],
+                                            found.identifiers["expiration-timeout"])
         ret.append(ready)
 
 

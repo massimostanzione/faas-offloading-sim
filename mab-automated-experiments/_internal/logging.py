@@ -7,7 +7,8 @@ from typing import List
 
 from filelock import FileLock
 
-from conf import EXPIRATION_TIMEOUT
+import conf
+from conf import EXPIRATION_TIMEOUT, STAT_PRINT_INTERVAL
 
 LOOKUP_OPTIMAL_PARAMETERS=-999
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -30,6 +31,8 @@ class MABExperimentInstanceRecord:
                  specfile: str,
                  stat_print_interval: float,
                  mab_update_interval: float,
+                 mab_intermediate_sampling_update_interval: float,
+                 mab_intermediate_samples_keys: List[str],
                  expiration_timeout: float
                  ):
         # instance identifiers
@@ -41,8 +44,10 @@ class MABExperimentInstanceRecord:
             "seed":seed,
             "workload":workload,
             "specfile":specfile,
-            "stat-print-interval":stat_print_interval,
-            "mab-update-interval":mab_update_interval,
+            conf.STAT_PRINT_INTERVAL:stat_print_interval,
+            conf.MAB_UPDATE_INTERVAL:mab_update_interval,
+            conf.MAB_INTERMEDIATE_SAMPLING_UPDATE_INTERVAL:mab_intermediate_sampling_update_interval,
+            conf.MAB_INTERMEDIATE_SAMPLING_STATS_KEYS:mab_intermediate_samples_keys,
             EXPIRATION_TIMEOUT:expiration_timeout
         }
 
@@ -215,8 +220,10 @@ def _deserialize(dict):
                                         dict["identifiers"]["seed"],
                                         dict["identifiers"]["workload"],
                                         dict["identifiers"]["specfile"],
-                                        dict["identifiers"]["stat-print-interval"],
-                                        dict["identifiers"]["mab-update-interval"],
+                                        dict["identifiers"][conf.STAT_PRINT_INTERVAL] if conf.STAT_PRINT_INTERVAL in dict["identifiers"] else 360, # FIXME gestire i valori di default in modo centralizzato
+                                        dict["identifiers"][conf.MAB_UPDATE_INTERVAL] if conf.MAB_UPDATE_INTERVAL in dict["identifiers"] else None,
+                                        dict["identifiers"][conf.MAB_INTERMEDIATE_SAMPLING_UPDATE_INTERVAL] if conf.MAB_INTERMEDIATE_SAMPLING_UPDATE_INTERVAL in dict["identifiers"] else None,
+                                        dict["identifiers"][conf.MAB_INTERMEDIATE_SAMPLING_STATS_KEYS] if conf.MAB_INTERMEDIATE_SAMPLING_STATS_KEYS in dict["identifiers"] else None,
                                         dict["identifiers"][EXPIRATION_TIMEOUT] if EXPIRATION_TIMEOUT in dict["identifiers"] else None,
                                        )
     ret.add_experiment_result(dict["results"])

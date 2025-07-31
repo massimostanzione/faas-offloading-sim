@@ -40,9 +40,12 @@ def extract_datarecords_from_config_path(config_path: str) -> List[MABExperiment
                 config,
                 config["experiment"]["name"],
                 config["strategies"]["strategies"].replace(' ', '').split(consts.DELIMITER_COMMA),
-                config["experiment"]["close-door-time"],
-                config["experiment"]["stat-print-interval"],
-                config["experiment"]["mab-update-interval"],
+                config["experiment"]["close-door-time"] if 'close-door-time' in config["experiment"] else 28800,
+                int(config["experiment"][conf.STAT_PRINT_INTERVAL]) if conf.STAT_PRINT_INTERVAL in config["experiment"] else consts.DEFAULT_STAT_PRINT_INTERVAL,
+                config["experiment"][conf.MAB_UPDATE_INTERVAL] if conf.MAB_UPDATE_INTERVAL in config["experiment"] else consts.DEFAULT_MAB_UPDATE_INTERVAL,
+                config["experiment"][conf.MAB_INTERMEDIATE_SAMPLING_UPDATE_INTERVAL] if conf.MAB_INTERMEDIATE_SAMPLING_UPDATE_INTERVAL in config["experiment"] else None,
+                config["experiment"][conf.MAB_INTERMEDIATE_SAMPLING_STATS_KEYS].replace(' ', '').split(consts.DELIMITER_COMMA) if conf.MAB_INTERMEDIATE_SAMPLING_STATS_KEYS in config["experiment"] else None,
+
                 axis_pre,
                 axis_post,  # if not is_single_axis else axis_pre,
                 extract_iterable_params_from_config(config),
@@ -51,7 +54,9 @@ def extract_datarecords_from_config_path(config_path: str) -> List[MABExperiment
                 config.getint("experiment", "max-parallel-execution"),
                 config["parameters"]["seeds"].replace(' ', '').split(consts.DELIMITER_COMMA),
                 config["parameters"]["specfiles"].replace(' ', '').split(consts.DELIMITER_COMMA),
-                config["parameters"][EXPIRATION_TIMEOUT].replace(' ', '').split(consts.DELIMITER_COMMA),
+                config["parameters"][EXPIRATION_TIMEOUT].replace(' ', '').split(
+                    consts.DELIMITER_COMMA) if EXPIRATION_TIMEOUT in config["parameters"] else [
+                    consts.DEFAULT_EXPIRATION_TIMEOUT],
                 config["output"]["persist"].replace(' ', '').split(consts.DELIMITER_COMMA)
             )
     else:
@@ -84,7 +89,11 @@ def extract_datarecords_from_experiment(exp: MABExperiment) -> List[MABExperimen
         param_combinations = None if bayesopt else exp.enumerate_iterable_params(strat)
         for pc in param_combinations if param_combinations is not None else [None]:
             instance = MABExperimentInstanceRecord(strat, axis_pre, axis_post, pc, seed, None, specfile,
-                                                   exp.stat_print_interval, exp.mab_update_interval, expiration_timeout)
+                                                   exp.stat_print_interval, exp.mab_update_interval,
+                                                   exp.mab_intermediate_sampling_update_interval,
+            exp.mab_intermediate_samples_keys,
+
+            expiration_timeout)
             if pc is None:
                 instance.identifiers["parameters"] = extract_optimal_parameters_for_instance(instance)
             instance = logger.lookup(instance)

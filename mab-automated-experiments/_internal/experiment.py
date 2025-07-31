@@ -13,15 +13,23 @@ import numpy as np
 
 import conf
 from conf import MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA, MAB_KL_UCB_C, MAB_ALL_STRATEGIES_PARAMETERS, \
-    EXPIRATION_TIMEOUT
+    EXPIRATION_TIMEOUT, STAT_PRINT_INTERVAL
 from main import main
 from .logging import MABExperimentInstanceRecord, IncrementalLogger, SCRIPT_DIR
 from . import consts
 
 logger = IncrementalLogger()
 
-def write_custom_configfile(expname: str, strategy: str, close_door_time: float, stat_print_interval: float, mab_update_interval:float, axis_pre: str, axis_post: str, params_names: List[str],
-                            params_values: List[float], seed: int, specfile: str = None, expiration_timeout: float = consts.DEFAULT_EXPIRATION_TIMEOUT):
+
+def write_custom_configfile(expname: str, strategy: str, close_door_time: float, stat_print_interval: float,
+                            mab_update_interval: float, axis_pre: str, axis_post: str, params_names: List[str],
+                            params_values: List[float], seed: int, specfile: str = None,
+                            mab_intermediate_sampling_update: float = None,
+                            mab_intermediate_sampling_keys=None,
+                            expiration_timeout: float = consts.DEFAULT_EXPIRATION_TIMEOUT):
+
+    if mab_intermediate_sampling_keys is None:
+        mab_intermediate_sampling_keys = []
     outfile_stats = generate_outfile_name(consts.PREFIX_STATSFILE, strategy, axis_pre, axis_post, params_names,
                                           params_values, seed, specfile, expiration_timeout) + consts.SUFFIX_STATSFILE
     outfile_mabstats = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.TEMP_STATS_LOCATION,
@@ -33,7 +41,7 @@ def write_custom_configfile(expname: str, strategy: str, close_door_time: float,
     # other
     outconfig.add_section(conf.SEC_SIM)
     outconfig.set(conf.SEC_SIM, conf.SPEC_FILE, "../spec.yml" if specfile is None else specfile)
-    outconfig.set(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, str(stat_print_interval))
+    outconfig.set(conf.SEC_SIM, conf.STAT_PRINT_INTERVAL, str(stat_print_interval) if stat_print_interval is not None else consts.DEFAULT_STAT_PRINT_INTERVAL)
     outconfig.set(conf.SEC_SIM, conf.STAT_PRINT_FILE, outfile_stats)
     outconfig.set(conf.SEC_SIM, "mab-stats-print-file", outfile_mabstats)
     outconfig.set(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, str(close_door_time))
@@ -51,6 +59,12 @@ def write_custom_configfile(expname: str, strategy: str, close_door_time: float,
 
     outconfig.add_section(conf.SEC_MAB)
     outconfig.set(conf.SEC_MAB, conf.MAB_UPDATE_INTERVAL, str(mab_update_interval))
+
+    # intermediate sampling
+    if mab_intermediate_sampling_update is not None:
+        outconfig.set(conf.SEC_MAB, conf.MAB_INTERMEDIATE_SAMPLING_UPDATE_INTERVAL, str(mab_intermediate_sampling_update))
+        outconfig.set(conf.SEC_MAB, conf.MAB_INTERMEDIATE_SAMPLING_STATS_KEYS, ','.join(mab_intermediate_sampling_keys))
+
     outconfig.set(conf.SEC_MAB, conf.MAB_NON_STATIONARY_ENABLED, "false" if axis_pre == axis_post else "true")
     outconfig.set(conf.SEC_MAB, conf.MAB_LB_POLICIES,
                   "random-lb, round-robin-lb, mama-lb, const-hash-lb, wrr-speedup-lb, wrr-memory-lb, wrr-cost-lb")
@@ -147,7 +161,7 @@ def generate_outfile_name(prefix, strategy, axis_pre, axis_post, params_names, p
             [output_suffix, consts.DELIMITER_PARAMS.join([get_param_simple_name(key), "{}".format(float(value))])])
     output_suffix = consts.DELIMITER_HYPHEN.join([output_suffix, consts.DELIMITER_PARAMS.join(["seed", seed])])
     output_suffix = consts.DELIMITER_HYPHEN.join([output_suffix, consts.DELIMITER_PARAMS.join(["specfile", specfile])])
-    output_suffix = consts.DELIMITER_HYPHEN.join([output_suffix, consts.DELIMITER_PARAMS.join(["exptimeout", expiration_timeeout])])
+    output_suffix = consts.DELIMITER_HYPHEN.join([output_suffix, consts.DELIMITER_PARAMS.join(["exptimeout", str(expiration_timeeout)])])
     config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.TEMP_STATS_LOCATION, output_suffix))
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     return config_path
@@ -259,7 +273,12 @@ def extract_strategy_params_from_config(expconfig, strategy: str = None) -> [MAB
 from .bayesopt import bayesopt_search
 
 class MABExperiment:
-    def __init__(self, expconf, name: str, strategies: List[str], close_door_time: float=28800, stat_print_interval: float = 300, mab_update_interval: float=300, axis_pre: List[str] = None, axis_post: List[str] = None,
+    def __init__(self, expconf, name: str, strategies: List[str], close_door_time: float = 28800,
+                 stat_print_interval: float = 360, mab_update_interval: float = 300,
+                 mab_intermediate_sampling_update_interval:float=None,
+                 mab_intermediate_samples_keys:List[str]=None,
+                 axis_pre: List[str] = None,
+                 axis_post: List[str] = None,
                  iterable_params: List[MABExperiment_IterableParam] = None, graphs: List[str] = None,
                  rundup: str = consts.RundupBehavior.SKIP_EXISTENT.value, max_parallel_executions: int = 1,
                  seeds: List[int] = None, specfiles: List[str] = None, expiration_timeouts=None,
@@ -272,6 +291,8 @@ class MABExperiment:
         self.close_door_time = close_door_time
         self.stat_print_interval = stat_print_interval
         self.mab_update_interval = mab_update_interval
+        self.mab_intermediate_sampling_update_interval = mab_intermediate_sampling_update_interval
+        self.mab_intermediate_samples_keys = mab_intermediate_samples_keys
         self.axis_pre = axis_pre
         self.axis_post = axis_post
         self.iterable_params = iterable_params
@@ -284,9 +305,9 @@ class MABExperiment:
         self.output_persist = output_persist
 
     def _generate_config(self, strategy: str, close_door_time: float, stat_print_interval: float, mab_update_interval: float, axis_pre: str, axis_post: str, param_names: List[str],
-                         param_values: List[float], seed: int, specfile:str, expiration_timeout:float):
+                         param_values: List[float], seed: int, specfile:str, mabinttime, mabintkeys, expiration_timeout:float):
         return write_custom_configfile(self.name, strategy, close_door_time, stat_print_interval, mab_update_interval, axis_pre, axis_post, param_names, param_values, seed,
-                                       specfile, expiration_timeout)
+                                       specfile, mabinttime, mabintkeys, expiration_timeout)
 
     # ritorna liste di dizionari del tipo [{par1: valore1, par2, valore2}, {par1: valore1, par2, valore2}, ...]
     # ove ciascun dizionario rappresenta i parametri di una singola istanza
@@ -344,7 +365,10 @@ class MABExperiment:
             param_combinations = None if bayesopt else self.enumerate_iterable_params(strat)
             for pc in param_combinations if param_combinations is not None else [None]:
                 instance = MABExperimentInstanceRecord(strat, axis_pre, axis_post, pc, seed, None, specfile,
-                                                       self.stat_print_interval, self.mab_update_interval, expiration_timeout)
+                                                       self.stat_print_interval, self.mab_update_interval,
+                                                       self.mab_intermediate_sampling_update_interval,
+                                                       self.mab_intermediate_samples_keys, expiration_timeout)
+
                 in_list.append(instance)
         out_list = in_list if not bayesopt else bayesopt_search(in_list, max_procs, self.expconf)
 
@@ -388,7 +412,7 @@ class MABExperiment:
             current_values=[v for _,v in params.items()]
             config_path = self._generate_config(strategy, self.close_door_time, self.stat_print_interval,
                                                 self.mab_update_interval, ax_pre, ax_post, param_names, current_values,
-                                                seed, specfile, expiration_timeout)
+                                                seed, specfile, self.mab_intermediate_sampling_update_interval, self.mab_intermediate_samples_keys,expiration_timeout)
 
             statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strategy, ax_pre, ax_post, param_names,
                 current_values, seed, specfile, expiration_timeout) + consts.SUFFIX_STATSFILE

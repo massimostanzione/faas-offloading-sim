@@ -83,6 +83,15 @@ class MABUpdate(Event):
     pass
 
 @dataclass
+class MABIntermediateSamplingUpdate(Event):
+    """
+    For sampling statistics between MABUpdate invocations, at regular intervals,
+    such that when the MAB update is actually called, the output statistics will be
+    the average of the intermediate samples.
+    """
+    pass
+
+@dataclass
 class RewardUpdate(Event):
     pass
 
@@ -384,6 +393,10 @@ class Simulation:
         # Multi-Armed Bandit
         self.mab_update_interval = self.config.getfloat(conf.SEC_MAB, conf.MAB_UPDATE_INTERVAL, fallback=-1)
 
+        # intermediate samples
+        self.mab_intermediate_sampling_update_interval = self.config.getfloat(conf.SEC_MAB, conf.MAB_INTERMEDIATE_SAMPLING_UPDATE_INTERVAL, fallback=-1)
+        self.mab_intermediate_samples={k:[] for k in self.config.get(conf.SEC_MAB, conf.MAB_INTERMEDIATE_SAMPLING_STATS_KEYS, fallback="").replace(' ', '').split(',')}
+
         rt_print_filename = self.config.get(conf.SEC_SIM, conf.RESP_TIMES_FILE, fallback="")
         if len(rt_print_filename) > 0:
             self.resp_times_file = open(rt_print_filename, "w")
@@ -429,6 +442,12 @@ class Simulation:
             if non_stationary:
                 # TODO parametrizzare
                 self.schedule(3600, RewardUpdate())
+        if self.mab_intermediate_sampling_update_interval > 0.0:
+
+            # skip scheduling if mab_update is at the same time
+            delay = 1 if (self.mab_intermediate_sampling_update_interval) % self.mab_update_interval != 0 else 2
+            self.schedule(delay * self.mab_intermediate_sampling_update_interval, MABIntermediateSamplingUpdate())
+
 
         while len(self.events) > 0:
             t,e = heappop(self.events)
@@ -496,7 +515,8 @@ class Simulation:
                    or isinstance(item[1], PolicyUpdate) \
                    or isinstance(item[1], ArrivalRateUpdate) \
                    or isinstance(item[1], StatPrinter) \
-                   or isinstance(item[1], MABUpdate):
+                   or isinstance(item[1], MABUpdate) \
+                   or isinstance(item[1], MABIntermediateSamplingUpdate):
                     item[1].canceled = True
             self.external_arrivals_allowed = False
 
@@ -568,6 +588,12 @@ class Simulation:
             print("[MABUpdate]: MAB agent in action...")
             self.mab_update()
             self.schedule(t + self.mab_update_interval, event)
+        elif isinstance(event, MABIntermediateSamplingUpdate):
+            self.mab_intermediate_sampling_update()
+
+            # skip scheduling if mab_update is at the same time
+            delay = 1 if (t + self.mab_intermediate_sampling_update_interval) % self.mab_update_interval != 0 else 2
+            self.schedule(t + delay * self.mab_intermediate_sampling_update_interval, event)
         elif isinstance(event, RewardUpdate):
             self.reward_update()
         else:
@@ -752,6 +778,12 @@ class Simulation:
             _lb_policy = self.current_lb_policy
             for n in self.infra.get_load_balancers():
                 self.node2policy[n] = self.new_policy(_lb_policy, n)
+
+    def mab_intermediate_sampling_update(self):
+        # take the intermediate samples
+        for k, v in self.mab_intermediate_samples.items():
+            v.append(self.stats.to_dict(False)[k])
+            if (self.stats.to_dict(False)[k]) =='': raise RuntimeError("eee")
 
     def reward_update(self):
         self.mab_agent.ALPHA = self.mab_agent.ALPHA_POST  # load imbalance

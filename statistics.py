@@ -58,7 +58,7 @@ class Stats:
 
         self.do_snapshot() # create initial snapshot for the MAB agent
 
-    def to_dict (self):
+    def to_dict (self, finalize_intermediate_samples: bool = True, reset_intermediate_samples:bool = True):
         stats = {}
         raw = vars(self)
         for metric in raw:
@@ -167,6 +167,27 @@ class Stats:
         stats["drops_sys"] = dropped_reqs - self.dropped_reqs_cum_t0
         self.dropped_reqs_cum_t0 = dropped_reqs
 
+
+
+        # if some oversampling is required, return the average of them (good for smoothness)
+        # *** NOTICE: this will *OVERWRITE* the point estimate computed above!!! ***
+        if finalize_intermediate_samples and self.sim.mab_intermediate_sampling_update_interval > 0:
+            for k, v in self.sim.mab_intermediate_samples.items():
+                if not v and reset_intermediate_samples: raise RuntimeError("lista vuota, non dovrebbe essere!")
+
+                # appendi comunque l'ultimo campione, che va poi a contribuire alla media
+                # (è l'ultima osservazione per essa)
+                v.append(stats[k])
+
+                expected_samples=self.sim.mab_update_interval/self.sim.mab_intermediate_sampling_update_interval
+                if len(v) != expected_samples and                  not       (
+                                self.sim.t+self.sim.mab_intermediate_sampling_update_interval>self.sim.close_the_door_time
+                               or
+                               not self.sim.external_arrivals_allowed
+                                )                                :raise RuntimeError(len(v))
+                stats[k] = np.average(v)
+                if reset_intermediate_samples:
+                    self.sim.mab_intermediate_samples[k] = []  # reset
         return stats
     
     def update_memory_usage (self, node, t):
@@ -190,7 +211,7 @@ class Stats:
         self._mig_policy_updates += 1
 
     def print (self, out_file):
-        print(json.dumps(self.to_dict(), indent=4, sort_keys=True), file=out_file)
+        print(json.dumps(self.to_dict(False, False), indent=4, sort_keys=True), file=out_file)
 
     def do_snapshot(self):
         # Create a snapshot of the statistics for MAB agent
