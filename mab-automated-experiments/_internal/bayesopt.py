@@ -23,6 +23,7 @@ jsondata = manager.list()
 
 logger = IncrementalLogger()
 bayes_expconf = None
+bayes_exp = None
 num_simulations = 1  # config.getint("parameters", "objfn-stabilizations-iterations")
 
 
@@ -176,6 +177,8 @@ def bayesopt_search(list: List[MABExperimentInstanceRecord], procs: int, expconf
     filtered = logger.filter_unprocessed_instances(list, ["optimal-params"])
     global bayes_expconf
     bayes_expconf = expconf
+    global bayes_exp
+    bayes_exp=exp
     effective_procs = max(1, min(len(filtered), procs))
     cs=max(1,math.ceil(len(filtered)/effective_procs))
     with multiprocessing.Pool(processes=effective_procs) as pool:
@@ -212,13 +215,14 @@ def bayesopt_search(list: List[MABExperimentInstanceRecord], procs: int, expconf
 def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> dict:
     timestamp = datetime.datetime.now().replace(microsecond=0)
     selected_obj_fn = None
-    expname = bayes_expconf["experiment"]["name"]
-    rundup = bayes_expconf["output"]["run-duplicates"]
-    ef_lower = bayes_expconf["parameters"]["ef-lower"]
-    ef_upper = bayes_expconf["parameters"]["ef-upper"]
-    cdt = bayes_expconf["experiment"]["close-door-time"]
-    spi = bayes_expconf["experiment"]["stat-print-interval"]
-    mui = bayes_expconf["experiment"]["mab-update-interval"]
+    global bayes_exp
+    expname = bayes_exp.name#bayes_expconf["experiment"]["name"]
+    rundup = bayes_exp.rundup#bayes_expconf["output"]["run-duplicates"]
+    ef_lower = bayes_expconf["parameters"]["ef-lower"] # fixme
+    ef_upper = bayes_expconf["parameters"]["ef-upper"] # fixme
+    cdt = bayes_exp.close_door_time#bayes_expconf["experiment"]["close-door-time"]
+    spi = bayes_exp.stat_print_interval#bayes_expconf["experiment"]["stat-print-interval"]
+    mui = bayes_exp.mab_update_interval#bayes_expconf["experiment"]["mab-update-interval"]
     # for strat, axis, wlname, seed in strategies, axis_fixed, specfile, seeds:
 
     strat = instance.identifiers["strategy"]
