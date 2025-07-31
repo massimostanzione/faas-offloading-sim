@@ -29,9 +29,10 @@ def _generate_sinusoidal(i, min_rate, max_rate, period, step_len):
 
 
 def _generate_bell(i, min_rate, max_rate, period, step_len):
-    FREQ = 2 / period * .5 * np.pi
-    return np.round(min_rate + (max_rate - min_rate) / 2 + ((max_rate - min_rate) / 2) * math.sin(FREQ * step_len * i))
-
+    time_in_period = (i * step_len) % period
+    normalized_time = time_in_period / period
+    bell_shape = np.sin(np.pi * normalized_time)
+    return min_rate + (max_rate - min_rate) * bell_shape
 
 def _generate_halfbell(i, min_rate, max_rate, period, step_len):
     FREQ = 2 / period * .25 * np.pi
@@ -116,75 +117,89 @@ def _graph(interarrivals, rates, duration, step_len, distribution, file_path):
     plt.savefig(file_path)
 
 
-def generate_trace(name: str, distribution: str, min_rate: float, max_rate: float, period: float, step_len: float,
-                   duration: float):
-    path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../_traces/" + name + "_arrivals.iat"))
+def generate_trace(name:str, distribution:str, min_rate:float, max_rate:float, period:float, step_len:float, duration:float, delay:float=0):
+    path=os.path.abspath(os.path.join(os.path.dirname(__file__),"../_traces/"+name+"_arrivals.iat"))
     if os.path.exists(path):
         print("Trace", name, "already generated, skipping...")
     else:
+        STEPS = int(duration / step_len)
+        nArrivals = np.zeros(STEPS)
 
-        STEPS = int(duration / step_len)  # Numero di passi temporali (es. 5400 / 60 = 90)
-
-        nArrivals = np.zeros(STEPS)  # Inizializza un array per gli arrivi in ogni step
+        # Calcola il numero di passi corrispondenti al ritardo
+        delay_steps = int(delay / step_len)
 
         for i in range(STEPS):
-            # Genera la quantità di arrivi per ogni step a seconda della distribuzione
-            if distribution == "sinusoid":
-                nArrivals[i] = _generate_sinusoidal(i, min_rate, max_rate, period, step_len)
-            elif distribution == "bell":
-                nArrivals[i] = _generate_bell(i, min_rate, max_rate, period, step_len)
-            elif distribution == "halfbell":
-                nArrivals[i] = _generate_halfbell(i, min_rate, max_rate, period, step_len)
-            elif distribution == "shifted-sinusoid":
-                nArrivals[i] = _generate_shifted_sinusoidal(i, min_rate, max_rate, period, step_len)
-            elif distribution == "linear":
-                nArrivals[i] = _generate_linear(i, min_rate, max_rate, period, step_len, duration)
-            elif distribution == "square-wave":
-                nArrivals[i] = _generate_square_wave(i, min_rate, max_rate, period, step_len)
-            elif distribution == "square-wave-inverted":
-                nArrivals[i] = _generate_square_wave_inverted(i, min_rate, max_rate, period, step_len)
-            elif distribution == "step":
-                # period --> step instant
-                nArrivals[i] = _generate_step(i, min_rate, max_rate, period, step_len)
-            elif distribution == "sawtooth-wave":
-                nArrivals[i] = _generate_sawtooth_wave(i, min_rate, max_rate, period, step_len)
-            elif distribution == "logistic-map":
-                nArrivals[i] = _generate_logistic_map(i)
-            elif distribution == "gaussian-modulated":
-                sigma = 0.5
-                nArrivals[i] = _generate_gaussian_modulated(i, min_rate, max_rate, sigma, step_len, duration, period)
+            # Se il passo corrente rientra nel periodo di "delay", imposta gli arrivi a zero
+            if i < delay_steps:
+                nArrivals[i] = 0
             else:
-                print(f"Distribuzione '{distribution}' non supportata!")
-                return
+                adjusted_i = i - delay_steps
 
-        # Otteniamo i rates a partire dall'array di arrivi (qui STEP_LEN=120s)
-        print("narr", nArrivals)
+                if distribution == "sinusoid":
+                    nArrivals[i] = _generate_sinusoidal(adjusted_i, min_rate, max_rate, period, step_len) * step_len
+                elif distribution == "bell":
+                    nArrivals[i] = _generate_bell(adjusted_i, min_rate, max_rate, period, step_len) * step_len
+                elif distribution == "halfbell":
+                    nArrivals[i] = _generate_halfbell(adjusted_i, min_rate, max_rate, period, step_len) * step_len
+                elif distribution == "shifted-sinusoid":
+                    nArrivals[i] = _generate_shifted_sinusoidal(adjusted_i, min_rate, max_rate, period,
+                                                                step_len) * step_len
+                elif distribution == "linear":
+                    nArrivals[i] = _generate_linear(adjusted_i, min_rate, max_rate, period, step_len,
+                                                    duration - delay) * step_len
+                elif distribution == "square-wave":
+                    nArrivals[i] = _generate_square_wave(adjusted_i, min_rate, max_rate, period, step_len) * step_len
+                elif distribution == "square-wave-inverted":
+                    nArrivals[i] = _generate_square_wave_inverted(adjusted_i, min_rate, max_rate, period,
+                                                                  step_len) * step_len
+                elif distribution == "step":
+                    nArrivals[i] = _generate_step(adjusted_i, min_rate, max_rate, period, step_len) * step_len
+                elif distribution == "sawtooth-wave":
+                    nArrivals[i] = _generate_sawtooth_wave(adjusted_i, min_rate, max_rate, period, step_len) * step_len
+                elif distribution == "logistic-map":
+                    nArrivals[i] = _generate_logistic_map(adjusted_i) * step_len
+                elif distribution == "gaussian-modulated":
+                    sigma = 0.5
+                    nArrivals[i] = _generate_gaussian_modulated(adjusted_i, min_rate, max_rate, sigma, step_len,
+                                                                duration - delay, period) * step_len
+                else:
+                    print(f"Distribuzione '{distribution}' non supportata!")
+                    return
+
+        print("narr (conteggi per step)", nArrivals)
         rates = nArrivals / step_len
-        print("rates", rates)
-        total_arrivals = int(sum(nArrivals))  # Calcola il numero totale di arrivi
-        arrival_times = np.zeros(total_arrivals)  # Inizializza gli array dei tempi di arrivo
-        count = 0
-        rng = np.random.default_rng(123)
-        for i in range(STEPS):
-            t0 = step_len * i  # Inizio dell'intervallo temporale
-            t1 = t0 + step_len  # Fine dell'intervallo temporale
-            # Genera arrivi casuali dentro [t0, t1] e li ordina;
-            # praticamente genera tempi di arrivo uniformemente distribuiti in ogni step.
-            print("> genero", nArrivals[i].astype(int))
-            arrival_times[count:count + int(nArrivals[i])] = np.sort(rng.uniform(t0, t1, nArrivals[i].astype(int)))
-            count += int(nArrivals[i])
-        inter_arrival_times = np.diff(arrival_times)
-        print("SUM", np.sum(inter_arrival_times))
+        print("rates (per secondo)", rates)
 
-        # Genera e salva grafico
+        all_arrival_times_list = []
+        rng = np.random.default_rng(123456789)
+
+        for i in range(STEPS):
+            num_arrivals_in_step = int(nArrivals[i])
+            if num_arrivals_in_step > 0:
+                t0 = step_len * i
+                t1 = t0 + step_len
+
+                # Genera arrivi per questo step e aggiungili alla lista
+                arrivals_in_this_step = np.sort(rng.uniform(t0, t1, num_arrivals_in_step))
+                all_arrival_times_list.extend(arrivals_in_this_step)
+
+        arrival_times = np.array(all_arrival_times_list)
+
+        # Calcola gli interarrivi solo se ci sono almeno 2 arrivi
+        if len(arrival_times) > 1:
+            inter_arrival_times = np.diff(arrival_times)
+        elif len(arrival_times) == 1:
+            # Se c'è un solo arrivo, il suo "interarrival time" è il tempo stesso del primo arrivo
+            inter_arrival_times = np.array([arrival_times[0]])
+        else: # Zero arrivi in totale
+            inter_arrival_times = np.array([])
+
         file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "_traces", "img", f"{name}_plot.png"))
-        # if not os.path.exists(file_path):
-        _graph(inter_arrival_times, rates, duration, step_len, distribution,
-               file_path)  # f"../_traces/img/{name}_plot.png")
+
+        _graph(inter_arrival_times, rates, duration, step_len, distribution, file_path)
 
         print(f"Generated {len(nArrivals)} rates.")
 
-        # Salva interarrivi (simulation trace), seconda metà
         path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../_traces/" + name + "_arrivals.iat"))
         pathfolder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../_traces"))
         if not os.path.exists(pathfolder): os.makedirs(pathfolder)
@@ -193,9 +208,7 @@ def generate_trace(name: str, distribution: str, min_rate: float, max_rate: floa
             writer = csv.writer(f)
             writer.writerows(zip(inter_arrival_times))
 
-        # Salva rates (training data), prima metà
         path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../_traces/" + name + "_rates.iat"))
-        # if not os.path.exists(path):
         with open(path, 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(["Rate"])
