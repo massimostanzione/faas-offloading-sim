@@ -232,7 +232,7 @@ def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> di
     if strat == "UCBTuned" or strat == "RTK-UCBTuned":
         pbounds = {'ef': (ef_lower, ef_upper)}
         selected_obj_fn = objwrapper_ucbtuned
-    elif strat == "UCB2" or strat == "RTK-UCB2":
+    elif strat == "UCB2" or strat == "RTK-UCB2" or strat == "RTK-UCB2-ER":
         pbounds = {'ef': (ef_lower, ef_upper), 'alpha': (
         bayes_expconf["parameters"]["ucb2-alpha-lower"], bayes_expconf["parameters"]["ucb2-alpha-upper"])}
         selected_obj_fn = objwrapper_ucb2

@@ -165,6 +165,7 @@ def _is_exploration_factor(parameter_name: str, strategy: str) -> bool:
 
         # contextual
         "RTK-UCB2": conf.MAB_UCB_EXPLORATION_FACTOR,
+        "RTK-UCB2-ER": conf.MAB_UCB_EXPLORATION_FACTOR,
         "RTK-UCBTuned": conf.MAB_UCB_EXPLORATION_FACTOR,
     }
 
@@ -182,6 +183,7 @@ def _is_other_strategy_param(parameter_name: str, strategy: str) -> bool:
 
         # contextual
         "RTK-UCB2": [conf.MAB_UCB2_ALPHA],
+        "RTK-UCB2-ER": [conf.MAB_UCB2_ALPHA],
         "RTK-UCBTuned": [],
     }
     return parameter_name in other_params_map[strategy]

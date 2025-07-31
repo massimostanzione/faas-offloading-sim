@@ -106,6 +106,7 @@ class MABAgent(ABC):
 class NonContextualMABAgent(MABAgent):
     def __init__(self, simulation, lb_policies: List[str], reward_config):
         super().__init__(simulation, lb_policies, reward_config)
+        self.is_epoch_based=False
         self.reward_config = reward_config
         print("[MAB]: init Q -> ", self.Q)
         print("[MAB]: init N -> ", self.N)
@@ -242,6 +243,29 @@ class NonContextualMABAgent(MABAgent):
             result[node] = dropped_reqs_2[node] - dropped_reqs_1[node]
 
         return list(result.values())
+
+class NonContextualMABAgent_EpochBased(NonContextualMABAgent):
+
+    def __init__(self, simulation, lb_policies: List[str], reward_config):
+        super().__init__(simulation, lb_policies, reward_config)
+        self.is_epoch_based=True
+        self.remaining_locked_plays = 0  # number of arm selection locked by the most promising arm selected in previous epochs
+
+    def update_model(self, lb_policy: str, mab_stats_file: str, last_update=False):
+        return super().update_model(lb_policy, mab_stats_file, last_update)
+
+    def select_policy(self) -> str:
+        return super().select_policy()
+
+    def _gather_mab_stats(self, reward, mab_stats_file: TextIOWrapper, end):
+        dict=super()._gather_mab_stats(reward, mab_stats_file, end)
+        if self.is_new_epoch_started():
+            dict["epochStartTimes"]=self.simulation.t
+        return dict
+
+    def is_new_epoch_started(self)->bool:
+        return self.remaining_locked_plays == 0 and not self.first_call
+
 
 # Epsilon-Greedy Strategy
 class EpsilonGreedy(NonContextualMABAgent):
@@ -427,7 +451,7 @@ class SlidingWindowUCB(NonContextualMABAgent):
 
 
 # UCB2 Strategy
-class UCB2(NonContextualMABAgent):
+class UCB2(NonContextualMABAgent_EpochBased):
     def __init__(self, simulation, lb_policies: List[str], exploration_factor: float, reward_config, alpha: float):
         super().__init__(simulation, lb_policies, reward_config)
         self.exploration_factor = exploration_factor
@@ -436,7 +460,6 @@ class UCB2(NonContextualMABAgent):
             exit(1)
         self.alpha = alpha
         self.R = np.zeros(len(lb_policies))  # number of times each policy has been chosen
-        self.remaining_locked_plays = 0  # number of arm selection locked by the most promising arm selected in previous epochs
 
         print("[MAB]: init R -> ", self.R)
 
@@ -474,6 +497,8 @@ class UCB2(NonContextualMABAgent):
             print("[MAB] Policy selection locked by UCB2 on", self.curr_lb_policy, ",", self.remaining_locked_plays,
                   "plays remaining.")
             return None
+
+        # (implicit else - the epoch is expired, and a new policy should now be chosen)
 
         total_count = sum(self.N)
         ucb_values = [0.0 for _ in self.lb_policies]

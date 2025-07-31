@@ -8,7 +8,7 @@ import sys
 import conf
 import utils.plot # type: ignore
 from mab.contextual.context import Context
-from mab.contextual.agents import ReduceToKMAB
+from mab.contextual.agents import ReduceToKMAB, ReduceToKMAB_EpochReset
 from mab.contextual.utils import generate_contextinsts_list_exp
 from mab.contextual.features import ContextFeature
 from policy import SchedulerDecision
@@ -313,6 +313,20 @@ class Simulation:
                 agents.append(agent)
 
             return ReduceToKMAB(self, agents)
+
+        if strategy == "RTK-UCB2-ER":
+            exploration_factor = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB_EXPLORATION_FACTOR, fallback=0.05)
+            alpha = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB2_ALPHA, fallback=1.0)
+
+            # generate UCB2 non-contextual agents
+            # (this is pretty hardcoded here)
+            num_contexts=3
+            agents=[]
+            for i in range(num_contexts):
+                agent=UCB2(self, lb_policies, exploration_factor, reward_config, alpha)
+                agents.append(agent)
+
+            return ReduceToKMAB_EpochReset(self, agents)
 
         if strategy == "RTK-UCBTuned":
             exploration_factor = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB_EXPLORATION_FACTOR, fallback=0.05)
