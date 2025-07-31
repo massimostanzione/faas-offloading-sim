@@ -57,6 +57,7 @@ MAB_REWARD_BETA = "mab-reward-beta"
 MAB_REWARD_GAMMA = "mab-reward-gamma"
 MAB_REWARD_DELTA = "mab-reward-delta"
 MAB_REWARD_ZETA = "mab-reward-zeta"
+MAB_REWARD_ETA = "mab-reward-eta"
 
 # non-stationary
 MAB_NON_STATIONARY_ENABLED = "mab-non-stationary-enabled"
@@ -65,6 +66,7 @@ MAB_REWARD_BETA_POST = "mab-reward-beta-post"
 MAB_REWARD_GAMMA_POST = "mab-reward-gamma-post"
 MAB_REWARD_DELTA_POST = "mab-reward-delta-post"
 MAB_REWARD_ZETA_POST = "mab-reward-zeta-post"
+MAB_REWARD_ETA_POST = "mab-reward-eta-post"
 
 
 import configparser

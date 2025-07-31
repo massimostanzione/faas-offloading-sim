@@ -30,6 +30,7 @@ class MABAgent(ABC):
         self.GAMMA = reward_config.gamma    # coefficient for cost
         self.DELTA = reward_config.delta    # coefficient for utility
         self.ZETA = reward_config.zeta      # coefficient for response time violations
+        self.ETA = reward_config.eta        # coefficient for cold starts
 
         # non-stationary
         self.ALPHA_POST = reward_config.alpha_post    # coefficient for load imbalance
@@ -37,12 +38,13 @@ class MABAgent(ABC):
         self.GAMMA_POST = reward_config.gamma_post    # coefficient for cost
         self.DELTA_POST = reward_config.delta_post    # coefficient for utility
         self.ZETA_POST = reward_config.zeta_post      # coefficient for response time violations
+        self.ETA_POST = reward_config.eta_post        # coefficient for cold starts
 
-        if self.ALPHA + self.BETA + self.GAMMA + self.DELTA + self.ZETA != 1:
+        if self.ALPHA + self.BETA + self.GAMMA + self.DELTA + self.ZETA + self.ETA != 1:
             print("[ERROR] weights of the stationary reward function do not sum to 1, please check your config file.")
             exit(1)
 
-        if self.ALPHA_POST + self.BETA_POST+ self.GAMMA_POST + self.DELTA_POST + self.ZETA_POST != 1:
+        if self.ALPHA_POST + self.BETA_POST+ self.GAMMA_POST + self.DELTA_POST + self.ZETA_POST + self.ETA_POST != 1:
             print("[ERROR] weights of the non-stationary reward function do not sum to 1, please check your config file.")
             exit(1)
 
@@ -113,7 +115,8 @@ class NonContextualMABAgent(MABAgent):
             + self.BETA*self._compute_response_time() \
             + self.GAMMA*self._compute_cost() \
             + self.DELTA*self._compute_utility() \
-            + self.ZETA*self._compute_rt_violations()
+            + self.ZETA*self._compute_rt_violations() \
+            + self.ETA*self._compute_cold_starts()
 
     def _compute_load_imbalance(self):
         server_loads = self._get_server_loads()
@@ -159,12 +162,23 @@ class NonContextualMABAgent(MABAgent):
             print("[MAB] violations out of [0, 1] bounds! ->", violations_perc)
         return -violations_perc
 
+    def _compute_cold_starts(self):
+        cold_starts = sum(self.simulation.stats.cold_starts.values()) - sum(self.simulation.stats.ss_cold_starts.values())
+        completions = sum(self.simulation.stats.completions.values()) - sum(self.simulation.stats.ss_completions.values())
+        if completions==0: completions=1
+        cs_perc = cold_starts / completions
+
+        if cs_perc > 1:
+            print("[MAB] cold starts pct out of [0, 1] bounds! ->", cs_perc)
+        return -cs_perc
+
     def _axis(self) -> str:
         if self.ALPHA==1: return "load_imb"
         if self.BETA==1: return "rt"
         if self.GAMMA==1: return "cost"
         if self.DELTA==1: return "utility"
         if self.ZETA==1: return "violations"
+        if self.ETA==1: return "cold_starts"
         return "NA"
 
     def _raccogli_stats(self, reward, mab_stats_file: TextIOWrapper, end):

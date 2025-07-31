@@ -93,6 +93,7 @@ class RewardConfig:
     gamma: float
     delta: float
     zeta: float
+    eta: float
 
     # non-stationary context
     alpha_post:float
@@ -100,6 +101,7 @@ class RewardConfig:
     gamma_post:float
     delta_post:float
     zeta_post:float
+    eta_post:float
 
 
 OFFLOADING_OVERHEAD = 0.005
@@ -248,13 +250,15 @@ class Simulation:
             gamma=self.config.getfloat(conf.SEC_MAB, conf.MAB_REWARD_GAMMA, fallback=0.0), 
             delta=self.config.getfloat(conf.SEC_MAB, conf.MAB_REWARD_DELTA, fallback=0.0),
             zeta=self.config.getfloat(conf.SEC_MAB, conf.MAB_REWARD_ZETA, fallback=0.0),
+            eta=self.config.getfloat(conf.SEC_MAB, conf.MAB_REWARD_ETA, fallback=0.0),
 
             # non-stationary
             alpha_post=self.config.getfloat(conf.SEC_MAB, conf.MAB_REWARD_ALPHA_POST, fallback=0.0),
             beta_post=self.config.getfloat(conf.SEC_MAB, conf.MAB_REWARD_BETA_POST, fallback=0.0),
             gamma_post=self.config.getfloat(conf.SEC_MAB, conf.MAB_REWARD_GAMMA_POST, fallback=0.0),
             delta_post=self.config.getfloat(conf.SEC_MAB, conf.MAB_REWARD_DELTA_POST, fallback=0.0),
-            zeta_post=self.config.getfloat(conf.SEC_MAB, conf.MAB_REWARD_ZETA_POST, fallback=0.0)
+            zeta_post=self.config.getfloat(conf.SEC_MAB, conf.MAB_REWARD_ZETA_POST, fallback=0.0),
+            eta_post=self.config.getfloat(conf.SEC_MAB, conf.MAB_REWARD_ETA_POST, fallback=0.0)
         )
 
         # ---------------------------------------------------------------------------
@@ -741,3 +745,4 @@ class Simulation:
         self.mab_agent.GAMMA = self.mab_agent.GAMMA_POST  # cost
         self.mab_agent.DELTA = self.mab_agent.DELTA_POST  # utility
         self.mab_agent.ZETA  = self.mab_agent.ZETA_POST  # response time violations
+        self.mab_agent.ETA  = self.mab_agent.ETA_POST  # cold starts

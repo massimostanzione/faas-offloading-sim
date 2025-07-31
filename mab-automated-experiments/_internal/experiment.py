@@ -69,6 +69,8 @@ def write_custom_configfile(expname: str, strategy: str, close_door_time: float,
                   str(1) if axis_pre == consts.RewardFnAxis.UTILITY.value else str(0))
     outconfig.set(conf.SEC_MAB, conf.MAB_REWARD_ZETA,
                   str(1) if axis_pre == consts.RewardFnAxis.VIOLATIONS.value else str(0))
+    outconfig.set(conf.SEC_MAB, conf.MAB_REWARD_ETA,
+                  str(1) if axis_pre == consts.RewardFnAxis.COLD_STARTS.value else str(0))
 
     # non-stationary
     outconfig.set(conf.SEC_MAB, conf.MAB_REWARD_ALPHA_POST,
@@ -81,6 +83,8 @@ def write_custom_configfile(expname: str, strategy: str, close_door_time: float,
                   str(1) if axis_post == consts.RewardFnAxis.UTILITY.value else str(0))
     outconfig.set(conf.SEC_MAB, conf.MAB_REWARD_ZETA_POST,
                   str(1) if axis_post == consts.RewardFnAxis.VIOLATIONS.value else str(0))
+    outconfig.set(conf.SEC_MAB, conf.MAB_REWARD_ETA_POST,
+                  str(1) if axis_post == consts.RewardFnAxis.COLD_STARTS.value else str(0))
     config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", expname, consts.CONFIG_FILE_PATH, consts.CONFIG_FILE))
     config_path += "-pid" + str(os.getpid())
 

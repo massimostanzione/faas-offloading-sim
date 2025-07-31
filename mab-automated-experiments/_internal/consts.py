@@ -39,6 +39,7 @@ class RewardFnAxis(Enum):
     COST = "cost"
     UTILITY = "utility"
     VIOLATIONS = "violations"
+    COLD_STARTS = "cold_starts"
 
 RewardFnAxis_HumanReadable = {
     RewardFnAxis.LOADIMB.value: "Load imbalance",
@@ -46,6 +47,7 @@ RewardFnAxis_HumanReadable = {
     RewardFnAxis.COST.value: "Cost",
     RewardFnAxis.UTILITY.value: "Utility",
     RewardFnAxis.VIOLATIONS.value: "Violations",
+    RewardFnAxis.COLD_STARTS.value: "Cold starts",
 }
 
 
