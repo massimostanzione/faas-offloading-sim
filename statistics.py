@@ -3,6 +3,7 @@ import json
 import numpy as np
 
 import conf
+from conf import MAB_UPDATE_INTERVAL, SEC_MAB
 
 class Stats:
 
@@ -28,6 +29,7 @@ class Stats:
         self.dropped_reqs_cum_t0 = 0
         self.dropped_offloaded = {c: 0 for c in fcn}
         self.completions = {x: 0 for x in fcn}
+        self.completions_cum_t0 = 0
         self.violations = {c: 0 for c in fcn}
         self.resp_time_sum = {c: 0.0 for c in fcn}
         self.cold_starts = {(f,n): 0 for f in functions for n in self.nodes}
@@ -160,14 +162,26 @@ class Stats:
         stats["warm_ctr"]=self.warm_ctr
 
         dropped_reqs = 0
+        arrivals = 0
         for f in self.functions:
             for c in self.classes:
                 for n in self.nodes:
-                    dropped_reqs += self.dropped_reqs[(f, c, n)]
-        stats["drops_sys"] = dropped_reqs - self.dropped_reqs_cum_t0
-        self.dropped_reqs_cum_t0 = dropped_reqs
+                    dropped_reqs += self.dropped_reqs[(f, c, n)] - self.ss_dropped_reqs[(f, c, n)]
+                    arrivals += self.ext_arrivals[(f, c, n)] - self.ss_ext_arrivals[(f, c, n)]
 
+        stats["drops_sys"] = (dropped_reqs) / int(self.sim.config[SEC_MAB][MAB_UPDATE_INTERVAL])
+        self.dropped_reqs_cum_t0 = stats["drops_sys"]
 
+        dropped_perc = dropped_reqs / arrivals if arrivals != 0 else 0
+        stats["drops_perc_sys"] = dropped_perc
+
+        completions = 0
+        for f in self.functions:
+            for c in self.classes:
+                for n in self.nodes:
+                    completions += self.completions[(f, c, n)]
+        stats["throughput_sys"] = (completions - self.completions_cum_t0) / int(self.sim.config[SEC_MAB][MAB_UPDATE_INTERVAL])
+        self.completions_cum_t0 = completions
 
         # if some oversampling is required, return the average of them (good for smoothness)
         # *** NOTICE: this will *OVERWRITE* the point estimate computed above!!! ***
