@@ -12,7 +12,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 from _internal import consts
 from _internal.experiment import generate_outfile_name
-from _internal.graphs import graph_polcho
+from _internal.graphs import plot_policy_choices
 
 to_be_executed = []
 EXPNAME = "policies-choices"
@@ -139,7 +139,7 @@ def mainn():
                             rewards.append(ddR['reward'])
                         print(time_frames, rewards)
                         series[strat]={"x":time_frames,"y":rewards, "ax_pre":consts.get_axis_name_hr(ax_pre), "ax_post":consts.get_axis_name_hr(ax_post)}
-            fig = graph_polcho(series)
+            fig = plot_policy_choices(series)
 
             graphs_ctr += 1
             fig.savefig(os.path.join(SCRIPT_DIR, "results",
