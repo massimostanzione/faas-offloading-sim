@@ -1,10 +1,11 @@
+from abc import ABC
 from typing import List
 
 from mab.contextual.context import Context, ContextInstance
 from mab.mab import NonContextualMABAgent, MABAgent, NonContextualMABAgent_EpochBased
 
 
-class ContextualMAB(MABAgent):
+class ContextualMAB(ABC, MABAgent):
     def __init__(self, simulation, lb_policies, reward_config):
         super().__init__(simulation, lb_policies, reward_config)
         self.current_ctx_instance = None
@@ -22,7 +23,7 @@ class ContextualMAB(MABAgent):
         self.current_ctx_instance = inst
 
 
-class ReduceToKMAB(ContextualMAB):
+class ReduceToKMAB(ABC, ContextualMAB):
     def __init__(self, simulation, agents: List[NonContextualMABAgent]):
 
         lb_policies=agents[0].lb_policies
@@ -93,3 +94,7 @@ class ReduceToKMAB_EpochReset(ReduceToKMAB):
                     if agent.remaining_locked_plays > 0:
                         agent.remaining_locked_plays -= 1
         return current_agent.select_policy()
+
+class LinUCB(ContextualMAB):
+    def __init__(self):
+        raise NotImplementedError("LinUCB: future development...")

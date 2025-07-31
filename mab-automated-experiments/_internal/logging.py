@@ -111,7 +111,6 @@ class IncrementalLogger(Logger):
                 with open(filename, 'r+') as file:
                     file_data = json.load(file)
                     o = list(filter(lambda x: x['identifiers'] != (instance.identifiers), file_data))
-                    print(o)
                     o.append(output)
                     file.truncate(0)
                     file.seek(0)
@@ -142,13 +141,10 @@ class IncrementalLogger(Logger):
         for instance in list:
             if specific_results is None:
                 found=self.lookup(instance)
-                print(found)
                 if found is None:
                     ret.append(instance)
             else:
-                for specific_result in specific_results:
                     found=self.lookup(instance, specific_results)
-                    print(found)
                     if found is None:
                         ret.append(instance)
         return ret
@@ -167,7 +163,6 @@ class IncrementalLogger(Logger):
         with FileLock(lockfilename):
             with open(self.outfile_name+inst.identifiers["strategy"]+".json", "a+") as f:
                 if os.path.getsize(self.outfile_name+inst.identifiers["strategy"]+".json")==0:
-                    print("inizializzo il file")
                     f.write("[]")
         try:
             os.remove(lockfilename_abs)

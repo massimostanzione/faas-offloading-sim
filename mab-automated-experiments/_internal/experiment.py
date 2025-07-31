@@ -370,7 +370,7 @@ class MABExperiment:
                                                        self.mab_intermediate_samples_keys, expiration_timeout)
 
                 in_list.append(instance)
-        out_list = in_list if not bayesopt else bayesopt_search(in_list, max_procs, self.expconf)
+        out_list = in_list if not bayesopt else bayesopt_search(in_list, max_procs, self.expconf, self)
 
         effective_procs = max(1, min(len(out_list), max_procs))
         cs=max(1,math.ceil(len(out_list)/effective_procs))
@@ -449,7 +449,7 @@ class MABExperiment:
                         myprint(d)
 
 
-                if self.output_persist.__contains__("cumavg-reward"):
+                if self.output_persist.__contains__("cumavg-reward") and file is mabfile:
                     for d in data:
                         policies.append(d["policy"])
                         rewards.append(d['reward'])

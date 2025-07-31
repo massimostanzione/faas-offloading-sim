@@ -63,7 +63,7 @@ class MABAgent(ABC):
         pass
 
     @abstractmethod
-    def _raccogli_stats(self) -> dict:
+    def _gather_mab_stats(self) -> dict:
         pass
 
     def set_additional_data_output(self, dict):
@@ -89,7 +89,7 @@ class MABAgent(ABC):
                     file.write("[\n")
                 self.first_call = False
 
-            data = self._raccogli_stats(reward, mab_stats_file, end)
+            data = self._gather_mab_stats(reward, mab_stats_file, end)
             if self.additional_data_output is not None:
                 for k, v in self.additional_data_output.items():
                     data[k] = v
@@ -182,7 +182,7 @@ class NonContextualMABAgent(MABAgent):
         if self.ETA==1: return "cold_starts"
         return "NA"
 
-    def _raccogli_stats(self, reward, mab_stats_file: TextIOWrapper, end):
+    def _gather_mab_stats(self, reward, mab_stats_file: TextIOWrapper, end):
 
             data = {}
             data["time"] = self.simulation.t
@@ -694,9 +694,9 @@ class KLUCBsp(NonContextualMABAgent):
         print("[MAB]: N updated -> ", self.N)
         print("[MAB]: cumQ updated -> ", self.cumQ)
         if not last_update:
-            self._raccogli_stats(reward, mab_stats_file, end=False)
+            self._gather_mab_stats(reward, mab_stats_file, end=False)
         else:
-            self._raccogli_stats(reward, mab_stats_file, end=True)
+            self._gather_mab_stats(reward, mab_stats_file, end=True)
         self.simulation.stats.do_snapshot()
 
     def select_policy(self) -> str:

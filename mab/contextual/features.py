@@ -7,3 +7,6 @@ class ContextFeature(Enum):
 
     def __str__(self):
         return '%s' % self.value
+
+    def __repr__(self):
+        return self.__str__()
