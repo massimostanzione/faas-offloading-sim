@@ -8,6 +8,8 @@ from conf import MAB_UPDATE_INTERVAL, SEC_MAB
 class Stats:
 
     def __init__ (self, sim, functions, classes, infra):
+        self.mw = 8*[0]
+        self.mwactive = 8*[0]
         self.warm_ctr = {k.name:0 for k in infra.get_nodes()}
         self.sim = sim
         self.infra = infra
@@ -48,7 +50,11 @@ class Stats:
         self._memory_usage_area = {x: 0.0 for x in self.nodes}
         self._memory_usage_t0 = {x: 0.0 for x in self.nodes}
         self._memory_usage_area_active = {x: 0.0 for x in self.nodes}
+        self._memory_usage_area_activeN = {x: 0.0 for x in self.nodes}
         self._memory_usage_t0_active = {x: 0.0 for x in self.nodes}
+        self._memory_usage_active_t0N = {x: 0.0 for x in self.nodes}
+        self._memory_usage_areaN = {x: 0.0 for x in self.nodes}
+        self._memory_usage_t0N = {x: 0.0 for x in self.nodes}
         self._policy_update_time_sum = {x: 0.0 for x in self.nodes}
         self._policy_updates = {x: 0 for x in self.nodes}
         self._mig_policy_update_time_sum = 0.0
@@ -61,6 +67,11 @@ class Stats:
         self.do_snapshot() # create initial snapshot for the MAB agent
 
     def to_dict (self, finalize_intermediate_samples: bool = True, reset_intermediate_samples:bool = True):
+        for n in self.nodes:
+        #    self.update_memory_usage(n, self.sim.t)
+            self.update_memory_usage_new(n, self.sim.t)
+            self.update_memory_usage_active_new(n, self.sim.t)
+        #    self.update_active_memory_usage(n, self.sim.t)
         stats = {}
         raw = vars(self)
         for metric in raw:
@@ -103,6 +114,10 @@ class Stats:
 
         stats["_Time"] = self.sim.t
 
+
+
+
+
         avgMemUtil = {}
         stats["avgMemoryUtilization_sys"] = []
         for n in self._memory_usage_t0:
@@ -117,6 +132,9 @@ class Stats:
                 avgMemUtil[repr(n)] = 0
 
         stats["avgMemoryUtilization"] = avgMemUtil
+        stats["avgMemoryUtilization_sys"] = np.average(stats["avgMemoryUtilization_sys"])
+
+
 
         avgActiveMemUtil = {}
         stats["avgActiveMemoryUtilization_sys"] = []
@@ -132,9 +150,14 @@ class Stats:
                 avgActiveMemUtil[repr(n)] = 0
 
         stats["avgActiveMemoryUtilization"] = avgActiveMemUtil
-
-        stats["avgMemoryUtilization_sys"] = np.average(stats["avgMemoryUtilization_sys"])
         stats["avgActiveMemoryUtilization_sys"] = np.average(stats["avgActiveMemoryUtilization_sys"])
+
+
+
+
+
+
+
 
         sumrate = 0
         for k, v in self.arrivals.items():
@@ -153,11 +176,81 @@ class Stats:
         stats["avgMigPolicyUpdateTime"] = avg_mig_policy_upd_time
 
         available_mem={}
+        available_active_mem={}
         for n in self._memory_usage_t0:
             available_mem[repr(n)] = n.curr_memory
+            available_active_mem[repr(n)] = n.curr_memory_active
         stats["availableMemory"] = available_mem
 
-        stats["availableMemory_sys"] = np.average([available_mem[k] for k in available_mem.keys()])
+        stats["availableMemory_sys"] = sum([available_mem[k] for k in available_mem.keys()])
+
+
+
+
+
+
+
+        usn = {}
+        stats["avgMemoryUtilization_sys_RESAMPLED"] = []
+        for n in self._memory_usage_t0:
+            if n.total_memory != 0:
+                usn[repr(n)] = self._memory_usage_areaN[n] / self.sim.t / n.total_memory
+
+                # do not count load balancer nodes (i.e., the one(s) with no memory) memory while computing
+                # (later below) the average system memory utlization
+                stats["avgMemoryUtilization_sys_RESAMPLED"].append(usn[repr(n)])
+
+            else:
+                usn[repr(n)] = 0
+        stats["avgMemoryUtilization_sys_RESAMPLED"] = np.average(stats["avgMemoryUtilization_sys_RESAMPLED"])
+        stats["avgMemoryUtilization_sys_SAMPLES"] = 1-(sum([available_mem[k] for k in available_mem.keys()])/sum([n.total_memory for n in self.nodes]))
+
+
+
+        self.mw=self.mw[1:]
+        self.mw.append(stats["avgMemoryUtilization_sys_SAMPLES"])
+        stats["avgMemoryUtilization_sys_MW"] = np.average(self.mw)
+
+
+        usnact = {}
+        stats["avgActiveMemoryUtilization_sys_RESAMPLED"] = []
+        for n in self._memory_usage_t0:
+            if n.total_memory != 0:
+                usnact[repr(n)] = self._memory_usage_area_activeN[n] / self.sim.t / n.total_memory
+
+                # do not count load balancer nodes (i.e., the one(s) with no memory) memory while computing
+                # (later below) the average system memory utlization
+                stats["avgActiveMemoryUtilization_sys_RESAMPLED"].append(usnact[repr(n)])
+
+            else:
+                usnact[repr(n)] = 0
+        stats["avgActiveMemoryUtilization_sys_RESAMPLED"] = np.average(stats["avgActiveMemoryUtilization_sys_RESAMPLED"])
+        stats["avgActiveMemoryUtilization_sys_SAMPLES"] = 1-(sum([available_active_mem[k] for k in available_active_mem.keys()])/sum([n.total_memory for n in self.nodes]))
+
+
+
+        self.mwactive=self.mwactive[1:]
+        self.mwactive.append(stats["avgActiveMemoryUtilization_sys_SAMPLES"])
+        stats["avgActiveMemoryUtilization_sys_MW"] = np.average(self.mwactive)
+
+
+
+
+
+
+        #stats["util_sys_act_new"] = 1-(sum([available_active_mem[k] for k in available_active_mem.keys()])/sum([n.total_memory for n in self.nodes]))
+
+
+
+
+
+
+
+
+
+
+
+
 
         stats["warm_ctr"]=self.warm_ctr
 
@@ -188,11 +281,13 @@ class Stats:
         if finalize_intermediate_samples and self.sim.mab_intermediate_sampling_update_interval > 0:
             for k, v in self.sim.mab_intermediate_samples.items():
                 if not v and reset_intermediate_samples: raise RuntimeError("lista vuota, non dovrebbe essere!")
+                print("FINALIZZO>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
 
                 # appendi comunque l'ultimo campione, che va poi a contribuire alla media
                 # (è l'ultima osservazione per essa)
                 v.append(stats[k])
 
+                print(v)
                 expected_samples=self.sim.mab_update_interval/self.sim.mab_intermediate_sampling_update_interval
                 if len(v) != expected_samples and                  not       (
                                 self.sim.t+self.sim.mab_intermediate_sampling_update_interval>self.sim.close_the_door_time
@@ -201,9 +296,12 @@ class Stats:
                                 )                                :raise RuntimeError(len(v))
                 stats[k] = np.average(v)
                 if reset_intermediate_samples:
+                    print("RESETTO>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
                     self.sim.mab_intermediate_samples[k] = []  # reset
+        #print("FINALE:", stats["avgActiveMemoryUtilization_sys_SAMPLES"])
         return stats
-    
+
+
     def update_memory_usage (self, node, t):
         used_mem = node.total_memory-node.curr_memory
         assert(node.total_memory>=node.curr_memory)
@@ -215,6 +313,18 @@ class Stats:
         assert (node.total_memory >= node.curr_memory_active >= 0)
         self._memory_usage_area_active[node] += used_mem_active * (t - self._memory_usage_t0_active[node])
         self._memory_usage_t0_active[node] = t
+
+    def update_memory_usage_new (self, node, t):
+        used_mem = node.total_memory-node.curr_memory
+        assert(node.total_memory>=node.curr_memory)
+        self._memory_usage_areaN[node] += used_mem*(t-self._memory_usage_t0N[node])
+        self._memory_usage_t0N[node] = t
+
+    def update_memory_usage_active_new (self, node, t):
+        used_mem = node.total_memory-node.curr_memory_active
+        assert(node.total_memory>=node.curr_memory)
+        self._memory_usage_area_activeN[node] += used_mem*(t-self._memory_usage_active_t0N[node])
+        self._memory_usage_active_t0N[node] = t
 
     def update_policy_upd_time (self, node, t):
         self._policy_update_time_sum[node] += t
