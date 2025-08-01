@@ -117,6 +117,8 @@ class Stats:
                 avgMemUtil[repr(n)] = 0
 
         stats["avgMemoryUtilization"] = avgMemUtil
+        stats["avgMemoryUtilization_sys"] = np.average(stats["avgMemoryUtilization_sys"])
+
 
         avgActiveMemUtil = {}
         stats["avgActiveMemoryUtilization_sys"] = []
@@ -132,9 +134,25 @@ class Stats:
                 avgActiveMemUtil[repr(n)] = 0
 
         stats["avgActiveMemoryUtilization"] = avgActiveMemUtil
-
-        stats["avgMemoryUtilization_sys"] = np.average(stats["avgMemoryUtilization_sys"])
         stats["avgActiveMemoryUtilization_sys"] = np.average(stats["avgActiveMemoryUtilization_sys"])
+
+        available_mem = {}
+        available_mem_active = {}
+        for n in self._memory_usage_t0:
+            available_mem[repr(n)] = n.curr_memory
+            available_mem_active[repr(n)] = n.curr_memory_active
+
+        stats["availableMemory"] = available_mem
+        stats["availableMemory_sys"] = np.average([available_mem[k] for k in available_mem.keys()])
+
+        stats["availableActiveMemory"] = available_mem_active
+        stats["availableActiveMemory_sys"] = np.average([available_mem_active[k] for k in available_mem_active.keys()])
+
+        stats["memoryUtilization_sys"] = 1 - (
+                    sum([available_mem[k] for k in available_mem.keys()]) / sum([n.total_memory for n in self.nodes]))
+        stats["activeMemoryUtilization_sys"] = 1 - (
+                    sum([available_mem_active[k] for k in available_mem_active.keys()]) / sum(
+                [n.total_memory for n in self.nodes]))
 
         sumrate = 0
         for k, v in self.arrivals.items():
@@ -151,13 +169,6 @@ class Stats:
         if self._mig_policy_updates > 0:
             avg_mig_policy_upd_time = self._mig_policy_update_time_sum/self._mig_policy_updates
         stats["avgMigPolicyUpdateTime"] = avg_mig_policy_upd_time
-
-        available_mem={}
-        for n in self._memory_usage_t0:
-            available_mem[repr(n)] = n.curr_memory
-        stats["availableMemory"] = available_mem
-
-        stats["availableMemory_sys"] = np.average([available_mem[k] for k in available_mem.keys()])
 
         stats["warm_ctr"]=self.warm_ctr
 

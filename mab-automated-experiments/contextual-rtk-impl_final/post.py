@@ -73,7 +73,7 @@ for r in records:
                         print(line)
                         valori_plot.append(float(line))
         """
-    mem = extract_result_dict_from_datarecord(r, "avgActiveMemoryUtilization_sys_SAMPLES")
+    mem = extract_result_dict_from_datarecord(r, "activeMemoryUtilization_sys")
     instances = extract_result_dict_from_datarecord(r, "instance_invoked")
     time = extract_result_dict_from_datarecord(r, "time")
     policies = extract_result_dict_from_datarecord(r, "policy")

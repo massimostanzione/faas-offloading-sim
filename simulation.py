@@ -305,7 +305,8 @@ class Simulation:
         # ---------------------------------------------------------------------------
         # Contextual bandits
 
-        ctx=Context([ContextFeature.MEM])
+        # (... this can be parameterizable...)
+        ctx=Context([ContextFeature.ACTIVE_MEMORY_UTILIZATION])
         ctx.add_instances(generate_contextinsts_list_exp())
         self.context=ctx
 
@@ -754,10 +755,12 @@ class Simulation:
 
     # TODO move to agents.py?
     def _probe_context_related_info(self) -> dict:
-        dict={}
-        avg=self.stats.to_dict()["avgMemoryUtilization_sys"]
-        dict[ContextFeature.MEM.value[0]]=avg
-        return dict
+        # TODO not-hardcoded features
+        features = [ContextFeature.ACTIVE_MEMORY_UTILIZATION]
+        context_probing = {repr(f): -1 for f in features}
+        for f in features: context_probing[repr(f)] = self.stats.to_dict()[repr(f)]
+        print("probed:", context_probing)
+        return context_probing
 
     def is_contextual(self):
         return self.context is not None

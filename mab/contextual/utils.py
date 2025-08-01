@@ -32,7 +32,7 @@ def generate_contextinsts_list_exp():
         max = round(max, 3)
         print(min, max)
         label = "MEM"
-        constraint = NumericalContextConstraint(ContextFeature.MEM, min, max, include_last)
+        constraint = NumericalContextConstraint(ContextFeature.ACTIVE_MEMORY_UTILIZATION, min, max, include_last)
         inst = ContextInstance(f"ctx-{label}-{min}-{max}", [constraint])
         instances_list.append(inst)
     return instances_list
