@@ -171,7 +171,6 @@ def extract_optimal_parameters_for_instance(instance:MABExperimentInstanceRecord
     return found.results["optimal-params"]
 
 # punto di ingresso
-def bayesopt_search(list: List[MABExperimentInstanceRecord], procs: int, expconf) -> List[MABExperimentInstanceRecord]:
 def bayesopt_search(list: List[MABExperimentInstanceRecord], procs: int, expconf, exp) -> List[MABExperimentInstanceRecord]:
     # concentra i processi a disposizione soltanto sulle istanze che non hanno ancora i parametri ottimi
     filtered = logger.filter_unprocessed_instances(list, ["optimal-params"])

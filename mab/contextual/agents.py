@@ -5,7 +5,7 @@ from mab.contextual.context import Context, ContextInstance
 from mab.mab import NonContextualMABAgent, MABAgent, NonContextualMABAgent_EpochBased
 
 
-class ContextualMAB(ABC, MABAgent):
+class ContextualMAB(MABAgent):
     def __init__(self, simulation, lb_policies, reward_config):
         super().__init__(simulation, lb_policies, reward_config)
         self.current_ctx_instance = None
@@ -23,7 +23,7 @@ class ContextualMAB(ABC, MABAgent):
         self.current_ctx_instance = inst
 
 
-class ReduceToKMAB(ABC, ContextualMAB):
+class ReduceToKMAB(ContextualMAB):
     def __init__(self, simulation, agents: List[NonContextualMABAgent]):
 
         lb_policies=agents[0].lb_policies

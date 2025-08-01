@@ -62,7 +62,7 @@ class MABAgent(ABC):
     def select_policy(self) -> str:
         pass
 
-    @abstractmethod
+    #@abstractmethod
     def _gather_mab_stats(self) -> dict:
         pass
 
