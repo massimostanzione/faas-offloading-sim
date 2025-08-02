@@ -787,8 +787,8 @@ class Simulation:
     def mab_intermediate_sampling_update(self):
         # take the intermediate samples
         for k, v in self.mab_intermediate_samples.items():
-            v.append(self.stats.to_dict(False)[k])
-            if (self.stats.to_dict(False)[k]) =='': raise RuntimeError("eee")
+            intermediate_sample = self.stats.to_dict(False)[k]
+            v.append(intermediate_sample)
 
     def reward_update(self):
         self.mab_agent.ALPHA = self.mab_agent.ALPHA_POST  # load imbalance
