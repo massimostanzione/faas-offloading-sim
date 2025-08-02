@@ -43,7 +43,7 @@ class ReduceToKMAB(ContextualMAB):
     def update_model(self, lb_policy: str, mab_stats_file: str, last_update=False):
         # at first call, choose the first agent based on probed data
         if self.current_ctx_instance is None:
-            probed_data = self.simulation._probe_context_related_info()
+            probed_data = self.simulation._probe_context_related_info(True)
             self.update_context_instance(probed_data)
 
         agent = self.get_current_agent()

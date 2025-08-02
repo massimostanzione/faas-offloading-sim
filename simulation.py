@@ -754,11 +754,11 @@ class Simulation:
         return float(duration + data_access_time), float(data_access_time)
 
     # TODO move to agents.py?
-    def _probe_context_related_info(self) -> dict:
+    def _probe_context_related_info(self, first_call=False) -> dict:
         # TODO not-hardcoded features
         features = [ContextFeature.ACTIVE_MEMORY_UTILIZATION]
         context_probing = {repr(f): None for f in features}
-        for f in features: context_probing[repr(f)] = self.stats.to_dict()[repr(f)]
+        for f in features: context_probing[repr(f)] = self.stats.to_dict(not first_call, not first_call)[repr(f)]
         print("probed:", context_probing)
         return context_probing
 
