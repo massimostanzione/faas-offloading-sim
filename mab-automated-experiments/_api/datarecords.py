@@ -18,6 +18,19 @@ from _internal.bayesopt import extract_optimal_parameters_for_instance
 from _internal import consts
 
 
+def extract_probed_contextinfo_data_from_datarecord(record: MABExperimentInstanceRecord, key: str) -> List:
+    output = []
+    context_info_timeseries = extract_result_dict_from_datarecord(record, "context_info")
+    # probed_data=extract_timeseries_from_result_single(context_info)
+    probed_data_timeseries = []
+    for item in context_info_timeseries:
+        probed_data_timeseries.append(item["probed_data"])
+    for probed_data_point in probed_data_timeseries:
+        for k, v in probed_data_point.items():
+            if k == key:
+                output.append(v)
+    return output
+
 def extract_result_dict_from_datarecord(record: MABExperimentInstanceRecord, key: str) -> dict:
     return record.results[key]
 

@@ -16,7 +16,7 @@ sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 from _api.datarecords import (extract_datarecords_from_exp_name, extract_result_dict_from_datarecord,
                               extract_timeseries_from_result_single, extract_timeseries_from_result_multiple,
-                              filter_datarecords_by_specfiles
+                              filter_datarecords_by_specfiles, extract_probed_contextinfo_data_from_datarecord
                               )
 from _internal import consts, utils
 
@@ -73,7 +73,7 @@ for r in records:
                         print(line)
                         valori_plot.append(float(line))
         """
-    mem = extract_result_dict_from_datarecord(r, "activeMemoryUtilization_sys")
+    mem=extract_probed_contextinfo_data_from_datarecord(r, "activeMemoryUtilization_sys")
     instances = extract_result_dict_from_datarecord(r, "instance_invoked")
     time = extract_result_dict_from_datarecord(r, "time")
     policies = extract_result_dict_from_datarecord(r, "policy")
