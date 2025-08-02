@@ -766,12 +766,14 @@ class Simulation:
         return self.context is not None
 
     def mab_update(self, last_update=False):
-        if self.is_contextual():
-            probed_data=self._probe_context_related_info()
-            self.mab_agent.update_context_instance(probed_data)
         # Invoco l'agente per aggiornare il modello
         # Si occuperà lui stesso dell'aggiornamento del reward
         self.mab_agent.update_model(self.current_lb_policy, self.mab_stats_file, last_update)
+
+        # for contextual simulations, update the context (and, for RTK, related subagent) based on probed data
+        if self.is_contextual():
+            probed_data = self._probe_context_related_info()
+            self.mab_agent.update_context_instance(probed_data)
 
         # Richiedo la nuova politica di load balancing all'agente
         # La politica scelta verrà applicata a tutti i load balancer presenti
