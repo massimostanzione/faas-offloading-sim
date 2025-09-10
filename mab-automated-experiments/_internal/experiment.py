@@ -13,7 +13,7 @@ import numpy as np
 
 import conf
 from conf import MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA, MAB_KL_UCB_C, MAB_ALL_STRATEGIES_PARAMETERS, \
-    EXPIRATION_TIMEOUT, STAT_PRINT_INTERVAL
+    EXPIRATION_TIMEOUT, MAB_RTK_CONTEXTUAL_SCENARIOS
 from main import main
 from .logging import MABExperimentInstanceRecord, IncrementalLogger, SCRIPT_DIR
 from . import consts
@@ -26,12 +26,13 @@ def write_custom_configfile(expname: str, strategy: str, close_door_time: float,
                             params_values: List[float], seed: int, specfile: str = None,
                             mab_intermediate_sampling_update: float = None,
                             mab_intermediate_sampling_keys=None,
+                            mab_rtk_contextual_scenario=None,
                             expiration_timeout: float = consts.DEFAULT_EXPIRATION_TIMEOUT):
 
     if mab_intermediate_sampling_keys is None:
         mab_intermediate_sampling_keys = []
     outfile_stats = generate_outfile_name(consts.PREFIX_STATSFILE, strategy, axis_pre, axis_post, params_names,
-                                          params_values, seed, specfile, expiration_timeout) + consts.SUFFIX_STATSFILE
+                                          params_values, seed, specfile, mab_rtk_contextual_scenario,expiration_timeout) + consts.SUFFIX_STATSFILE
     outfile_mabstats = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.TEMP_STATS_LOCATION,
                                                     consts.PREFIX_MABSTATSFILE + consts.SUFFIX_MABSTATSFILE + "-pid" + str(
                                                         os.getpid())))
@@ -147,8 +148,8 @@ def get_param_full_name(simple_name: str) -> str:
         return MAB_KL_UCB_C
     return simple_name
 
-
-def generate_outfile_name(prefix, strategy, axis_pre, axis_post, params_names, params_values, seed, specfile, expiration_timeeout):
+# TODO convertire a solo pid
+def generate_outfile_name(prefix, strategy, axis_pre, axis_post, params_names, params_values, seed, specfile, mab_rtk_contextual_scenario, expiration_timeeout):
     pardict = {}
     for i, _ in enumerate(params_names):
         pardict[params_names[i]] = params_values[i]
@@ -162,6 +163,7 @@ def generate_outfile_name(prefix, strategy, axis_pre, axis_post, params_names, p
     output_suffix = consts.DELIMITER_HYPHEN.join([output_suffix, consts.DELIMITER_PARAMS.join(["seed", seed])])
     output_suffix = consts.DELIMITER_HYPHEN.join([output_suffix, consts.DELIMITER_PARAMS.join(["specfile", specfile])])
     output_suffix = consts.DELIMITER_HYPHEN.join([output_suffix, consts.DELIMITER_PARAMS.join(["exptimeout", str(expiration_timeeout)])])
+    output_suffix = consts.DELIMITER_HYPHEN.join([output_suffix, consts.DELIMITER_PARAMS.join(["mab_rtk_contextual_scenario", str(mab_rtk_contextual_scenario)])])
     config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.TEMP_STATS_LOCATION, output_suffix))
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     return config_path
@@ -277,14 +279,17 @@ class MABExperiment:
                  stat_print_interval: float = 360, mab_update_interval: float = 300,
                  mab_intermediate_sampling_update_interval:float=None,
                  mab_intermediate_samples_keys:List[str]=None,
-                 axis_pre: List[str] = None,
-                 axis_post: List[str] = None,
+                 mab_rtk_contextual_scenarios:List[str]=None,
                  iterable_params: List[MABExperiment_IterableParam] = None, graphs: List[str] = None,
                  rundup: str = consts.RundupBehavior.SKIP_EXISTENT.value, max_parallel_executions: int = 1,
                  seeds: List[int] = None, specfiles: List[str] = None, expiration_timeouts=None,
                  output_persist:List[str] = None):
         if expiration_timeouts is None:
             expiration_timeouts = [consts.DEFAULT_EXPIRATION_TIMEOUT]
+        print("ENTRA:", mab_rtk_contextual_scenarios)
+        if mab_rtk_contextual_scenarios is None:
+            mab_rtk_contextual_scenarios = ["KD"]
+
         self.expconf = expconf
         self.name = name
         self.strategies = strategies
@@ -293,8 +298,7 @@ class MABExperiment:
         self.mab_update_interval = mab_update_interval
         self.mab_intermediate_sampling_update_interval = mab_intermediate_sampling_update_interval
         self.mab_intermediate_samples_keys = mab_intermediate_samples_keys
-        self.axis_pre = axis_pre
-        self.axis_post = axis_post
+        self.mab_rtk_contextual_scenarios = mab_rtk_contextual_scenarios
         self.iterable_params = iterable_params
         self.graphs = graphs
         self.rundup = rundup
@@ -305,9 +309,9 @@ class MABExperiment:
         self.output_persist = output_persist
 
     def _generate_config(self, strategy: str, close_door_time: float, stat_print_interval: float, mab_update_interval: float, axis_pre: str, axis_post: str, param_names: List[str],
-                         param_values: List[float], seed: int, specfile:str, mabinttime, mabintkeys, expiration_timeout:float):
+                         param_values: List[float], seed: int, specfile:str, mabinttime, mabintkeys, mab_rtk_contextual_scenario, expiration_timeout:float):
         return write_custom_configfile(self.name, strategy, close_door_time, stat_print_interval, mab_update_interval, axis_pre, axis_post, param_names, param_values, seed,
-                                       specfile, mabinttime, mabintkeys, expiration_timeout)
+                                       specfile, mabinttime, mabintkeys, mab_rtk_contextual_scenario, expiration_timeout)
 
     # ritorna liste di dizionari del tipo [{par1: valore1, par2, valore2}, {par1: valore1, par2, valore2}, ...]
     # ove ciascun dizionario rappresenta i parametri di una singola istanza
@@ -351,26 +355,40 @@ class MABExperiment:
         in_list = []
         bayesopt=None
 
-        for strat, axis_pre, axis_post, seed, specfile, expiration_timeout in all_combinations:
-            if axis_post=="": axis_post=axis_pre
-            bayesopt_value=None
-            try:
-                bayesopt_value = self.expconf["parameters"]["bayesopt"]
-            except KeyError:
-                bayesopt=False
-                #bayesopt_value=False
-            if bayesopt_value == "true": bayesopt=True
-            elif bayesopt_value == "false": bayesopt=False
+        for strat, axis_pre, axis_post, seed, specfile, expiration_timeout  in all_combinations:
+            actual_rtk_scenarios=self.mab_rtk_contextual_scenarios if "RTK-" in strat else [""]
+            for mab_rtk_contextual_scenario in actual_rtk_scenarios:
+                if axis_post=="": axis_post=axis_pre
+                bayesopt_value=None
+                try:
+                    bayesopt_value = self.expconf["parameters"]["bayesopt"]
+                except KeyError:
+                    bayesopt=False
+                    #bayesopt_value=False
+                if bayesopt_value == "true": bayesopt=True
+                elif bayesopt_value == "false": bayesopt=False
 
-            param_combinations = None if bayesopt else self.enumerate_iterable_params(strat)
-            for pc in param_combinations if param_combinations is not None else [None]:
-                instance = MABExperimentInstanceRecord(strat, axis_pre, axis_post, pc, seed, None, specfile,
-                                                       self.stat_print_interval, self.mab_update_interval,
-                                                       self.mab_intermediate_sampling_update_interval,
-                                                       self.mab_intermediate_samples_keys, expiration_timeout)
+                param_combinations = None if bayesopt else self.enumerate_iterable_params(strat)
+                for pc in param_combinations if param_combinations is not None else [None]:
+                    instance = MABExperimentInstanceRecord(strat, axis_pre, axis_post, pc, seed, None, specfile,
+                                                           self.stat_print_interval, self.mab_update_interval,
+                                                           self.mab_intermediate_sampling_update_interval,
+                                                           self.mab_intermediate_samples_keys,
+                                                           mab_rtk_contextual_scenario,
+                                                           expiration_timeout)
 
-                in_list.append(instance)
-        out_list = in_list if not bayesopt else bayesopt_search(in_list, max_procs, self.expconf, self)
+                    in_list.append(instance)
+
+        #out_list = logger.filter_unprocessed_instances(in_list, ["results"]) if not bayesopt else bayesopt_search(in_list, max_procs, self.expconf, self)
+        # TODO gestire il filtraggio rundup dentro il parallel runner
+        if bayesopt:
+            out_list = bayesopt_search(in_list, max_procs, self.expconf, self)
+        else:
+            out_list=[]
+            for instance in in_list:
+                rundup = logger.determine_simex_behavior(instance, self.rundup, self.output_persist)
+                if rundup:
+                    out_list.append(instance)
 
         effective_procs = max(1, min(len(out_list), max_procs))
         cs=max(1,math.ceil(len(out_list)/effective_procs))
@@ -393,6 +411,7 @@ class MABExperiment:
             seed=instance.identifiers["seed"]
             specfile = instance.identifiers["specfile"]
             expiration_timeout = instance.identifiers[EXPIRATION_TIMEOUT]
+            mab_rtk_contextual_scenario = instance.identifiers[MAB_RTK_CONTEXTUAL_SCENARIOS]
             print(f"Processing strategy={strategy}, ax_pre={ax_pre}, ax_post={ax_post}, seed={seed}, specfile={specfile}")
             print()
             print("============================================")
@@ -407,15 +426,19 @@ class MABExperiment:
                 print(f"\t\t> {k} = {v}")
             print(f"\tSpecfile:\t\t{specfile}")
             print(f"\tExpiration timeout:\t\t{expiration_timeout}")
+            print(f"\tRTK scenario:\t\t{mab_rtk_contextual_scenario}")
             print("--------------------------------------------")
             param_names=[k for k,_ in params.items()]
             current_values=[v for _,v in params.items()]
             config_path = self._generate_config(strategy, self.close_door_time, self.stat_print_interval,
                                                 self.mab_update_interval, ax_pre, ax_post, param_names, current_values,
-                                                seed, specfile, self.mab_intermediate_sampling_update_interval, self.mab_intermediate_samples_keys,expiration_timeout)
+                                                seed, specfile, self.mab_intermediate_sampling_update_interval,
+                                                self.mab_intermediate_samples_keys,
+                                                mab_rtk_contextual_scenario,
+                                                expiration_timeout)
 
             statsfile = generate_outfile_name(consts.PREFIX_STATSFILE, strategy, ax_pre, ax_post, param_names,
-                current_values, seed, specfile, expiration_timeout) + consts.SUFFIX_STATSFILE
+                current_values, seed, specfile, mab_rtk_contextual_scenario, expiration_timeout) + consts.SUFFIX_STATSFILE
 
             mabfile = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.TEMP_STATS_LOCATION,
                                                    consts.PREFIX_MABSTATSFILE + consts.SUFFIX_MABSTATSFILE + "-pid" + str(

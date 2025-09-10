@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from io import TextIOWrapper
 from typing import List, Iterable
 from collections import deque
 import numpy as np
@@ -7,6 +6,7 @@ import math
 import json
 import os
 
+from conf import MAB_UPDATE_INTERVAL
 # Upper bounds for the addends of the reward function
 MAX_LOAD_IMBALANCE = 3  # as coefficient of variation (D^2/E), UB empirically determined
 MAX_RT = 1              # max avg resp time, already normalized but can be tuned
@@ -54,6 +54,10 @@ class MABAgent(ABC):
         # additional data that maybe you would like to add to the MAB-stats (not mandatory, ignored if None)
         self.additional_data_output = None
 
+        self.label="agent0"
+    def set_label(self, label:str):
+        self.label=label
+
     @abstractmethod
     def update_model(self, lb_policy: str, mab_stats_file: str, last_update=False):
         pass
@@ -72,7 +76,7 @@ class MABAgent(ABC):
     def _is_mabfile_already_started(self):
         ret = False
         if self.super_rtk_mab is None: return ret
-        for a in self.super_rtk_mab.agents.values():
+        for a in self.super_rtk_mab.IAPs.values():
             if a.first_call is False:
                 ret = True
                 break
@@ -182,7 +186,7 @@ class NonContextualMABAgent(MABAgent):
         if self.ETA==1: return "cold_starts"
         return "NA"
 
-    def _gather_mab_stats(self, reward, mab_stats_file: TextIOWrapper, end):
+    def _gather_mab_stats(self, reward, mab_stats_file, end):
 
             data = {}
             data["time"] = self.simulation.t
@@ -244,11 +248,25 @@ class NonContextualMABAgent(MABAgent):
 
         return list(result.values())
 
+    def is_agent_first_call(self)->bool:
+        return all(n == 0 for n in self.N)
+
+    def is_agent_fully_initialized(self)->bool:
+        return all(n > 0 for n in self.N)
+
+    def count_initialized_policies(self)->int:
+        return sum(1 for n in self.N if n > 0)
+
+    def has_better_knowledge_than(self, other_agent: 'NonContextualMABAgent'):
+        return self.count_initialized_policies() > other_agent.count_initialized_policies()
+
+# todo implementazione degli altri metodi astratti?
 class NonContextualMABAgent_EpochBased(NonContextualMABAgent):
 
     def __init__(self, simulation, lb_policies: List[str], reward_config):
         super().__init__(simulation, lb_policies, reward_config)
         self.is_epoch_based=True
+        self.expected_epoch_end = float('-inf')
         self.remaining_locked_plays = 0  # number of arm selection locked by the most promising arm selected in previous epochs
 
     def update_model(self, lb_policy: str, mab_stats_file: str, last_update=False):
@@ -257,7 +275,7 @@ class NonContextualMABAgent_EpochBased(NonContextualMABAgent):
     def select_policy(self) -> str:
         return super().select_policy()
 
-    def _gather_mab_stats(self, reward, mab_stats_file: TextIOWrapper, end):
+    def _gather_mab_stats(self, reward, mab_stats_file, end):
         dict=super()._gather_mab_stats(reward, mab_stats_file, end)
         if self.is_new_epoch_started():
             dict["epochStartTimes"]=self.simulation.t
@@ -266,6 +284,8 @@ class NonContextualMABAgent_EpochBased(NonContextualMABAgent):
     def is_new_epoch_started(self)->bool:
         return self.remaining_locked_plays == 0 and not self.first_call
 
+    def is_first_epoch_started(self)-> bool:
+        return self.expected_epoch_end != float('-inf')
 
 # Epsilon-Greedy Strategy
 class EpsilonGreedy(NonContextualMABAgent):
@@ -275,6 +295,7 @@ class EpsilonGreedy(NonContextualMABAgent):
         self.rng = self.simulation.mab_agent_rng
 
     def update_model(self, lb_policy: str, mab_stats_file:str, last_update=False):
+        super().update_model(lb_policy, mab_stats_file, last_update)
         self.curr_lb_policy = lb_policy
         reward = self._compute_reward()
         policy_index = self.lb_policies.index(lb_policy)
@@ -313,6 +334,7 @@ class UCB(NonContextualMABAgent):
         self.exploration_factor = exploration_factor
 
     def update_model(self, lb_policy: str, mab_stats_file:str, last_update=False):
+        super().update_model(lb_policy, mab_stats_file, last_update)
         self.curr_lb_policy = lb_policy
         reward = self._compute_reward()
         policy_index = self.lb_policies.index(lb_policy)
@@ -351,6 +373,7 @@ class ResetUCB(NonContextualMABAgent):
         self.reset_counter = 0
 
     def update_model(self, lb_policy: str, mab_stats_file:str, last_update=False):
+        super().update_model(lb_policy, mab_stats_file, last_update)
         self.curr_lb_policy = lb_policy
         reward = self._compute_reward()
         policy_index = self.lb_policies.index(lb_policy)
@@ -400,6 +423,7 @@ class SlidingWindowUCB(NonContextualMABAgent):
         self.history = deque(maxlen=window_size) # Finestra scorrevole
 
     def update_model(self, lb_policy: str, mab_stats_file:str, last_update=False):
+        super().update_model(lb_policy, mab_stats_file, last_update)
         self.curr_lb_policy = lb_policy
         reward = self._compute_reward()
         policy_index = self.lb_policies.index(lb_policy)
@@ -467,6 +491,7 @@ class UCB2(NonContextualMABAgent_EpochBased):
         return math.ceil(math.pow(1 + self.alpha, r))
 
     def update_model(self, lb_policy: str, mab_stats_file:str, last_update=False):
+        super().update_model(lb_policy, mab_stats_file, last_update)
         self.curr_lb_policy = lb_policy
         reward = self._compute_reward()
         policy_index = self.lb_policies.index(lb_policy)
@@ -522,12 +547,15 @@ class UCB2(NonContextualMABAgent_EpochBased):
 
         # \tau differences could be zero, set a minimum of 1 execution
         self.remaining_locked_plays = max(1, tau_r1_selected - tau_r_selected)
-
+        self.expected_epoch_end = self.simulation.t + (
+                    self.remaining_locked_plays * self.simulation.mab_update_interval)
         self.remaining_locked_plays -= 1  # because decrementing is done while selecting the policy, i.e. here
+
+        if self.expected_epoch_end < self.simulation.t: raise RuntimeError("oh no")
         self.R[selected_index] += 1  # increment the epoch counter
         print("[MAB] Starting epoch no.", int(self.R[selected_index]), "for policy", selected_policy, "(",
               selected_index,
-              ") - it will last for", self.remaining_locked_plays + 1, "subsequent plays.")
+              ") - it will last for other", self.remaining_locked_plays + 1, "subsequent plays.")
 
         if self.curr_lb_policy == selected_policy:
             return None
@@ -547,6 +575,7 @@ class UCBTuned(NonContextualMABAgent):
         return variance + math.sqrt((2 * math.log(t)) / s)
 
     def update_model(self, lb_policy: str, mab_stats_file:str, last_update=False):
+        super().update_model(lb_policy, mab_stats_file, last_update)
         self.curr_lb_policy = lb_policy
         reward = self._compute_reward()
         policy_index = self.lb_policies.index(lb_policy)
@@ -653,7 +682,7 @@ class KLUCB(NonContextualMABAgent):
         return selected_policy
 
 # KL-UCB Strategy, with single parameter
-class KLUCBsp(NonContextualMABAgent):
+class KLUCBspold(NonContextualMABAgent):
     def __init__(self, simulation, lb_policies: List[str], reward_config, c: float):
         super().__init__(simulation, lb_policies, reward_config)
         self.c = c                              # KL constant
@@ -694,9 +723,9 @@ class KLUCBsp(NonContextualMABAgent):
         print("[MAB]: N updated -> ", self.N)
         print("[MAB]: cumQ updated -> ", self.cumQ)
         if not last_update:
-            self._gather_mab_stats(reward, mab_stats_file, end=False)
+            self._print_stats(reward, mab_stats_file, end=False)
         else:
-            self._gather_mab_stats(reward, mab_stats_file, end=True)
+            self._print_stats(reward, mab_stats_file, end=True)
         self.simulation.stats.do_snapshot()
 
     def select_policy(self) -> str:
@@ -716,6 +745,105 @@ class KLUCBsp(NonContextualMABAgent):
             policy_index = self.lb_policies.index(p)
             ucb_values[policy_index] = self.__q(policy_index)
         selected_policy = self.lb_policies[ucb_values.index(max(ucb_values))]
+        if self.curr_lb_policy == selected_policy:
+            return None
+        return selected_policy
+
+
+# TODO docs: dire che c'era l'errore prima
+# KL-UCB
+class KLUCBsp(NonContextualMABAgent):
+    def __init__(self, simulation, lb_policies: List[str], reward_config, c: float = 0,
+                 max_negative_reward: float = -1.0):
+        super().__init__(simulation, lb_policies, reward_config)
+        self.c = c
+        self.cumQ = np.zeros(len(lb_policies))
+        self.max_negative_reward = max_negative_reward
+
+    def __kl(self, p, q):
+        from mab.contextual.utils import equals_failproof
+        if equals_failproof(p, 0):
+            if equals_failproof(q, 0):
+                return 0
+            return (1 - p) * math.log((1 - p) / (1 - q))
+        if equals_failproof(p, 1):
+            if equals_failproof(q, 0):
+                return 0
+            return p * math.log(p / q)
+
+        if equals_failproof(p, q):
+            return 0.0
+        elif equals_failproof(q, 0) or equals_failproof(q, 0):
+            return np.inf
+
+        return (p * math.log(p / q)) + ((1 - p) * math.log((1 - p) / (1 - q)))
+
+    def __q(self, index):
+        t = sum(self.N)
+        if self.N[index] == 0:
+            return np.inf
+
+        p = self.cumQ[index] / self.N[index]
+
+        lower_limit = p
+        upper_limit = 1.0
+        epsilon = 1e-6
+
+        target = (math.log(t) + self.c * math.log(math.log(t))) / self.N[index]
+
+        while upper_limit - lower_limit > epsilon:
+            q = (upper_limit + lower_limit) / 2
+            kl_divergence = self.__kl(p, q)
+
+            if kl_divergence <= target:
+                lower_limit = q
+            else:
+                upper_limit = q
+
+        return (upper_limit + lower_limit) / 2
+
+    def update_model(self, lb_policy: str, mab_stats_file: str, last_update=False):
+        super().update_model(lb_policy, mab_stats_file, last_update)
+        self.curr_lb_policy = lb_policy
+        raw_reward = self._compute_reward()
+        if raw_reward<self.max_negative_reward: raise RuntimeError("alza il valore")
+        if raw_reward >= 0:
+            normalized_reward = 1.0
+        else:
+
+            normalized_reward = 1.0 - (raw_reward / self.max_negative_reward)
+            #normalized_reward = max(0.0, normalized_reward)
+
+        policy_index = self.lb_policies.index(lb_policy)
+        self.N[policy_index] += 1
+        self.Q[policy_index] += (normalized_reward - self.Q[policy_index]) / self.N[policy_index]
+        self.cumQ[policy_index] += normalized_reward
+
+        print("[MAB]: Q updated -> ", self.Q)
+        print("[MAB]: N updated -> ", self.N)
+        print("[MAB]: cumQ updated -> ", self.cumQ)
+        print("[MAB]: raw reward", raw_reward)
+        if not last_update:
+            self._print_stats(raw_reward, mab_stats_file, end=False)
+        else:
+            self._print_stats(raw_reward, mab_stats_file, end=True)
+        self.simulation.stats.do_snapshot()
+
+    def select_policy(self) -> str:
+        # init: in the first execution, play each arm once
+        #       without any further computation
+        #       Oss.: setting "inf" in the last loop for the initialization
+        #             does not prevent q computation for the default policy,
+        #             resulting in a "divide by zero" error.
+        for index, label in enumerate(self.lb_policies):
+            if self.N[index] == 0:
+                print("[MAB] INIT: selecting", label, "(", index, ") for the first time")
+                return self.lb_policies[index]
+
+        ucb_values = [self.__q(index) for index in range(len(self.lb_policies))]
+
+        selected_policy = self.lb_policies[np.argmax(ucb_values)]
+
         if self.curr_lb_policy == selected_policy:
             return None
         return selected_policy

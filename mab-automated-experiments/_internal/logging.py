@@ -33,6 +33,7 @@ class MABExperimentInstanceRecord:
                  mab_update_interval: float,
                  mab_intermediate_sampling_update_interval: float,
                  mab_intermediate_samples_keys: List[str],
+                 mab_rtk_contextual_scenario: str,
                  expiration_timeout: float
                  ):
         # instance identifiers
@@ -48,6 +49,7 @@ class MABExperimentInstanceRecord:
             conf.MAB_UPDATE_INTERVAL:mab_update_interval,
             conf.MAB_INTERMEDIATE_SAMPLING_UPDATE_INTERVAL:mab_intermediate_sampling_update_interval,
             conf.MAB_INTERMEDIATE_SAMPLING_STATS_KEYS:mab_intermediate_samples_keys,
+            conf.MAB_RTK_CONTEXTUAL_SCENARIOS:mab_rtk_contextual_scenario,
             EXPIRATION_TIMEOUT:expiration_timeout
         }
 
@@ -85,6 +87,7 @@ class IncrementalLogger(Logger):
         except OSError:
             pass
 
+    # TODO sovrascrittura del metodo interno di python nativo
     def _compare_instances(self, inst1:MABExperimentInstanceRecord, inst2:MABExperimentInstanceRecord):
         return inst1.identifiers==inst2.identifiers
 
@@ -136,7 +139,10 @@ class IncrementalLogger(Logger):
             pass
 
     # output: le istanze che non sono già processate, i.e., quelle che dovranno essere eseguite (in parallelo, possibilmente)
+    # todo rinominare/dividere, in realtà questa funzione fa (dovrebbe) filtrare le istanze persisite secondo gli specific_results
     def filter_unprocessed_instances(self, list:List[MABExperimentInstanceRecord], specific_results:List[str]=None)->List[MABExperimentInstanceRecord]:
+        # docs: questa funzione manda in output SOLO LE FUNZIONI CHE *NON* HANNO I specific_results
+
         ret=[]
         for instance in list:
             if specific_results is None:
@@ -219,6 +225,7 @@ def _deserialize(dict):
                                         dict["identifiers"][conf.MAB_UPDATE_INTERVAL] if conf.MAB_UPDATE_INTERVAL in dict["identifiers"] else None,
                                         dict["identifiers"][conf.MAB_INTERMEDIATE_SAMPLING_UPDATE_INTERVAL] if conf.MAB_INTERMEDIATE_SAMPLING_UPDATE_INTERVAL in dict["identifiers"] else None,
                                         dict["identifiers"][conf.MAB_INTERMEDIATE_SAMPLING_STATS_KEYS] if conf.MAB_INTERMEDIATE_SAMPLING_STATS_KEYS in dict["identifiers"] else None,
+                                        dict["identifiers"][conf.MAB_RTK_CONTEXTUAL_SCENARIOS] if conf.MAB_RTK_CONTEXTUAL_SCENARIOS in dict["identifiers"] else None,
                                         dict["identifiers"][EXPIRATION_TIMEOUT] if EXPIRATION_TIMEOUT in dict["identifiers"] else None,
                                        )
     ret.add_experiment_result(dict["results"])

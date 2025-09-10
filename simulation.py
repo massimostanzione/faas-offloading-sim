@@ -92,6 +92,13 @@ class MABIntermediateSamplingUpdate(Event):
     pass
 
 @dataclass
+class MAB_RTKCS_KR_Refine(Event):
+    """
+    TODO DOCS
+    """
+    pass
+
+@dataclass
 class RewardUpdate(Event):
     pass
 
@@ -307,8 +314,9 @@ class Simulation:
 
         # (... this can be parameterizable...)
         ctx=Context([ContextFeature.ACTIVE_MEMORY_UTILIZATION])
-        ctx.add_instances(generate_contextinsts_list_exp())
+        ctx.add_instances(generate_contextinsts_list_exp(rtk_scenario_config_str=="KR"))
         self.context=ctx
+        num_contexts=len(self.context.instances)
 
         if strategy == "RTK-UCB2":
             exploration_factor = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB_EXPLORATION_FACTOR, fallback=0.05)
@@ -316,24 +324,42 @@ class Simulation:
 
             # generate UCB2 non-contextual agents
             # (this is pretty hardcoded here)
-            num_contexts=3
             agents=[]
             for i in range(num_contexts):
                 agent=UCB2(self, lb_policies, exploration_factor, reward_config, alpha)
+                agent.set_label("agent"+str(i+1) if not rtk_scenario_config_str=="KR" else "pre-refining")
                 agents.append(agent)
 
-            return ReduceToKMAB(self, agents)
+            return ReduceToKMAB(self, agents, rtk_scenario_config_str)
 
-        if strategy == "RTK-UCB2-ER":
+        # if strategy == "RTK-UCB2sp":
+        #     #exploration_factor = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB_EXPLORATION_FACTOR, fallback=0.05)
+        #     alpha = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB2_ALPHA, fallback=1.0)
+        #     #rtk_scenario_config_str = self.config.get(conf.SEC_MAB, "rtk-scenario", fallback=None)
+        #     #if rtk_scenario_config_str is None:
+        #     #    raise RuntimeError("Please specify an RTK Contextual Scenario (KD/KI/KR).")
+        #     #if rtk_scenario_config_str == "KR": #TODO
+        #
+        #     # generate UCB2 non-contextual agents
+        #     # (this is pretty hardcoded here)
+        #     agents=[]
+        #     for i in range(num_contexts):
+        #         agent=UCB2sp(self, lb_policies, reward_config, alpha)
+        #         agent.set_label("agent"+str(i+1) if not rtk_scenario_config_str=="KR" else "pre-refining")
+        #         agents.append(agent)
+        #
+        #     return ReduceToKMAB(self, agents, rtk_scenario_config_str)
+
+        elif strategy == "RTK-UCB2-ER":
             exploration_factor = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB_EXPLORATION_FACTOR, fallback=0.05)
             alpha = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB2_ALPHA, fallback=1.0)
 
             # generate UCB2 non-contextual agents
             # (this is pretty hardcoded here)
-            num_contexts=3
             agents=[]
             for i in range(num_contexts):
                 agent=UCB2(self, lb_policies, exploration_factor, reward_config, alpha)
+                agent.set_label("agent"+str(i+1) if not rtk_scenario_config_str=="KR" else "pre-refining")
                 agents.append(agent)
 
             return ReduceToKMAB_EpochReset(self, agents)
@@ -344,13 +370,58 @@ class Simulation:
 
             # generate UCB2 non-contextual agents
             # (this is pretty hardcoded here)
-            num_contexts=3
             agents=[]
             for i in range(num_contexts):
                 agent=UCBTuned(self, lb_policies, exploration_factor, reward_config)
+                agent.set_label("agent"+str(i+1) if not rtk_scenario_config_str=="KR" else "pre-refining")
                 agents.append(agent)
 
-            return ReduceToKMAB(self, agents)
+            return ReduceToKMAB(self, agents, rtk_scenario_config_str)
+
+        # elif strategy == "RTK-KL-UCB":
+        #     exploration_factor = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB_EXPLORATION_FACTOR, fallback=0.05)
+        #     c = self.config.getfloat(conf.SEC_MAB, conf.MAB_KL_UCB_C, fallback=1.0)
+        #
+        #     # generate klucb non-contextual agents
+        #     # (this is pretty hardcoded here)
+        #     agents=[]
+        #     for i in range(num_contexts):
+        #         agent=KLUCB(self, lb_policies, exploration_factor, reward_config, c)
+        #         agent.set_label("agent"+str(i+1) if not rtk_scenario_config_str=="KR" else "pre-refining")
+        #         #agents.append(agent)
+        #
+        #    return ReduceToKMAB(self, agents, rtk_scenario_config_str)
+        #
+        # elif strategy == "RTK-KL-UCBspold":
+        #     exploration_factor = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB_EXPLORATION_FACTOR, fallback=0.05)
+        #     c = self.config.getfloat(conf.SEC_MAB, conf.MAB_KL_UCB_C, fallback=1.0)
+        #
+        #     # generate klucbsp non-contextual agents
+        #     # (this is pretty hardcoded here)
+        #     agents=[]
+        #     for i in range(num_contexts):
+        #         agent=KLUCBspold(self, lb_policies, reward_config, c)
+        #         agent.set_label("agent"+str(i+1) if not rtk_scenario_config_str=="KR" else "pre-refining")
+        #         agents.append(agent)
+        #
+        #     return ReduceToKMAB(self, agents, rtk_scenario_config_str)
+
+        elif strategy == "RTK-KL-UCBsp":
+            exploration_factor = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB_EXPLORATION_FACTOR, fallback=0.05)
+            c = self.config.getfloat(conf.SEC_MAB, conf.MAB_KL_UCB_C, fallback=1.0)
+
+            # generate klucbsp non-contextual agents
+            # (this is pretty hardcoded here)
+            agents=[]
+            for i in range(num_contexts):
+                agent=KLUCBsp(self, lb_policies, reward_config, c)
+                agent.set_label("agent"+str(i+1) if not rtk_scenario_config_str=="KR" else "pre-refining")
+                agents.append(agent)
+
+            return ReduceToKMAB(self, agents, rtk_scenario_config_str)
+
+        elif strategy == "LinUCB":
+            return LinUCB()
 
 
         else:
@@ -448,6 +519,10 @@ class Simulation:
             # skip scheduling if mab_update is at the same time
             delay = 1 if (self.mab_intermediate_sampling_update_interval) % self.mab_update_interval != 0 else 2
             self.schedule(delay * self.mab_intermediate_sampling_update_interval, MABIntermediateSamplingUpdate())
+        if issubclass(self.mab_agent.__class__, ReduceToKMAB):
+            if isinstance(self.mab_agent.scenario, RTKCS_KnowledgeRefining):
+                # TODO paramterizzare tempo di refining
+                self.schedule(hours_to_secs(12), MAB_RTKCS_KR_Refine())
 
 
         while len(self.events) > 0:
@@ -517,7 +592,8 @@ class Simulation:
                    or isinstance(item[1], ArrivalRateUpdate) \
                    or isinstance(item[1], StatPrinter) \
                    or isinstance(item[1], MABUpdate) \
-                   or isinstance(item[1], MABIntermediateSamplingUpdate):
+                   or isinstance(item[1], MABIntermediateSamplingUpdate)\
+                   or isinstance(item[1], MAB_RTKCS_KR_Refine):
                     item[1].canceled = True
             self.external_arrivals_allowed = False
 
@@ -595,6 +671,10 @@ class Simulation:
             # skip scheduling if mab_update is at the same time
             delay = 1 if (t + self.mab_intermediate_sampling_update_interval) % self.mab_update_interval != 0 else 2
             self.schedule(t + delay * self.mab_intermediate_sampling_update_interval, event)
+        elif isinstance(event, MAB_RTKCS_KR_Refine):
+            self.mab_agent.IAPs = self.mab_agent.scenario.handle_refine_event(self.mab_agent)
+            self.context.instances=self.mab_agent.IAPs.keys()
+            self.mab_agent.reset_current_iap()#next(iter(self.context.instances)) #fixme pezzotto! - risolto
         elif isinstance(event, RewardUpdate):
             self.reward_update()
         else:
@@ -753,15 +833,6 @@ class Simulation:
                 self.stats.data_access_count[(k,f,n)] += 1
         return float(duration + data_access_time), float(data_access_time)
 
-    # TODO move to agents.py?
-    def _probe_context_related_info(self, first_call=False) -> dict:
-        # TODO not-hardcoded features
-        features = [ContextFeature.ACTIVE_MEMORY_UTILIZATION]
-        context_probing = {repr(f): None for f in features}
-        for f in features: context_probing[repr(f)] = self.stats.to_dict(not first_call, not first_call)[repr(f)]
-        print("probed:", context_probing)
-        return context_probing
-
     def is_contextual(self):
         return self.context is not None
 
@@ -771,9 +842,9 @@ class Simulation:
         self.mab_agent.update_model(self.current_lb_policy, self.mab_stats_file, last_update)
 
         # for contextual simulations, update the context (and, for RTK, related subagent) based on probed data
-        if self.is_contextual():
-            probed_data = self._probe_context_related_info()
-            self.mab_agent.update_context_instance(probed_data)
+        #if self.is_contextual():# and not self.mab_agent._is_mabfile_already_started:
+        #    probed_data = self._probe_context_related_info()
+        #    self.mab_agent.update_context_instance(probed_data)
 
         # Richiedo la nuova politica di load balancing all'agente
         # La politica scelta verrà applicata a tutti i load balancer presenti

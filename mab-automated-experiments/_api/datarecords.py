@@ -26,6 +26,7 @@ def extract_probed_contextinfo_data_from_datarecord(record: MABExperimentInstanc
     for item in context_info_timeseries:
         probed_data_timeseries.append(item["probed_data"])
     for probed_data_point in probed_data_timeseries:
+        #if probed_data_point is None: probed_data_point={"activeMemoryUtilization_sys":0} #fixme
         for k, v in probed_data_point.items():
             if k == key:
                 output.append(v)
@@ -87,30 +88,33 @@ def extract_datarecords_from_experiment(exp: MABExperiment) -> List[MABExperimen
     bayesopt = None
 
     for strat, axis_pre, axis_post, seed, specfile, expiration_timeout in all_combinations:
-        if axis_post == '': axis_post = axis_pre
-        bayesopt_value = None
-        try:
-            bayesopt_value = exp.expconf["parameters"]["bayesopt"]
-        except KeyError:
-            bayesopt = False
-        if bayesopt_value == "true":
-            bayesopt = True
-        elif bayesopt_value == "false":
-            bayesopt = False
-        else:
-            raise ValueError("\"bayesopt\" value misconfigured, please check your expconf.ini file")
-        param_combinations = None if bayesopt else exp.enumerate_iterable_params(strat)
-        for pc in param_combinations if param_combinations is not None else [None]:
-            instance = MABExperimentInstanceRecord(strat, axis_pre, axis_post, pc, seed, None, specfile,
-                                                   exp.stat_print_interval, exp.mab_update_interval,
-                                                   exp.mab_intermediate_sampling_update_interval,
-            exp.mab_intermediate_samples_keys,
 
-            expiration_timeout)
-            if pc is None:
-                instance.identifiers["parameters"] = extract_optimal_parameters_for_instance(instance)
-            instance = logger.lookup(instance)
-            in_list.append(instance)
+        actual_rtk_scenarios = exp.mab_rtk_contextual_scenarios if "RTK-" in strat else [""]
+        for mab_rtk_contextual_scenario in actual_rtk_scenarios:
+            if axis_post == '': axis_post = axis_pre
+            bayesopt_value = None
+            try:
+                bayesopt_value = exp.expconf["parameters"]["bayesopt"]
+            except KeyError:
+                bayesopt = False
+            if bayesopt_value == "true":
+                bayesopt = True
+            elif bayesopt_value == "false":
+                bayesopt = False
+            else:
+                raise ValueError("\"bayesopt\" value misconfigured, please check your expconf.ini file")
+            param_combinations = None if bayesopt else exp.enumerate_iterable_params(strat)
+            for pc in param_combinations if param_combinations is not None else [None]:
+                instance = MABExperimentInstanceRecord(strat, axis_pre, axis_post, pc, seed, None, specfile,
+                                                       exp.stat_print_interval, exp.mab_update_interval,
+                                                       exp.mab_intermediate_sampling_update_interval,
+                exp.mab_intermediate_samples_keys,
+                mab_rtk_contextual_scenario,
+                expiration_timeout)
+                if pc is None:
+                    instance.identifiers["parameters"] = extract_optimal_parameters_for_instance(instance)
+                instance = logger.lookup(instance)
+                in_list.append(instance)
     return in_list
 
 
