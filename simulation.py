@@ -16,6 +16,7 @@ import policy
 import probabilistic
 from faas import *
 import stateful
+from rt import RealTimeTracker
 from stateful import key_locator
 from arrivals import ArrivalProcess
 from infrastructure import *
@@ -428,7 +429,9 @@ class Simulation:
             print("Unknown MAB strategy\n")
             exit(1)
 
-    def run (self):
+    def run (self, tracker:RealTimeTracker=None):
+        #if tracker is not None: tracker.append_sim()
+        self.tracker=tracker
         # Simulate
         self.close_the_door_time = self.config.getfloat(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, fallback=100)
         self.events = []
@@ -524,6 +527,14 @@ class Simulation:
                 # TODO paramterizzare tempo di refining
                 self.schedule(hours_to_secs(12), MAB_RTKCS_KR_Refine())
 
+        if self.tracker is not None:
+            #self.tracker.update(os.getpid(), "strat", self.mab_agent.__repr__())
+            globsum=[]
+            for n, arvs in self.node2arrivals.items():
+                for arv in arvs:
+                    globsum.append(arv.last_iat)
+            #last_iatt=max(globsum)
+            self.tracker.update(os.getpid(), "end", round(min(max(globsum),self.close_the_door_time),1))
 
         while len(self.events) > 0:
             t,e = heappop(self.events)
@@ -553,7 +564,8 @@ class Simulation:
         for n, arvs in self.node2arrivals.items():
             for arv in arvs:
                 arv.close()
-
+        if self.tracker is not None:
+            self.tracker.end(os.getpid())
         return self.stats
 
     def move_key (self, k, src_node, dest_node):
@@ -602,6 +614,12 @@ class Simulation:
 
     def print_periodic_stats (self):
         # print("Step: ", self.t)
+
+        #with FileLock("rttlock.lock"):
+        #rtt.print()
+
+        if self.tracker is not None:
+            self.tracker.update(os.getpid(), "time", round(self.t,1))
         of = self.stats_file if self.stats_file is not None else sys.stdout
         if not self.first_stat_print:
             print(",", end='', file=of)

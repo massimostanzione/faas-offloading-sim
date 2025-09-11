@@ -17,6 +17,7 @@ class ArrivalProcess:
 
         total_weight = sum([c.arrival_weight for c in classes])
         self.class_probs = [c.arrival_weight/total_weight for c in classes]
+        self.last_iat = float('inf')
 
     def init_rng (self, class_rng, iat_rng, rate_rng=None):
         self.class_rng = class_rng
@@ -92,6 +93,8 @@ class TraceArrivalProcess (ArrivalProcess):
     def __init__ (self, function: Function, classes: List[QoSClass], trace: str):
         super().__init__(function, classes) 
         self.trace = open(trace, "r")
+        self.trace_copy_for_tracker = open(trace, "r")
+        self.last_iat = sum(float(line.strip()) for line in self.trace_copy_for_tracker)
 
     def next_iat (self):
         try:

@@ -9,8 +9,10 @@ from typing import List
 
 from typing_extensions import deprecated
 import conf
+from rt import RealTimeTracker
 from . import consts
 from .experiment import write_custom_configfile, get_param_simple_name, generate_outfile_name
+from .parallel_runner import run_parallel_executions
 
 # esterno
 from bayes_opt import BayesianOptimization
@@ -19,7 +21,7 @@ from conf import MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA, MAB_KL_UCB_C, EXPIR
     MAB_RTK_CONTEXTUAL_SCENARIOS
 from main import main
 from .logging import MABExperimentInstanceRecord, IncrementalLogger
-
+tracker=None
 manager = multiprocessing.Manager()
 jsondata = manager.list()
 
@@ -30,6 +32,7 @@ num_simulations = 1  # config.getint("parameters", "objfn-stabilizations-iterati
 
 
 def obj_ucbtuned(expname, ef, cdt, spi, mui, instance: MABExperimentInstanceRecord, specfile, rundup):
+def obj_ucbtuned(expname, ef, cdt, spi, mui, instance: MABExperimentInstanceRecord, specfile, rundup, tracker):
     strat = instance.identifiers["strategy"]
     ax_pre = instance.identifiers["axis_pre"]
     ax_post = instance.identifiers["axis_post"]
@@ -51,12 +54,13 @@ def obj_ucbtuned(expname, ef, cdt, spi, mui, instance: MABExperimentInstanceReco
         instance_sub = deepcopy(instance)
         instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_UCB_EXPLORATION_FACTOR): float(ef)}
 
-        ret = compute_total_reward(expname, instance_sub, rundup) / num_simulations
+        ret = compute_total_reward(expname, instance_sub, rundup, tracker) / num_simulations
         # TODO codice duplicato:
         os.remove(statsfile)
         return ret
 
 def obj_ucb2(expname, ef, cdt, spi, mui, alpha, instance: MABExperimentInstanceRecord, specfile, rundup):
+def obj_ucb2(expname, ef, cdt, spi, mui, alpha, instance: MABExperimentInstanceRecord, specfile, rundup, tracker):
     strat = instance.identifiers["strategy"]
     ax_pre = instance.identifiers["axis_pre"]
     ax_post = instance.identifiers["axis_post"]
@@ -79,14 +83,12 @@ def obj_ucb2(expname, ef, cdt, spi, mui, alpha, instance: MABExperimentInstanceR
                                                   get_param_simple_name(MAB_UCB2_ALPHA): float(alpha)}
         lookup = logger.lookup(instance_sub)
         if lookup is not None: instance_sub = lookup
-        ret= compute_total_reward(expname, instance_sub, rundup) / num_simulations
+        ret= compute_total_reward(expname, instance_sub, rundup, tracker) / num_simulations
         os.remove(statsfile)
         return ret
 
-
-def obj_klucb(expname, ef, c, cdt, spi, mui, instance: MABExperimentInstanceRecord, specfile, rundup):
 @deprecated
-def obj_klucb(expname, ef, cdt, spi, mui, c, instance: MABExperimentInstanceRecord, specfile, rundup):
+def obj_klucb(expname, ef, cdt, spi, mui, c, instance: MABExperimentInstanceRecord, specfile, rundup, tracker):
     strat = instance.identifiers["strategy"]
     ax_pre = instance.identifiers["axis_pre"]
     ax_post = instance.identifiers["axis_post"]
@@ -108,11 +110,12 @@ def obj_klucb(expname, ef, cdt, spi, mui, c, instance: MABExperimentInstanceReco
         instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_UCB_EXPLORATION_FACTOR): float(ef),
                                                   get_param_simple_name(MAB_KL_UCB_C): float(c)}
         ret= compute_total_reward(expname, instance_sub, rundup) / num_simulations
+        ret= compute_total_reward(expname, instance_sub, rundup, tracker) / num_simulations
         os.remove(statsfile)
         return ret
 
 
-def obj_klucbsp(expname, c, cdt, spi, mui, instance: MABExperimentInstanceRecord, specfile, rundup):
+def obj_klucbsp(expname, c, cdt, spi, mui, instance: MABExperimentInstanceRecord, specfile, rundup, tracker):
     strat = instance.identifiers["strategy"]
     ax_pre = instance.identifiers["axis_pre"]
     ax_post = instance.identifiers["axis_post"]
@@ -132,11 +135,12 @@ def obj_klucbsp(expname, c, cdt, spi, mui, instance: MABExperimentInstanceRecord
         instance_sub = deepcopy(instance)
         instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_KL_UCB_C): float(c)}
         ret= compute_total_reward(expname, instance_sub, rundup) / num_simulations
+        ret= compute_total_reward(expname, instance_sub, rundup, tracker) / num_simulations
         os.remove(statsfile)
         return ret
 
 
-def compute_total_reward(expname, instance_sub: MABExperimentInstanceRecord, rundup):
+def compute_total_reward(expname, instance_sub: MABExperimentInstanceRecord, rundup, tracker):
     total_reward = 0
     run_simulation = logger.determine_simex_behavior(instance_sub, rundup, ["rewards"])
     #configname = consts.CONFIG_FILE_PATH + "/" + consts.CONFIG_FILE + "-pid" + str(os.getpid())
@@ -144,7 +148,7 @@ def compute_total_reward(expname, instance_sub: MABExperimentInstanceRecord, run
     configname += "-pid" + str(os.getpid())
 
     if run_simulation:
-        main(configname)
+        main(configname, tracker)
         mabfile = os.path.abspath(os.path.join(os.path.dirname(__file__), consts.TEMP_STATS_LOCATION,
                                                consts.PREFIX_MABSTATSFILE + consts.SUFFIX_MABSTATSFILE + "-pid" + str(
                                                    os.getpid())))
@@ -195,6 +199,10 @@ def bayesopt_search(list: List[MABExperimentInstanceRecord], procs: int, expconf
     cs=max(1,math.ceil(len(filtered)/effective_procs))
     with multiprocessing.Pool(processes=effective_procs) as pool:
         pool.map(_bayesopt_search_singleinstance, filtered, chunksize=cs)
+    print("FILTERED", len(filtered), "EFFECTIVE", effective_procs, "CS", cs)
+    #rt_dict={k:0 for k in filtered}
+
+    run_parallel_executions(procs, filtered,_bayesopt_search_singleinstance)
 
     # ora raccogli tutto
     ret = []
@@ -224,9 +232,10 @@ def bayesopt_search(list: List[MABExperimentInstanceRecord], procs: int, expconf
 
     return ret
 
-
-def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> dict:
+init_count=0
+def _bayesopt_search_singleinstance(tracker:RealTimeTracker, instance: MABExperimentInstanceRecord) -> dict:
     timestamp = datetime.datetime.now().replace(microsecond=0)
+    is_init=True
     selected_obj_fn = None
     global bayes_exp
     expname = bayes_exp.name#bayes_expconf["experiment"]["name"]
@@ -245,17 +254,49 @@ def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> di
 
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     specfile = instance.identifiers["specfile"]# os.path.join(expname, "results", "spec" + str(instance.identifiers["workload"]) + consts.SUFFIX_SPECSFILE)
+
+    #tracker.update(os.getpid(), "expname", expname)
+    #tracker.update(os.getpid(), "specf", specfile)
+    #tracker.update(os.getpid(), "strat", strat)
+    #tracker.update(os.getpid(), "rtk-sce", instance.identifiers[MAB_RTK_CONTEXTUAL_SCENARIOS])
+    #tracker.update(os.getpid(), "ax-pre", ax_pre)
+    #tracker.update(os.getpid(), "ax-post", ax_post)
+    def objwrapper_ucb(ef):
+        if is_init:
+            global init_count
+            init_count+=1
+            tracker.update(os.getpid(), "bayes", "INIT-"+str(init_count))
+        return obj_ucbtuned(expname, ef, cdt, spi, mui, instance, specfile, rundup, tracker)
+
     def objwrapper_ucbtuned(ef):
         return obj_ucbtuned(expname, ef, cdt, spi, mui, instance, specfile, rundup)
+        if is_init:
+            global init_count
+            init_count+=1
+            tracker.update(os.getpid(), "bayes", "INIT-"+str(init_count))
+        return obj_ucbtuned(expname, ef, cdt, spi, mui, instance, specfile, rundup, tracker)
+
 
     def objwrapper_ucb2(ef, alpha):
-        return obj_ucb2(expname, ef, cdt, spi, mui, alpha, instance, specfile, rundup)
+        if is_init:
+            global init_count
+            init_count+=1
+            tracker.update(os.getpid(), "bayes", "INIT-"+str(init_count))
+        return obj_ucb2(expname, ef, cdt, spi, mui, alpha, instance, specfile, rundup, tracker)
 
     def objwrapper_klucb(ef, c):
-        return obj_klucb(expname, ef, cdt, spi, mui, c, instance, specfile, rundup)
+        if is_init:
+            global init_count
+            init_count+=1
+            tracker.update(os.getpid(), "bayes", "INIT-"+str(init_count))
+        return obj_klucb(expname, ef, cdt, spi, mui, c, instance, specfile, rundup, tracker)
 
     def objwrapper_klucbsp(c):
-        return obj_klucbsp(expname, c, cdt, spi, mui, instance, specfile, rundup)
+        if is_init:
+            global init_count
+            init_count+=1
+            tracker.update(os.getpid(), "bayes", "INIT-"+str(init_count))
+        return obj_klucbsp(expname, c, cdt, spi, mui, instance, specfile, rundup, tracker)
 
     print(f"Processing strategy={strat}, ax_pre={ax_pre}, ax_post={ax_post}, seed={seed}, specfile={specfile}")
     if strat == "UCBTuned" or strat == "RTK-UCBTuned":
@@ -285,10 +326,18 @@ def _bayesopt_search_singleinstance(instance: MABExperimentInstanceRecord) -> di
 
     # init points
     optimizer.maximize(init_points=init_points, n_iter=0)
+    is_init=False
     actual_iters = 0
 
     # iterations
     for i in range(n_iter):
+        #with open("bayesopt-realtime-track.yml", "w+") as rtfile:
+        #        rtfile.write(str([v for _, v in rt_dict.items()]))
+        #rt_dict[os.getpid()]["bayes_iter"]+=1
+
+        is_init = False
+        tracker.update(os.getpid(), "bayes", f"{i+1} ({i+1+init_points})")
+        #... e poi le iterazioni vere: la libreria è stateful, quindi tiene conto dei punti esplorativi di cui sopra
         optimizer.maximize(init_points=0, n_iter=1)
 
         current_best = optimizer.max["target"]
