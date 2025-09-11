@@ -15,8 +15,12 @@ import conf
 from conf import MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA, MAB_KL_UCB_C, MAB_ALL_STRATEGIES_PARAMETERS, \
     EXPIRATION_TIMEOUT, MAB_RTK_CONTEXTUAL_SCENARIOS
 from main import main
-from .logging import MABExperimentInstanceRecord, IncrementalLogger, SCRIPT_DIR
+from rt import RealTimeTracker
+from simulation import RewardConfig
+from .logging import MABExperimentInstanceRecord, IncrementalLogger
 from . import consts
+from .parallel_runner import run_parallel_executions
+
 
 logger = IncrementalLogger()
 
@@ -308,6 +312,7 @@ class MABExperiment:
         self.expiration_timeouts = expiration_timeouts
         self.output_persist = output_persist
 
+        self.tracker=None
     def _generate_config(self, strategy: str, close_door_time: float, stat_print_interval: float, mab_update_interval: float, axis_pre: str, axis_post: str, param_names: List[str],
                          param_values: List[float], seed: int, specfile:str, mabinttime, mabintkeys, mab_rtk_contextual_scenario, expiration_timeout:float):
         return write_custom_configfile(self.name, strategy, close_door_time, stat_print_interval, mab_update_interval, axis_pre, axis_post, param_names, param_values, seed,
@@ -331,6 +336,14 @@ class MABExperiment:
                     if len(dict)==len(filtered_params):
                         ret.append(dict)
         return ret
+    def print_rt(self):
+        threading.Timer(1,self.print_rt).start()
+        print("[rt]print")
+        #from rt import rtt
+        #global rtt
+        #rtt.print()
+        if self.tracker is not None: self.tracker.printe()
+        self.tracker.printe()
 
     def run(self):
         tmpfldr=os.path.abspath(os.path.join(os.path.dirname(__file__),consts.TEMP_FILES_DIR))
@@ -392,8 +405,19 @@ class MABExperiment:
 
         effective_procs = max(1, min(len(out_list), max_procs))
         cs=max(1,math.ceil(len(out_list)/effective_procs))
-        with Pool(processes=effective_procs) as pool:
-            pool.map(self._parall_run, out_list, chunksize=cs)
+        #with Pool(processes=effective_procs) as pool:
+        #    pool.map(self._parall_run, out_list, chunksize=cs)
+
+        run_parallel_executions(max_procs,out_list,self._parall_run)
+
+
+
+
+
+
+
+
+
 
         tmpfldr=os.path.abspath(os.path.join(os.path.dirname(__file__),consts.TEMP_FILES_DIR))
 
@@ -446,7 +470,7 @@ class MABExperiment:
 
             run_simulation=self.rundup
             if run_simulation:
-                main(config_path)
+                main(config_path, tracker=tracker)
 
             # processa l'output
             # (ev. nel post-processing)

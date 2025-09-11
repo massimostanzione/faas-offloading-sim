@@ -314,7 +314,35 @@ class Simulation:
         # ---------------------------------------------------------------------------
         # Contextual bandits
 
+        # for use with RTK contextual MABs
+        #if issubclass(self.mab_agent.__class__, ReduceToKMAB):
+        #rtk_scenario_config_str=None
+        #if is_strategy_RTK(strategy):
         rtk_scenario_config_str = self.config.get(conf.SEC_MAB, conf.MAB_RTK_CONTEXTUAL_SCENARIOS, fallback=None)
+        #print(rtk_scenario_config_str)
+        """
+        if rtk_scenario_config_str is None:
+            raise RuntimeError("Please specify an RTK Contextual Scenario (KD/KI/KR).")
+        if rtk_scenario_config_str == "KD":
+            rtk_scenario_class = RTKCS_KnowledgeDisjunction()
+        elif rtk_scenario_config_str == "KI":
+            rtk_scenario_class = RTKCS_KnowledgeInheritance()
+        elif rtk_scenario_config_str == "KIT":
+            rtk_scenario_class = RTKCS_KnowledgeInheritance_Total()
+        elif rtk_scenario_config_str == "KI2":
+            rtk_scenario_class = RTKCS_KnowledgeInheritance2()
+        elif rtk_scenario_config_str == "KR":
+            # fixme parametrizzare il tempo di refining
+            rtk_scenario_class = RTKCS_KnowledgeRefining(KR_RefiningMethod.KRRM_TIME_DELTA, hours_to_secs(4))
+        else:
+            raise ValueError("unknown RTKCS")
+        """
+        #is_rtk_kr = False
+        #if issubclass(self.__class__, RTK_Simulation):
+        #if "RTK-" in strategy:
+        #    if isinstance(self.rtk_scenario, RTKCS_KnowledgeRefining):
+        #        is_rtk_kr = True
+
         # (... this can be parameterizable...)
         ctx=Context([ContextFeature.ACTIVE_MEMORY_UTILIZATION])
         ctx.add_instances(generate_contextinsts_list_exp(rtk_scenario_config_str=="KR"))
@@ -366,6 +394,20 @@ class Simulation:
                 agents.append(agent)
 
             return ReduceToKMAB_EpochReset(self, agents, rtk_scenario_config_str)
+
+        # elif strategy == "RTK-UCB2sp-ER":
+        #     #exploration_factor = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB_EXPLORATION_FACTOR, fallback=0.05)
+        #     alpha = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB2_ALPHA, fallback=1.0)
+        #
+        #     # generate UCB2 non-contextual agents
+        #     # (this is pretty hardcoded here)
+        #     agents=[]
+        #     for i in range(num_contexts):
+        #         agent=UCB2sp(self, lb_policies, reward_config, alpha)
+        #         agent.set_label("agent"+str(i+1) if not rtk_scenario_config_str=="KR" else "pre-refining")
+        #         agents.append(agent)
+        #
+        #     return ReduceToKMAB_EpochReset(self, agents, rtk_scenario_config_str)
 
         elif strategy == "RTK-UCBTuned":
             exploration_factor = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB_EXPLORATION_FACTOR, fallback=0.05)
