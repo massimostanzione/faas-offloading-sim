@@ -11,7 +11,8 @@ from typing_extensions import deprecated
 import conf
 from rt import RealTimeTracker
 from . import consts
-from .experiment import write_custom_configfile, get_param_simple_name, generate_outfile_name
+from .experiment import write_custom_configfile, generate_outfile_name
+
 from .parallel_runner import run_parallel_executions
 
 # esterno
@@ -52,7 +53,7 @@ def obj_ucbtuned(expname, ef, cdt, spi, mui, instance: MABExperimentInstanceReco
         mabfile = generate_outfile_name(consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post,
             [MAB_UCB_EXPLORATION_FACTOR], [ef], seed, specfile, mab_rtk_context_scenarios, instance.identifiers[EXPIRATION_TIMEOUT]) + consts.SUFFIX_MABSTATSFILE
         instance_sub = deepcopy(instance)
-        instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_UCB_EXPLORATION_FACTOR): float(ef)}
+        instance_sub.identifiers["parameters"] = {(MAB_UCB_EXPLORATION_FACTOR): float(ef)}
 
         ret = compute_total_reward(expname, instance_sub, rundup, tracker) / num_simulations
         # TODO codice duplicato:
@@ -79,8 +80,8 @@ def obj_ucb2(expname, ef, cdt, spi, mui, alpha, instance: MABExperimentInstanceR
             [MAB_UCB_EXPLORATION_FACTOR, MAB_UCB2_ALPHA], [ef, alpha], seed, specfile, mab_rtk_context_scenarios, instance.identifiers[EXPIRATION_TIMEOUT]) + consts.SUFFIX_MABSTATSFILE
 
         instance_sub = deepcopy(instance)
-        instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_UCB_EXPLORATION_FACTOR): float(ef),
-                                                  get_param_simple_name(MAB_UCB2_ALPHA): float(alpha)}
+        instance_sub.identifiers["parameters"] = {(MAB_UCB_EXPLORATION_FACTOR): float(ef),
+                                                  (MAB_UCB2_ALPHA): float(alpha)}
         lookup = logger.lookup(instance_sub)
         if lookup is not None: instance_sub = lookup
         ret= compute_total_reward(expname, instance_sub, rundup, tracker) / num_simulations
@@ -107,9 +108,8 @@ def obj_klucb(expname, ef, cdt, spi, mui, c, instance: MABExperimentInstanceReco
             [MAB_UCB_EXPLORATION_FACTOR, MAB_KL_UCB_C], [ef, c], seed, specfile, mab_rtk_context_scenarios, instance.identifiers[EXPIRATION_TIMEOUT]) + consts.SUFFIX_MABSTATSFILE
 
         instance_sub = deepcopy(instance)
-        instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_UCB_EXPLORATION_FACTOR): float(ef),
-                                                  get_param_simple_name(MAB_KL_UCB_C): float(c)}
-        ret= compute_total_reward(expname, instance_sub, rundup) / num_simulations
+        instance_sub.identifiers["parameters"] = {(MAB_UCB_EXPLORATION_FACTOR): float(ef),
+                                                  (MAB_KL_UCB_C): float(c)}
         ret= compute_total_reward(expname, instance_sub, rundup, tracker) / num_simulations
         os.remove(statsfile)
         return ret
@@ -133,8 +133,7 @@ def obj_klucbsp(expname, c, cdt, spi, mui, instance: MABExperimentInstanceRecord
         mabfile = generate_outfile_name(consts.PREFIX_MABSTATSFILE, strat, ax_pre, ax_post, [MAB_KL_UCB_C], [c],
             seed, specfile, mab_rtk_context_scenarios, instance.identifiers[EXPIRATION_TIMEOUT]) + consts.SUFFIX_MABSTATSFILE
         instance_sub = deepcopy(instance)
-        instance_sub.identifiers["parameters"] = {get_param_simple_name(MAB_KL_UCB_C): float(c)}
-        ret= compute_total_reward(expname, instance_sub, rundup) / num_simulations
+        instance_sub.identifiers["parameters"] = {(MAB_KL_UCB_C): float(c)}
         ret= compute_total_reward(expname, instance_sub, rundup, tracker) / num_simulations
         os.remove(statsfile)
         return ret

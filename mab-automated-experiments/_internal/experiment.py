@@ -157,13 +157,13 @@ def generate_outfile_name(prefix, strategy, axis_pre, axis_post, params_names, p
     pardict = {}
     for i, _ in enumerate(params_names):
         pardict[params_names[i]] = params_values[i]
-        print(get_param_simple_name(params_names[i]))
-    pardict = collections.OrderedDict(sorted(pardict.items(), key=lambda item: get_param_simple_name_sort(item[0])))
+        print((params_names[i]))
+    pardict = collections.OrderedDict(sorted(pardict.items(), key=lambda item: (item[0])))
     output_suffix = consts.DELIMITER_HYPHEN.join([prefix, strategy, consts.DELIMITER_AXIS.join([axis_pre, axis_post])])
 
     for key, value in pardict.items():
         output_suffix = consts.DELIMITER_HYPHEN.join(
-            [output_suffix, consts.DELIMITER_PARAMS.join([get_param_simple_name(key), "{}".format(float(value))])])
+            [output_suffix, consts.DELIMITER_PARAMS.join([(key), "{}".format(float(value))])])
     output_suffix = consts.DELIMITER_HYPHEN.join([output_suffix, consts.DELIMITER_PARAMS.join(["seed", seed])])
     output_suffix = consts.DELIMITER_HYPHEN.join([output_suffix, consts.DELIMITER_PARAMS.join(["specfile", specfile])])
     output_suffix = consts.DELIMITER_HYPHEN.join([output_suffix, consts.DELIMITER_PARAMS.join(["exptimeout", str(expiration_timeeout)])])
@@ -178,6 +178,7 @@ def _is_exploration_factor(parameter_name: str, strategy: str) -> bool:
     exploration_factor_map = {
 
         # non-contextual
+        "UCB": conf.MAB_UCB_EXPLORATION_FACTOR,
         "UCBTuned": conf.MAB_UCB_EXPLORATION_FACTOR,
         "UCB2": conf.MAB_UCB_EXPLORATION_FACTOR,
         "KL-UCB": conf.MAB_UCB_EXPLORATION_FACTOR,
@@ -187,6 +188,7 @@ def _is_exploration_factor(parameter_name: str, strategy: str) -> bool:
         "RTK-UCB2": conf.MAB_UCB_EXPLORATION_FACTOR,
         "RTK-UCB2-ER": conf.MAB_UCB_EXPLORATION_FACTOR,
         "RTK-UCBTuned": conf.MAB_UCB_EXPLORATION_FACTOR,
+        "RTK-KL-UCBsp": conf.MAB_KL_UCB_C,
     }
 
     return exploration_factor_map[strategy] == parameter_name
@@ -196,6 +198,7 @@ def _is_other_strategy_param(parameter_name: str, strategy: str) -> bool:
     other_params_map = {
 
         # non-contextual
+        "UCB": [],
         "UCBTuned": [],
         "UCB2": [conf.MAB_UCB2_ALPHA],
         "KL-UCB": [conf.MAB_KL_UCB_C],
@@ -205,6 +208,7 @@ def _is_other_strategy_param(parameter_name: str, strategy: str) -> bool:
         "RTK-UCB2": [conf.MAB_UCB2_ALPHA],
         "RTK-UCB2-ER": [conf.MAB_UCB2_ALPHA],
         "RTK-UCBTuned": [],
+        "RTK-KL-UCBsp": [],
     }
     return parameter_name in other_params_map[strategy]
 
@@ -313,6 +317,8 @@ class MABExperiment:
         self.output_persist = output_persist
 
         self.tracker=None
+
+    # TODO tutti questi parametri ridurli semplicemente a self, per poi sbrogliarli dentro la funzione
     def _generate_config(self, strategy: str, close_door_time: float, stat_print_interval: float, mab_update_interval: float, axis_pre: str, axis_post: str, param_names: List[str],
                          param_values: List[float], seed: int, specfile:str, mabinttime, mabintkeys, mab_rtk_contextual_scenario, expiration_timeout:float):
         return write_custom_configfile(self.name, strategy, close_door_time, stat_print_interval, mab_update_interval, axis_pre, axis_post, param_names, param_values, seed,
