@@ -8,8 +8,9 @@ import sys
 import conf
 import utils.plot # type: ignore
 from mab.contextual.context import Context
-from mab.contextual.agents import ReduceToKMAB, ReduceToKMAB_EpochReset
-from mab.contextual.utils import generate_contextinsts_list_exp
+from mab.contextual.agents import ReduceToKMAB, ReduceToKMAB_EpochReset, LinUCB
+from mab.contextual.rtk.rtk_scenarios import RTKCS_KnowledgeRefining
+from mab.contextual.utils import generate_contextinsts_list_exp, hours_to_secs, is_strategy_RTK
 from mab.contextual.features import ContextFeature
 from policy import SchedulerDecision
 import policy
@@ -313,6 +314,7 @@ class Simulation:
         # ---------------------------------------------------------------------------
         # Contextual bandits
 
+        rtk_scenario_config_str = self.config.get(conf.SEC_MAB, conf.MAB_RTK_CONTEXTUAL_SCENARIOS, fallback=None)
         # (... this can be parameterizable...)
         ctx=Context([ContextFeature.ACTIVE_MEMORY_UTILIZATION])
         ctx.add_instances(generate_contextinsts_list_exp(rtk_scenario_config_str=="KR"))
@@ -363,9 +365,9 @@ class Simulation:
                 agent.set_label("agent"+str(i+1) if not rtk_scenario_config_str=="KR" else "pre-refining")
                 agents.append(agent)
 
-            return ReduceToKMAB_EpochReset(self, agents)
+            return ReduceToKMAB_EpochReset(self, agents, rtk_scenario_config_str)
 
-        if strategy == "RTK-UCBTuned":
+        elif strategy == "RTK-UCBTuned":
             exploration_factor = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB_EXPLORATION_FACTOR, fallback=0.05)
             alpha = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB2_ALPHA, fallback=1.0)
 
@@ -535,6 +537,7 @@ class Simulation:
                     globsum.append(arv.last_iat)
             #last_iatt=max(globsum)
             self.tracker.update(os.getpid(), "end", round(min(max(globsum),self.close_the_door_time),1))
+            #TODO qualcosa da stampare
 
         while len(self.events) > 0:
             t,e = heappop(self.events)
