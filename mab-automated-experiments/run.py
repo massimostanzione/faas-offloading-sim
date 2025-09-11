@@ -2,8 +2,8 @@ import os
 
 import conf
 from _internal import consts
-from _internal.experiment import MABExperiment, extract_iterable_params_from_config
-from conf import EXPIRATION_TIMEOUT
+from _api.expgen import build_experiment_from_config
+
 
 if __name__ == "__main__":
     # execute all the esperiments according to the pipeline file
@@ -48,30 +48,7 @@ if __name__ == "__main__":
                         print(f"Simulations skipped (as specified in {consts.EXPCONF_FILE})")
 
                     elif mode_simulations_expconf == consts.ExecMode.AUTOMATED.value:
-                        # TODO questa parte è in api
-                        axis_pre = config["reward_fn"]["axis_pre"].replace(' ', '').split(consts.DELIMITER_COMMA)
-                        axis_post = config["reward_fn"]["axis_post"].replace(' ', '').split(consts.DELIMITER_COMMA)
-                        is_single_axis = axis_post == ['']
-                        exp = MABExperiment(
-                            config,
-                            config["experiment"]["name"],
-                            config["strategies"]["strategies"].replace(' ', '').split(consts.DELIMITER_COMMA),
-                            config["experiment"][conf.CLOSE_DOOR_TIME] if conf.CLOSE_DOOR_TIME in config["experiment"] else 28800,
-                            int(config["experiment"][conf.STAT_PRINT_INTERVAL]) if conf.STAT_PRINT_INTERVAL in config["experiment"] else consts.DEFAULT_STAT_PRINT_INTERVAL,
-                            config["experiment"][conf.MAB_UPDATE_INTERVAL] if conf.MAB_UPDATE_INTERVAL in config["experiment"] else consts.DEFAULT_MAB_UPDATE_INTERVAL,
-                            config["experiment"][conf.MAB_INTERMEDIATE_SAMPLING_UPDATE_INTERVAL] if conf.MAB_INTERMEDIATE_SAMPLING_UPDATE_INTERVAL in config["experiment"] else None,
-                            config["experiment"][conf.MAB_INTERMEDIATE_SAMPLING_STATS_KEYS].replace(' ', '').split(consts.DELIMITER_COMMA) if conf.MAB_INTERMEDIATE_SAMPLING_STATS_KEYS in config["experiment"] else None,
-                            axis_pre,
-                            axis_post, # if not is_single_axis else axis_pre,
-                            extract_iterable_params_from_config(config),
-                            [],
-                            config["output"]["run-duplicates"],
-                            config.getint("experiment", "max-parallel-execution"),
-                            config["parameters"]["seeds"].replace(' ', '').split(consts.DELIMITER_COMMA),
-                            config["parameters"]["specfiles"].replace(' ', '').split(consts.DELIMITER_COMMA) if 'specfiles' in config["parameters"] else ["../../spec"],
-                            config["parameters"][EXPIRATION_TIMEOUT].replace(' ', '').split(consts.DELIMITER_COMMA) if EXPIRATION_TIMEOUT in config["parameters"] else [consts.DEFAULT_EXPIRATION_TIMEOUT],
-                            config["output"]["persist"].replace(' ', '').split(consts.DELIMITER_COMMA) if 'persist' in config["output"] else "",
-                        )
+                        exp=build_experiment_from_config(config)
                         exp.run()
 
                     else:

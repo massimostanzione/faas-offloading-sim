@@ -4,8 +4,6 @@ import sys
 from typing import List
 
 import conf
-from conf import EXPIRATION_TIMEOUT
-
 # FIXME nomi packages
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
@@ -50,29 +48,9 @@ def extract_datarecords_from_config_path(config_path: str) -> List[MABExperiment
             axis_pre = config["reward_fn"]["axis_pre"].replace(' ', '').split(consts.DELIMITER_COMMA)
             axis_post = config["reward_fn"]["axis_post"].replace(' ', '').split(consts.DELIMITER_COMMA)
             is_single_axis = axis_post == ['']
-            exp = MABExperiment(
-                config,
-                config["experiment"]["name"],
-                config["strategies"]["strategies"].replace(' ', '').split(consts.DELIMITER_COMMA),
-                config["experiment"]["close-door-time"] if 'close-door-time' in config["experiment"] else 28800,
-                int(config["experiment"][conf.STAT_PRINT_INTERVAL]) if conf.STAT_PRINT_INTERVAL in config["experiment"] else consts.DEFAULT_STAT_PRINT_INTERVAL,
-                config["experiment"][conf.MAB_UPDATE_INTERVAL] if conf.MAB_UPDATE_INTERVAL in config["experiment"] else consts.DEFAULT_MAB_UPDATE_INTERVAL,
-                config["experiment"][conf.MAB_INTERMEDIATE_SAMPLING_UPDATE_INTERVAL] if conf.MAB_INTERMEDIATE_SAMPLING_UPDATE_INTERVAL in config["experiment"] else None,
-                config["experiment"][conf.MAB_INTERMEDIATE_SAMPLING_STATS_KEYS].replace(' ', '').split(consts.DELIMITER_COMMA) if conf.MAB_INTERMEDIATE_SAMPLING_STATS_KEYS in config["experiment"] else None,
 
-                axis_pre,
-                axis_post,  # if not is_single_axis else axis_pre,
-                extract_iterable_params_from_config(config),
-                [],
-                config["output"]["run-duplicates"],
-                config.getint("experiment", "max-parallel-execution"),
-                config["parameters"]["seeds"].replace(' ', '').split(consts.DELIMITER_COMMA),
-                config["parameters"]["specfiles"].replace(' ', '').split(consts.DELIMITER_COMMA),
-                config["parameters"][EXPIRATION_TIMEOUT].replace(' ', '').split(
-                    consts.DELIMITER_COMMA) if EXPIRATION_TIMEOUT in config["parameters"] else [
-                    consts.DEFAULT_EXPIRATION_TIMEOUT],
-                config["output"]["persist"].replace(' ', '').split(consts.DELIMITER_COMMA)
-            )
+            exp = build_experiment_from_config(config)
+
     else:
         raise RuntimeError("Path not found for", config_path)
     return extract_datarecords_from_experiment(exp)
