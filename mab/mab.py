@@ -7,6 +7,8 @@ import json
 import os
 
 from conf import MAB_UPDATE_INTERVAL
+from mab.events import MABEventFlag, MABEvent
+
 # Upper bounds for the addends of the reward function
 MAX_LOAD_IMBALANCE = 3  # as coefficient of variation (D^2/E), UB empirically determined
 MAX_RT = 1              # max avg resp time, already normalized but can be tuned
@@ -54,6 +56,7 @@ class MABAgent(ABC):
         # additional data that maybe you would like to add to the MAB-stats (not mandatory, ignored if None)
         self.additional_data_output = None
 
+        self.occurred_events = []
         self.label="agent0"
     def set_label(self, label:str):
         self.label=label
@@ -97,6 +100,13 @@ class MABAgent(ABC):
             if self.additional_data_output is not None:
                 for k, v in self.additional_data_output.items():
                     data[k] = v
+            if self.occurred_events:
+                data["mab-occurred-events"] = []
+                for event in self.occurred_events:
+                    print("[MAB] Occurred event", event)
+                    data["mab-occurred-events"].append(MABEvent(self.label, event.__repr__(),
+                                                                self.simulation.t - self.simulation.mab_update_interval).__dict__)
+                self.occurred_events = []
 
             json.dump(data, file, indent=4)
             if end:
@@ -513,6 +523,7 @@ class UCB2(NonContextualMABAgent_EpochBased):
         for index, label in enumerate(self.lb_policies):
             if self.N[index] == 0:
                 print("[MAB] INIT: selecting", label, "(", index, ") for the first time")
+                self.occurred_events.append(MABEventFlag.INITIALIZATION)
                 return self.lb_policies[index]
 
         # if a specific arm was previously selected,
@@ -553,12 +564,14 @@ class UCB2(NonContextualMABAgent_EpochBased):
 
         if self.expected_epoch_end < self.simulation.t: raise RuntimeError("oh no")
         self.R[selected_index] += 1  # increment the epoch counter
+        self.occurred_events.append(MABEventFlag.EPOCH_START)
         print("[MAB] Starting epoch no.", int(self.R[selected_index]), "for policy", selected_policy, "(",
               selected_index,
               ") - it will last for other", self.remaining_locked_plays + 1, "subsequent plays.")
 
         if self.curr_lb_policy == selected_policy:
             return None
+        self.occurred_events.append(MABEventFlag.EXPLORATION)
         return selected_policy
 
 # UCB-tuned Strategy
@@ -605,10 +618,15 @@ class UCBTuned(NonContextualMABAgent):
                     (math.log(total_count) / self.N[policy_index]) * min(0.25, v)))
                 ucb_values[policy_index] = mean_reward + bonus
             else:
+                # at least on arm is not (yet) played
+                if not MABEventFlag.INITIALIZATION in self.occurred_events:
+                    self.occurred_events.append(MABEventFlag.INITIALIZATION)
                 ucb_values[policy_index] = float('inf')  # assicura che ogni braccio venga selezionato almeno una volta
         selected_policy = self.lb_policies[ucb_values.index(max(ucb_values))]
         if self.curr_lb_policy == selected_policy:
             return None
+        if not MABEventFlag.INITIALIZATION in self.occurred_events:
+            self.occurred_events.append(MABEventFlag.EXPLORATION)
         return selected_policy
 
 
@@ -669,6 +687,7 @@ class KLUCB(NonContextualMABAgent):
         for index, label in enumerate(self.lb_policies):
             if self.N[index] == 0:
                 print("[MAB] INIT: selecting", label, "(", index, ") for the first time")
+                self.occurred_events.append(MABEventFlag.INITIALIZATION)
                 return self.lb_policies[index]
 
         total_count = sum(self.N)
@@ -838,6 +857,7 @@ class KLUCBsp(NonContextualMABAgent):
         for index, label in enumerate(self.lb_policies):
             if self.N[index] == 0:
                 print("[MAB] INIT: selecting", label, "(", index, ") for the first time")
+                self.occurred_events.append(MABEventFlag.INITIALIZATION)
                 return self.lb_policies[index]
 
         ucb_values = [self.__q(index) for index in range(len(self.lb_policies))]
@@ -846,4 +866,5 @@ class KLUCBsp(NonContextualMABAgent):
 
         if self.curr_lb_policy == selected_policy:
             return None
+        self.occurred_events.append(MABEventFlag.EXPLORATION)
         return selected_policy

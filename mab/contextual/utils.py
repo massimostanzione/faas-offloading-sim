@@ -6,6 +6,7 @@ import numpy as np
 from mab.contextual.constraints import NumericalContextConstraint
 from mab.contextual.context import ContextInstance
 from mab.contextual.features import ContextFeature
+from mab.events import MABEventFlag
 from mab.mab import NonContextualMABAgent, UCBTuned, UCB2, KLUCB, KLUCBsp
 
 
@@ -125,6 +126,7 @@ class NOPSubAgent(NonContextualMABAgent):
 
     def update_model(self, lb_policy: str, mab_stats_file: str, last_update=False):
         print("first call, or RTK-refine: current agent is temporarily not defined")
+        self.occurred_events.append(MABEventFlag.DISCARDED_REWARD)
 
 
     def select_policy(self) -> str:
