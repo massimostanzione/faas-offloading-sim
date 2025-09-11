@@ -196,8 +196,6 @@ def bayesopt_search(list: List[MABExperimentInstanceRecord], procs: int, expconf
     bayes_exp=exp
     effective_procs = max(1, min(len(filtered), procs))
     cs=max(1,math.ceil(len(filtered)/effective_procs))
-    with multiprocessing.Pool(processes=effective_procs) as pool:
-        pool.map(_bayesopt_search_singleinstance, filtered, chunksize=cs)
     print("FILTERED", len(filtered), "EFFECTIVE", effective_procs, "CS", cs)
     #rt_dict={k:0 for k in filtered}
 
@@ -268,7 +266,6 @@ def _bayesopt_search_singleinstance(tracker:RealTimeTracker, instance: MABExperi
         return obj_ucbtuned(expname, ef, cdt, spi, mui, instance, specfile, rundup, tracker)
 
     def objwrapper_ucbtuned(ef):
-        return obj_ucbtuned(expname, ef, cdt, spi, mui, instance, specfile, rundup)
         if is_init:
             global init_count
             init_count+=1

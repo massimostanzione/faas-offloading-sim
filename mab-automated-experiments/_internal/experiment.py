@@ -431,7 +431,7 @@ class MABExperiment:
             # TODO codice duplicato altrove
             shutil.rmtree(tmpfldr, ignore_errors=True)
 
-    def _parall_run(self, instance: MABExperimentInstanceRecord):
+    def _parall_run(self, tracker:RealTimeTracker, instance: MABExperimentInstanceRecord):
         rundup = logger.determine_simex_behavior(instance, self.rundup, self.output_persist)
         if rundup:
             params=instance.identifiers["parameters"]
