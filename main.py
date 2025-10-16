@@ -8,7 +8,9 @@ import faas
 import conf
 import stateful
 from arrivals import PoissonArrivalProcess, TraceArrivalProcess, MAPArrivalProcess
-from numpy.random import SeedSequence, default_rng
+from numpy.random import SeedSequence
+
+from rt import RealTimeTracker
 from simulation import Simulation
 from infrastructure import *
 
@@ -17,7 +19,7 @@ DEFAULT_CONFIG_FILE = "config.ini"
 def read_spec_file (spec_file_name, infra, config):
     peer_exposed_memory_fraction = config.getfloat(conf.SEC_SIM, conf.EDGE_EXPOSED_FRACTION, fallback=0.5)
 
-    actual_specfile=os.path.abspath(os.path.join(os.path.dirname(__file__),"mab-automated-experiments/_specfiles/"+spec_file_name+".yml"))
+    actual_specfile = os.path.abspath(os.path.join(os.path.dirname(__file__),"mab_automated_experiments/_specfiles/"+spec_file_name+".yml"))
     with open(actual_specfile, "r") as stream:
         spec = yaml.safe_load(stream)
 
@@ -146,10 +148,12 @@ def init_simulation(config):
     return sim
 
 
-def main(config_file):
+def main(config_file, tracker:RealTimeTracker=None):
     config = conf.parse_config_file(config_file)
     simulation = init_simulation(config)
-    simulation.run()
+    #if tracker is not None:
+    #    tracker.append_sim(simulation, os.getpid())
+    simulation.run(tracker=tracker)
 
 
 if __name__ == "__main__":

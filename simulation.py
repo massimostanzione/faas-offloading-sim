@@ -1,27 +1,30 @@
 import configparser
+import os
 import time
 from heapq import heappop, heappush
-import numpy as np
 from numpy.random import SeedSequence, default_rng
 import sys
 
 import conf
 import utils.plot # type: ignore
 from mab.contextual.context import Context
-from mab.contextual.agents import ReduceToKMAB, ReduceToKMAB_EpochReset
-from mab.contextual.utils import generate_contextinsts_list_exp
+from mab.contextual.agents import ReduceToKMAB, ReduceToKMAB_EpochReset, LinUCB
+from mab.contextual.rtk.rtk_scenarios import RTKCS_KnowledgeRefining
+from mab.contextual.utils import generate_contextinsts_list_exp, hours_to_secs, is_strategy_RTK
 from mab.contextual.features import ContextFeature
 from policy import SchedulerDecision
 import policy
 import probabilistic
 from faas import *
 import stateful
+from rt import RealTimeTracker
 from stateful import key_locator
 from arrivals import ArrivalProcess
 from infrastructure import *
 from statistics import Stats # type: ignore
 
-from mab.mab import EpsilonGreedy, UCB, ResetUCB, SlidingWindowUCB, UCB2, UCBTuned, KLUCB, KLUCBsp
+from mab.mab import EpsilonGreedy, UCB, ResetUCB, SlidingWindowUCB, UCB2, UCB2sp, UCBTuned, KLUCB, KLUCBsp, KLUCBspold
+
 
 @dataclass
 class Event:
@@ -92,6 +95,13 @@ class MABIntermediateSamplingUpdate(Event):
     pass
 
 @dataclass
+class MAB_RTKCS_KR_Refine(Event):
+    """
+    TODO DOCS
+    """
+    pass
+
+@dataclass
 class RewardUpdate(Event):
     pass
 
@@ -111,6 +121,52 @@ class RewardConfig:
     delta_post:float
     zeta_post:float
     eta_post:float
+
+    def __str__(self):
+        ret="Reward fn.: {"
+
+        from mab_automated_experiments._internal.reward_function_representation import RewardFnAxis
+
+        for i, weight in enumerate(self.get_weights_pre()):
+            if weight!=0:
+                ret+=f"{str(weight)}*{list(RewardFnAxis)[i].to_human_readable()}, "
+
+        if not self.is_static_environment():
+            ret=ret[:-2]
+            ret+="} -> {"
+            for i, weight in enumerate(self.get_weights_post()):
+                if weight!=0:
+                    ret+=f"{str(weight)}*{list(RewardFnAxis)[i].to_human_readable()}, "
+
+        ret=ret[:-2] # remove trailing ", "
+        ret+="}"
+        return ret
+
+    def __eq__(self, other):
+        if not isinstance(other, RewardConfig):
+            return NotImplemented
+        return self.get_weights_pre() == other.get_weights_pre() and self.get_weights_post() == other.get_weights_post()
+
+    def get_weights_pre(self):
+        return [self.alpha, self.beta, self.gamma, self.delta, self.zeta, self.eta]
+
+    def get_weights_post(self):
+        return [self.alpha_post, self.beta_post, self.gamma_post, self.delta_post, self.zeta_post, self.eta_post]
+
+    def _check_sum_single(self, weights: list, label: str):
+        weights_sum = 0
+        for weight in weights:
+            weights_sum += weight
+        if weights_sum != 1:
+            raise ValueError(
+                f"[ERROR] weights of the {label} reward function do not sum to 1, please check your config file.\nReceived: {self.__str__()}")
+
+    def check_sum(self):
+        self._check_sum_single(self.get_weights_pre(), "stationary")
+        self._check_sum_single(self.get_weights_post(), "dynamic")
+
+    def is_static_environment(self)-> bool:
+        return self.get_weights_pre() == self.get_weights_post()
 
 
 OFFLOADING_OVERHEAD = 0.005
@@ -305,59 +361,80 @@ class Simulation:
         # ---------------------------------------------------------------------------
         # Contextual bandits
 
+        # for use with RTK contextual MABs
+        rtk_scenario_config_str = self.config.get(conf.SEC_MAB, conf.MAB_RTK_CONTEXTUAL_SCENARIOS, fallback=None)
+
+
         # (... this can be parameterizable...)
         ctx=Context([ContextFeature.ACTIVE_MEMORY_UTILIZATION])
-        ctx.add_instances(generate_contextinsts_list_exp())
+        ctx.add_instances(generate_contextinsts_list_exp(rtk_scenario_config_str=="KR"))
         self.context=ctx
+        num_contexts=len(self.context.instances)
 
         if strategy == "RTK-UCB2":
             exploration_factor = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB_EXPLORATION_FACTOR, fallback=0.05)
             alpha = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB2_ALPHA, fallback=1.0)
 
-            # generate UCB2 non-contextual agents
-            # (this is pretty hardcoded here)
-            num_contexts=3
             agents=[]
             for i in range(num_contexts):
                 agent=UCB2(self, lb_policies, exploration_factor, reward_config, alpha)
+                agent.set_label("agent"+str(i+1) if not rtk_scenario_config_str=="KR" else "pre-refining")
                 agents.append(agent)
 
-            return ReduceToKMAB(self, agents)
+            return ReduceToKMAB(self, agents, rtk_scenario_config_str)
 
-        if strategy == "RTK-UCB2-ER":
+
+        elif strategy == "RTK-UCB2-ER":
             exploration_factor = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB_EXPLORATION_FACTOR, fallback=0.05)
             alpha = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB2_ALPHA, fallback=1.0)
 
             # generate UCB2 non-contextual agents
             # (this is pretty hardcoded here)
-            num_contexts=3
             agents=[]
             for i in range(num_contexts):
                 agent=UCB2(self, lb_policies, exploration_factor, reward_config, alpha)
+                agent.set_label("agent"+str(i+1) if not rtk_scenario_config_str=="KR" else "pre-refining")
                 agents.append(agent)
 
-            return ReduceToKMAB_EpochReset(self, agents)
+            return ReduceToKMAB_EpochReset(self, agents, rtk_scenario_config_str)
 
-        if strategy == "RTK-UCBTuned":
+
+        elif strategy == "RTK-UCBTuned":
             exploration_factor = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB_EXPLORATION_FACTOR, fallback=0.05)
             alpha = self.config.getfloat(conf.SEC_MAB, conf.MAB_UCB2_ALPHA, fallback=1.0)
 
-            # generate UCB2 non-contextual agents
+            # generate UCBTuned non-contextual agents
             # (this is pretty hardcoded here)
-            num_contexts=3
             agents=[]
             for i in range(num_contexts):
                 agent=UCBTuned(self, lb_policies, exploration_factor, reward_config)
+                agent.set_label("agent"+str(i+1) if not rtk_scenario_config_str=="KR" else "pre-refining")
                 agents.append(agent)
 
-            return ReduceToKMAB(self, agents)
+            return ReduceToKMAB(self, agents, rtk_scenario_config_str)
 
+        elif strategy == "RTK-KL-UCBsp":
+            c = self.config.getfloat(conf.SEC_MAB, conf.MAB_KL_UCB_C, fallback=1.0)
+
+            # generate klucbsp non-contextual agents
+            # (this is pretty hardcoded here)
+            agents=[]
+            for i in range(num_contexts):
+                agent=KLUCBsp(self, lb_policies, reward_config, c)
+                agent.set_label("agent"+str(i+1) if not rtk_scenario_config_str=="KR" else "pre-refining")
+                agents.append(agent)
+
+            return ReduceToKMAB(self, agents, rtk_scenario_config_str)
+
+        elif strategy == "LinUCB":
+            return LinUCB()
 
         else:
             print("Unknown MAB strategy\n")
             exit(1)
 
-    def run (self):
+    def run (self, tracker:RealTimeTracker=None):
+        self.tracker=tracker
         # Simulate
         self.close_the_door_time = self.config.getfloat(conf.SEC_SIM, conf.CLOSE_DOOR_TIME, fallback=100)
         self.events = []
@@ -441,14 +518,23 @@ class Simulation:
             # Non-stationary case
             non_stationary=self.config.getboolean(conf.SEC_MAB, conf.MAB_NON_STATIONARY_ENABLED, fallback=False)
             if non_stationary:
-                # TODO parametrizzare
                 self.schedule(3600, RewardUpdate())
         if self.mab_intermediate_sampling_update_interval > 0.0:
 
             # skip scheduling if mab_update is at the same time
             delay = 1 if (self.mab_intermediate_sampling_update_interval) % self.mab_update_interval != 0 else 2
             self.schedule(delay * self.mab_intermediate_sampling_update_interval, MABIntermediateSamplingUpdate())
+        if issubclass(self.mab_agent.__class__, ReduceToKMAB):
+            if isinstance(self.mab_agent.scenario, RTKCS_KnowledgeRefining):
+                # NOTICE: refining time is not parameterized, do it if you want
+                self.schedule(hours_to_secs(12), MAB_RTKCS_KR_Refine())
 
+        if self.tracker is not None:
+            globsum=[]
+            for n, arvs in self.node2arrivals.items():
+                for arv in arvs:
+                    globsum.append(arv.last_iat)
+            self.tracker.update(os.getpid(), "end", round(min(max(globsum),self.close_the_door_time),1))
 
         while len(self.events) > 0:
             t,e = heappop(self.events)
@@ -478,7 +564,8 @@ class Simulation:
         for n, arvs in self.node2arrivals.items():
             for arv in arvs:
                 arv.close()
-
+        if self.tracker is not None:
+            self.tracker.end(os.getpid())
         return self.stats
 
     def move_key (self, k, src_node, dest_node):
@@ -517,7 +604,8 @@ class Simulation:
                    or isinstance(item[1], ArrivalRateUpdate) \
                    or isinstance(item[1], StatPrinter) \
                    or isinstance(item[1], MABUpdate) \
-                   or isinstance(item[1], MABIntermediateSamplingUpdate):
+                   or isinstance(item[1], MABIntermediateSamplingUpdate)\
+                   or isinstance(item[1], MAB_RTKCS_KR_Refine):
                     item[1].canceled = True
             self.external_arrivals_allowed = False
 
@@ -525,7 +613,8 @@ class Simulation:
         heappush(self.events, (t, event))
 
     def print_periodic_stats (self):
-        # print("Step: ", self.t)
+        if self.tracker is not None:
+            self.tracker.update(os.getpid(), "time", round(self.t,1))
         of = self.stats_file if self.stats_file is not None else sys.stdout
         if not self.first_stat_print:
             print(",", end='', file=of)
@@ -538,11 +627,9 @@ class Simulation:
         if event.canceled:
             return
         self.t = t
-        #print(event)
 
         self.__event_counter += 1
         if self.__event_counter % 10000 == 0:
-            #print(t)
             self.__event_counter = 0
         if isinstance(event, Arrival):
             self.handle_arrival(event)
@@ -585,7 +672,7 @@ class Simulation:
                 event.node.warm_pool.pool = event.node.warm_pool.pool[1:]
                 self.stats.warm_ctr[event.node.name]-=1
         elif isinstance(event, MABUpdate):
-            print("TIME:", self.t)
+            print("\nTIME:", self.t)
             print("[MABUpdate]: MAB agent in action...")
             self.mab_update()
             self.schedule(t + self.mab_update_interval, event)
@@ -595,6 +682,10 @@ class Simulation:
             # skip scheduling if mab_update is at the same time
             delay = 1 if (t + self.mab_intermediate_sampling_update_interval) % self.mab_update_interval != 0 else 2
             self.schedule(t + delay * self.mab_intermediate_sampling_update_interval, event)
+        elif isinstance(event, MAB_RTKCS_KR_Refine):
+            self.mab_agent.IAPs = self.mab_agent.scenario.handle_refine_event(self.mab_agent)
+            self.context.instances=self.mab_agent.IAPs.keys()
+            self.mab_agent.reset_current_iap()#next(iter(self.context.instances)) #fixme pezzotto! - risolto
         elif isinstance(event, RewardUpdate):
             self.reward_update()
         else:
@@ -607,7 +698,6 @@ class Simulation:
         n = event.node
         duration = event.exec_time
         dat = event.data_access_time
-        #print(f"Completed {f}-{c}: {rt}")
 
         # Account for the time needed to send back the result
         if event.offloaded_from != None:
@@ -753,15 +843,6 @@ class Simulation:
                 self.stats.data_access_count[(k,f,n)] += 1
         return float(duration + data_access_time), float(data_access_time)
 
-    # TODO move to agents.py?
-    def _probe_context_related_info(self, first_call=False) -> dict:
-        # TODO not-hardcoded features
-        features = [ContextFeature.ACTIVE_MEMORY_UTILIZATION]
-        context_probing = {repr(f): None for f in features}
-        for f in features: context_probing[repr(f)] = self.stats.to_dict(not first_call, not first_call)[repr(f)]
-        print("probed:", context_probing)
-        return context_probing
-
     def is_contextual(self):
         return self.context is not None
 
@@ -769,11 +850,6 @@ class Simulation:
         # Invoco l'agente per aggiornare il modello
         # Si occuperà lui stesso dell'aggiornamento del reward
         self.mab_agent.update_model(self.current_lb_policy, self.mab_stats_file, last_update)
-
-        # for contextual simulations, update the context (and, for RTK, related subagent) based on probed data
-        if self.is_contextual():
-            probed_data = self._probe_context_related_info()
-            self.mab_agent.update_context_instance(probed_data)
 
         # Richiedo la nuova politica di load balancing all'agente
         # La politica scelta verrà applicata a tutti i load balancer presenti

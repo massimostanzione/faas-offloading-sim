@@ -8,8 +8,8 @@ resptimes.csv
 results/
 traces/
 .vscode/
-/mab-automated-experiments/pipeline.txt
-/mab-automated-experiments/-temp/
-/mab-automated-experiments/_specfiles/
-/mab-automated-experiments/_stats/
-/mab-automated-experiments/_traces/
+/mab_automated_experiments/PIPELINE
+/mab_automated_experiments/-temp/
+/mab_automated_experiments/_specfiles/
+/mab_automated_experiments/_stats/
+/mab_automated_experiments/_traces/

@@ -186,6 +186,12 @@ class Stats:
         dropped_perc = dropped_reqs / arrivals if arrivals != 0 else 0
         stats["drops_perc_sys"] = dropped_perc
 
+        cold_starts = sum(self.cold_starts.values()) - sum(self.ss_cold_starts.values())
+        completions = sum(self.completions.values()) - sum(self.ss_completions.values())
+        if completions==0: completions=1
+        cs_perc = cold_starts / completions
+        stats["cold_starts_perc_sys"] = cs_perc
+
         completions = 0
         for f in self.functions:
             for c in self.classes:
@@ -204,12 +210,12 @@ class Stats:
                 # (è l'ultima osservazione per essa)
                 v.append(stats[k])
 
-                expected_samples=self.sim.mab_update_interval/self.sim.mab_intermediate_sampling_update_interval
-                if len(v) != expected_samples and                  not       (
-                                self.sim.t+self.sim.mab_intermediate_sampling_update_interval>self.sim.close_the_door_time
-                               or
-                               not self.sim.external_arrivals_allowed
-                                )                                :raise RuntimeError(len(v))
+                expected_samples = self.sim.mab_update_interval / self.sim.mab_intermediate_sampling_update_interval
+                if len(v) != expected_samples and not (
+                        self.sim.t + self.sim.mab_intermediate_sampling_update_interval > self.sim.close_the_door_time
+                        or
+                        not self.sim.external_arrivals_allowed
+                ): raise RuntimeError(len(v))
                 stats[k] = np.average(v)
                 if reset_intermediate_samples:
                     self.sim.mab_intermediate_samples[k] = []  # reset

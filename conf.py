@@ -42,6 +42,8 @@ SEC_MAB = "mab"
 MAB_UPDATE_INTERVAL = "mab-update-interval"
 MAB_INTERMEDIATE_SAMPLING_UPDATE_INTERVAL = "mab-intermediate-sampling-update-interval"
 MAB_INTERMEDIATE_SAMPLING_STATS_KEYS = "mab-intermediate-sampling-stats-keys"
+MAB_RTK_CONTEXTUAL_SCENARIOS = "mab-rtk-contextual-scenarios"
+#MAB_RTK_CONTEXTUAL_SCENARIO = "mab-rtk-contextual-scenario"
 MAB_LB_POLICIES = "mab-lb-policies"
 MAB_STRATEGY = "mab-strategy"
 MAB_EPSILON = "mab-epsilon"
@@ -70,6 +72,7 @@ MAB_REWARD_DELTA_POST = "mab-reward-delta-post"
 MAB_REWARD_ZETA_POST = "mab-reward-zeta-post"
 MAB_REWARD_ETA_POST = "mab-reward-eta-post"
 
+MAB_REWARD_CHANGE_AXIS_TIME = "mab-reward-change_axis_time"
 
 import configparser
 

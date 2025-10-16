@@ -18,7 +18,8 @@ class ContextInstance:
         for k, v in probed_dict.items():
             c = next((c for c in self.constraints if str(c.feature) == str(k)), None)
             if c is None:
-                print("Cannot find a corresponding feature for", k, "in this instance (available features:" , [c.feature for c in self.constraints], ")")
+                print("Cannot find a corresponding feature for", k, "in this instance (available features:",
+                      [c.feature for c in self.constraints], ")")
                 exit(1)
             if c.verify_constraint(v):
                 matched += 1
