@@ -19,7 +19,7 @@ DEFAULT_CONFIG_FILE = "config.ini"
 def read_spec_file (spec_file_name, infra, config):
     peer_exposed_memory_fraction = config.getfloat(conf.SEC_SIM, conf.EDGE_EXPOSED_FRACTION, fallback=0.5)
 
-    actual_specfile=os.path.abspath(os.path.join(os.path.dirname(__file__),"mab-automated-experiments/_specfiles/"+spec_file_name+".yml"))
+    actual_specfile = os.path.abspath(os.path.join(os.path.dirname(__file__),"mab_automated_experiments/_specfiles/"+spec_file_name+".yml"))
     with open(actual_specfile, "r") as stream:
         spec = yaml.safe_load(stream)
 

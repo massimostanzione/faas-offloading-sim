@@ -72,6 +72,7 @@ MAB_REWARD_DELTA_POST = "mab-reward-delta-post"
 MAB_REWARD_ZETA_POST = "mab-reward-zeta-post"
 MAB_REWARD_ETA_POST = "mab-reward-eta-post"
 
+MAB_REWARD_CHANGE_AXIS_TIME = "mab-reward-change_axis_time"
 
 import configparser
 

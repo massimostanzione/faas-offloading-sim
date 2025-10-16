@@ -1,12 +1,11 @@
-from typing import List
-
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.stats import shapiro, skew, kurtosis
 
-from matplotlib import rcParams
-from scipy.stats import shapiro, probplot, norm, expon, uniform, skew, kurtosis
+from mab_automated_experiments._internal import consts
 
 UPDATE_INTERVAL = 3600
+
 
 def plot_simple_xy(series: dict, title: str = "", xlabel: str = "", ylabel: str = ""):
     for item in series.items():
@@ -19,63 +18,63 @@ def plot_simple_xy(series: dict, title: str = "", xlabel: str = "", ylabel: str 
     plt.title(title)  # add title
     return plt
 
+
 def plot_policy_choices(series: dict):
     rcParams['mathtext.fontset'] = 'stix'
     rcParams['font.family'] = 'STIXGeneral'
-    col=-1
+    col = -1
     for item in series.items():
-        col+=1
+        col += 1
         key = item[0]
         value = item[1]
         cum_rewards = []
         cum_reward = 0
-        time_frames=value["x"]
-        rewards=value["y"]
-        axis_pre=value["ax_pre"]
-        axis_post=value["ax_post"]
+        time_frames = value["x"]
+        rewards = value["y"]
+        axis_pre = value["ax_pre"]
+        axis_post = value["ax_post"]
 
         for i in range(0, len(time_frames)):
             cum_reward += rewards[i]
-            n = i+1
+            n = i + 1
             cum_rewards.append(cum_reward / n)
-
 
         plt.plot(time_frames, cum_rewards, label=key)
 
         # ok se si ripete
-        title="Cum. avg. reward: "
-        is_stationary=axis_pre==axis_post
-        if not is_stationary: title+="non-"
-        title+="stationary scenario "
-        title+="("+axis_pre
+        title = "Cum. avg. reward: "
+        is_stationary = axis_pre == axis_post
+        if not is_stationary: title += "non-"
+        title += "stationary scenario "
+        title += "(" + axis_pre
         if not is_stationary:
-            title+="$\\rightarrow$"+axis_post
-        title+=")"
+            title += "$\\rightarrow$" + axis_post
+        title += ")"
 
-    xlabel="Time (s)"
-    ylabel="Reward (cum. avg.)"
+    xlabel = "Time (s)"
+    ylabel = "Reward (cum. avg.)"
 
     plt.axvline(x=UPDATE_INTERVAL, color='black', linestyle='--', label='weights updated')
-    plt.xlabel(xlabel)  # add X-axis label
-    plt.ylabel(ylabel)  # add Y-axis label
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
     plt.grid(axis="y")
     plt.legend(
-        #bbox_to_anchor=(0.5, -0.1),
-        #loc='upper center',
+        # bbox_to_anchor=(0.5, -0.1),
+        # loc='upper center',
         fancybox=True,
         shadow=True,
-        #ncol=4,
-        #fontsize="small"
+        # ncol=4,
+        # fontsize="small"
     )
     plt.title(title)  # add title
     return plt
 
-# a tappeto rews
-def plot_rewards_paramconfs(series: dict, strat:str):
+
+def plot_rewards_paramconfs(series: dict, strat: str):
     rcParams['mathtext.fontset'] = 'stix'
     rcParams['font.family'] = 'STIXGeneral'
-    col=-1
-    color_map = plt.cm.get_cmap("prism", len(consts.RewardFnAxis))  # Usa consts.RewardFnAxis
+    col = -1
+    color_map = plt.cm.get_cmap("prism", len(consts.RewardFnAxis))
     line_styles = ['-', '--', ':', '-.', (0, (1, 1))]
 
     example_key = next(iter(series.keys()))
@@ -88,9 +87,9 @@ def plot_rewards_paramconfs(series: dict, strat:str):
         unique_values = sorted(set(label.split("=")[-1].strip() for label in series.keys()))
 
     for item in series.items():
-        col+=1
+        col += 1
         key = item[0]
-        lab = "$"+item[0].replace("alpha", r"\alpha")+"$"
+        lab = "$" + item[0].replace("alpha", r"\alpha") + "$"
         value = item[1]
         if is_simple_labels:
             axis = key.strip()
@@ -104,52 +103,41 @@ def plot_rewards_paramconfs(series: dict, strat:str):
             if parameter == "alpha":
                 parameter = r"\alpha"
             label = f"{axis}, ${parameter}={value_label}$"
-        print(item)
-        print("key", key)
-        print("value", value)
         cum_rewards = []
         cum_reward = 0
-        time_frames=value["x"]
-        rewards=value["y"]
-        axis_pre=value["ax_pre"]
-        axis_post=value["ax_post"]
+        time_frames = value["x"]
+        rewards = value["y"]
+        axis_pre = value["ax_pre"]
+        axis_post = value["ax_post"]
 
         for i in range(0, len(time_frames)):
             cum_reward += rewards[i]
-            n = i+1
+            n = i + 1
             cum_rewards.append(cum_reward / n)
 
         style_idx = 0 if is_simple_labels else unique_values.index(value_label) % len(line_styles)
 
         color_idx = unique_axes.index(axis)
         plt.plot(time_frames, cum_rewards, label=lab,
-            linestyle=line_styles[style_idx], color=color_map(color_idx))
+                 linestyle=line_styles[style_idx], color=color_map(color_idx))
 
         # ok se si ripete
-        title="Cum. avg. reward: "+strat+", "
-        is_stationary=axis_pre==axis_post
-        if not is_stationary: title+="non-"
-        title+="stationary scenario "
-        title+="("+axis_pre
+        title = "Cum. avg. reward: " + strat + ", "
+        is_stationary = axis_pre == axis_post
+        if not is_stationary: title += "non-"
+        title += "stationary scenario "
+        title += "(" + axis_pre
         if not is_stationary:
-            title+="$\\rightarrow$"+axis_post
-        title+=")"
+            title += "$\\rightarrow$" + axis_post
+        title += ")"
 
-    xlabel="Time (s)"
-    ylabel="Reward (cum. avg.)"
+    xlabel = "Time (s)"
+    ylabel = "Reward (cum. avg.)"
 
     plt.axvline(x=UPDATE_INTERVAL, color='black', linestyle='--', label='weights updated')
-    plt.xlabel(xlabel)  # add X-axis label
-    plt.ylabel(ylabel)  # add Y-axis label
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
     plt.grid(axis="y")
-    """
-    bbox_to_anchor=(1, 0.5),
-    loc='center left',
-    fancybox=True,
-    shadow=True,
-    #ncol=4,
-    #fontsize="small"
-    """
     plt.legend(
         bbox_to_anchor=(0.5, -0.1),
         loc='upper center',
@@ -161,103 +149,20 @@ def plot_rewards_paramconfs(series: dict, strat:str):
     plt.title(title)  # add title
     return plt
 
-#seeds
-def plot_reward_distributions(series: dict, strat:str, axis_pre:str, axis_post:str):
+
+# seeds
+def plot_reward_distributions(series: dict, strat: str, axis_pre: str, axis_post: str):
     rcParams['mathtext.fontset'] = 'stix'
     rcParams['font.family'] = 'STIXGeneral'
-    col=-1
-    """
-    color_map = plt.cm.get_cmap("prism", len(consts.RewardFnAxis))  # Usa consts.RewardFnAxis
-    line_styles = ['-', '--', ':', '-.', (0, (1, 1))]
+    col = -1
 
-    # Determinare il formato delle etichette
-    example_key = next(iter(series.keys()))
-    is_simple_labels = "," not in example_key
+    bbox_to_anchor = (1, 0.5),
+    loc = 'center left',
+    fancybox = True,
+    shadow = True,
 
-    if is_simple_labels:
-        unique_axes = sorted(set(series.keys()))
-    else:
-        unique_axes = sorted(set(label.split(",")[0].strip() for label in series.keys()))
-        unique_values = sorted(set(label.split("=")[-1].strip() for label in series.keys()))
-
-    for item in series.items():
-        col+=1
-        key = item[0]
-        lab = "$"+item[0].replace("alpha", r"\alpha")+"$"
-        value = item[1]
-        if is_simple_labels:
-            axis = key.strip()
-            label = axis
-        else:
-            axis, value_label = key.split(",")
-            axis = axis.strip()
-            parameter, value_label = value_label.split("=")
-            parameter = parameter.strip()
-            value_label = value_label.strip()
-            if parameter == "alpha":
-                parameter = r"\alpha"
-            label = f"{axis}, ${parameter}={value_label}$"
-        print(item)
-        print("key", key)
-        print("value", value)
-        cum_rewards = []
-        cum_reward = 0
-        time_frames=value["x"]
-        rewards=value["y"]
-        #axis_pre=value["ax_pre"]
-        #axis_post=value["ax_post"]
-
-        for i in range(0, len(time_frames)):
-            cum_reward += rewards[i]
-            n = i+1
-            cum_rewards.append(cum_reward / n)
-
-        style_idx = 0 if is_simple_labels else unique_values.index(value_label) % len(line_styles)
-
-        color_idx = unique_axes.index(axis)
-        plt.plot(time_frames, cum_rewards, label=lab,
-            linestyle=line_styles[style_idx], color=color_map(color_idx))
-
-        # ok se si ripete
-        title="Reward distribution: "+strat+", "
-        is_stationary=axis_pre==axis_post
-        if not is_stationary: title+="non-"
-        title+="stationary scenario "
-        title+="("+axis_pre
-        if not is_stationary:
-            title+="$\\rightarrow$"+axis_post
-        title+=")"
-
-    # plt.plot(value["x"], value["y"], label=key)
-    # plt.plot(datadict.get("x"), datadict.get("y"), label=datadict.)
-    xlabel="Time (s)"
-    ylabel="Reward (cum. avg.)"
-
-    plt.axvline(x=UPDATE_INTERVAL, color='black', linestyle='--', label='weights updated')
-    plt.xlabel(xlabel)  # add X-axis label
-    plt.ylabel(ylabel)  # add Y-axis label
-    #plt.tight_layout()
-    plt.grid(axis="y")
-    """
-    bbox_to_anchor=(1, 0.5),
-    loc='center left',
-    fancybox=True,
-    shadow=True,
-    #ncol=4,
-    #fontsize="small"
-    """
-    plt.legend(
-        #bbox_to_anchor=(0.5, -0.1),
-        #loc='upper center',
-        fancybox=True,
-        shadow=True,
-        ncol=4,
-        fontsize="small"
-    )
-    plt.title(title)  # add title
-    
-    
-    """
+    # ncol=4,
+    # fontsize="small"
 
     def analyze_distribution(y_values, seed):
         # Statistiche descrittive
@@ -298,10 +203,12 @@ def plot_reward_distributions(series: dict, strat:str, axis_pre:str, axis_post:s
 
     return plt
 
-from _internal import consts
+
 from matplotlib import rcParams
 
-def plot_arms_disparity(series: dict, strategy: str, is_stationary: bool = True, ef_range=None, var_coeff_max: int = 3, ax_pre:str=None):
+
+def plot_arms_disparity(series: dict, strategy: str, is_stationary: bool = True, ef_range=None, var_coeff_max: int = 3,
+                        ax_pre: str = None):
     import matplotlib.pyplot as plt
     import numpy as np
 
@@ -341,10 +248,10 @@ def plot_arms_disparity(series: dict, strategy: str, is_stationary: bool = True,
 
         color_idx = unique_axes.index(axis)
         style_idx = 0 if is_simple_labels else unique_values.index(value_label) % len(line_styles)
-        if is_stationary or (not is_stationary and not axis.split("$\\rightarrow$ ")[1]==ax_pre):
-            colorx=color_map(color_idx)
+        if is_stationary or (not is_stationary and not axis.split("$\\rightarrow$ ")[1] == ax_pre):
+            colorx = color_map(color_idx)
         else:
-            colorx='silver'
+            colorx = 'silver'
         plt.plot(
             value["x"], value["y"],
             label=label,

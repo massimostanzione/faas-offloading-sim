@@ -5,16 +5,14 @@ import threading
 from rt import CustomManager, RealTimeTracker, monitor_storage
 
 
-def run_parallel_executions(max_parallel_executions,instances_list, fn):
-
+def run_parallel_executions(max_parallel_executions, instances_list, fn):
     effective_procs = max(1, min(len(instances_list), max_parallel_executions))
-    cs=max(1,math.ceil(len(instances_list)/effective_procs))
-    print("(da dentro al runner) FILTERED", len(instances_list), "EFFECTIVE", effective_procs, "CS", cs)
-
+    cs = max(1, math.ceil(len(instances_list) / effective_procs))
+    print("[parall]need to run ", len(instances_list), "executions, on ", effective_procs, "processors, grouped by ",
+          cs)
 
     CustomManager.register('RealTimeTracker', RealTimeTracker)
     with CustomManager() as manager:
-        # global bigrtt
         tracker = manager.RealTimeTracker()
 
         # start monitoring thread
@@ -37,4 +35,4 @@ def run_parallel_executions(max_parallel_executions,instances_list, fn):
         stop_event.set()
         monitor_thread.join()
 
-        print("\nElaborazione terminata.")
+        print("\n[parall]done")
